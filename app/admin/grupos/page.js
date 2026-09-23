@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
 export default function GruposAdminPage() {
   const [grupos, setGrupos] = useState([])
@@ -25,18 +25,13 @@ export default function GruposAdminPage() {
   })
 
   useEffect(() => {
-    const sesion = localStorage.getItem('eac_sesion')
-    if (!sesion || JSON.parse(sesion).rol !== 'admin') {
-      window.location.href = '/'
-      return
-    }
     cargarDatos()
   }, [])
 
   const cargarDatos = async () => {
     setLoading(true)
     // Cargar grupos con su curso relacionado
-    const { data: resGrupos, error: errGrupos } = await supabase
+    const { data: resGrupos } = await supabase
       .from('grupos')
       .select('*, cursos(nombre_curso)')
       .order('id', { ascending: false })
