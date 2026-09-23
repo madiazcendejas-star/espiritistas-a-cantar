@@ -33,10 +33,10 @@ export default function GruposAdminPage() {
     // Cargar grupos con su curso relacionado
     const { data: resGrupos } = await supabase
       .from('grupos')
-      .select('*, cursos(nombre_curso)')
+      .select('*, cursos(Nombre_curso, nombre_curso)')
       .order('id', { ascending: false })
 
-    // Cargar catálogo de cursos para el selector del modal
+    // Cargar catálogo de cursos para el selector
     const { data: resCursos } = await supabase.from('cursos').select('*')
 
     if (resGrupos) setGrupos(resGrupos)
@@ -81,10 +81,11 @@ export default function GruposAdminPage() {
     setGuardando(false)
   }
 
-  const gruposFiltrados = grupos.filter(g => 
-    g.nombre_grupo.toLowerCase().includes(busqueda.toLowerCase()) ||
-    g.cursos?.nombre_curso?.toLowerCase().includes(busqueda.toLowerCase())
-  )
+  const gruposFiltrados = grupos.filter(g => {
+    const nombreCurso = g.cursos?.Nombre_curso || g.cursos?.nombre_curso || ''
+    return g.nombre_grupo.toLowerCase().includes(busqueda.toLowerCase()) ||
+           nombreCurso.toLowerCase().includes(busqueda.toLowerCase())
+  })
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
@@ -175,32 +176,36 @@ export default function GruposAdminPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {gruposFiltrados.map((g) => (
-                  <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                          {g.cursos?.nombre_curso || 'Curso General'}
-                        </span>
-                        <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full">Activo</span>
-                      </div>
-                      <h4 className="text-base font-extrabold text-slate-900">{g.nombre_grupo}</h4>
-                      <p className="text-xs text-slate-500">
-                        📅 Inicio: <strong className="text-slate-700">{g.fecha_inicio || 'Por definir'}</strong> — Fin: <strong className="text-slate-700">{g.fecha_fin || 'Por definir'}</strong>
-                      </p>
-                    </div>
+                {gruposFiltrados.map((g) => {
+                  const nombreCurso = g.cursos?.Nombre_curso || g.cursos?.nombre_curso || 'Curso General'
 
-                    <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Plan Financiero</span>
-                        <span className="text-sm font-extrabold text-indigo-600">$ {Number(g.costo_total).toLocaleString('es-MX')} MXN</span>
+                  return (
+                    <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
+                            {nombreCurso}
+                          </span>
+                          <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full">Activo</span>
+                        </div>
+                        <h4 className="text-base font-extrabold text-slate-900">{g.nombre_grupo}</h4>
+                        <p className="text-xs text-slate-500">
+                          📅 Inicio: <strong className="text-slate-700">{g.fecha_inicio || 'Por definir'}</strong> — Fin: <strong className="text-slate-700">{g.fecha_fin || 'Por definir'}</strong>
+                        </p>
                       </div>
-                      <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                        {g.num_pagos} pago{g.num_pagos > 1 ? 's' : ''} ({g.frecuencia})
-                      </span>
+
+                      <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 uppercase block">Plan Financiero</span>
+                          <span className="text-sm font-extrabold text-indigo-600">$ {Number(g.costo_total).toLocaleString('es-MX')} MXN</span>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 capitalize">
+                          {g.num_pagos} pago{g.num_pagos > 1 ? 's' : ''} ({g.frecuencia})
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
@@ -214,7 +219,7 @@ export default function GruposAdminPage() {
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
             <div>
               <h3 className="text-base font-bold text-slate-900">Crear Nuevo Grupo / Edición</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Configura fechas, costos y planes de pago para este horario.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Configura fechas, costos y frecuencia de pago para este horario.</p>
             </div>
             
             <form onSubmit={crearGrupo} className="space-y-4">
@@ -228,7 +233,7 @@ export default function GruposAdminPage() {
                 >
                   <option value="">Seleccione un curso...</option>
                   {cursos.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre_curso}</option>
+                    <option key={c.id} value={c.id}>{c.Nombre_curso || c.nombre_curso}</option>
                   ))}
                 </select>
               </div>
@@ -291,17 +296,32 @@ export default function GruposAdminPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Disponibilidad / Vigencia de Acceso</label>
-                <select 
-                  value={formGrupo.duracion_acceso}
-                  onChange={(e) => setFormGrupo({ ...formGrupo, duracion_acceso: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
-                >
-                  <option value="1_ano">1 Año</option>
-                  <option value="2_anos">2 Años</option>
-                  <option value="ilimitado">Ilimitado</option>
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Frecuencia de Pago *</label>
+                  <select 
+                    value={formGrupo.frecuencia}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, frecuencia: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  >
+                    <option value="diaria">Diaria</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quincenal">Quincenal</option>
+                    <option value="mensual">Mensual</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Disponibilidad / Vigencia</label>
+                  <select 
+                    value={formGrupo.duracion_acceso}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, duracion_acceso: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  >
+                    <option value="1_ano">1 Año</option>
+                    <option value="2_anos">2 Años</option>
+                    <option value="ilimitado">Ilimitado</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
