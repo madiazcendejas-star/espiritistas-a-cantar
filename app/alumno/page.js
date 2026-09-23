@@ -7,9 +7,14 @@ export default function PortalAlumnoPage() {
   const [matriculaIngresada, setMatriculaIngresada] = useState('')
   const [passwordIngresada, setPasswordIngresada] = useState('')
   const [alumno, setAlumno] = useState(null)
+  
+  // Catálogos LMS
   const [inscripciones, setInscripciones] = useState([])
+  const [grupos, setGrupos] = useState([])
+  const [cursos, setCursos] = useState([])
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
+
   const [loading, setLoading] = useState(false)
   const [errorLogin, setErrorLogin] = useState('')
 
@@ -45,7 +50,6 @@ export default function PortalAlumnoPage() {
 
     const inputLimpio = matriculaIngresada.trim().toLowerCase()
 
-    // Buscar coincidencia por matrícula, correo o teléfono
     const encontrado = alumnos.find(a => {
       const mat = String(a.matricula || '').trim().toLowerCase()
       const corr = String(a.correo || a.Correo || '').trim().toLowerCase()
@@ -74,41 +78,26 @@ export default function PortalAlumnoPage() {
   const cargarDatosLMS = async (alumnoId) => {
     setLoading(true)
 
-    const { data: resIns } = await supabase
-      .from('inscripciones')
-      .select(`
-        id,
-        estatus,
-        grupo_id,
-        grupos (
-          id,
-          nombre_grupo,
-          costo_total,
-          cursos (
-            id,
-            Nombre_curso,
-            nombre_curso,
-            descripcion
-          )
-        )
-      `)
-      .eq('alumno_id', alumnoId)
-      .eq('estatus', 'activa')
+    // Cargar tablas de forma independiente para garantizar que los datos fluyan sin errores de relaciones
+    const { data: resIns } = await supabase.from('inscripciones').select('*').eq('alumno_id', alumnoId)
+    const { data: resGrupos } = await supabase.from('grupos').select('*')
+    const { data: resCursos } = await supabase.from('cursos').select('*')
+    const { data: resPagos } = await supabase.from('pagos').select('*').eq('alumno_id', alumnoId)
+    const { data: resRecursos } = await supabase.from('recursos').select('*')
 
-    if (resIns) setInscripciones(resIns)
-
-    const { data: resPagos } = await supabase
-      .from('pagos')
-      .select('*')
-      .eq('alumno_id', alumnoId)
-
+    if (resGrupos) setGrupos(resGrupos)
+    if (resCursos) setCursos(resCursos)
     if (resPagos) setPagos(resPagos)
-
-    const { data: resRecursos } = await supabase
-      .from('recursos')
-      .select('*')
-
     if (resRecursos) setRecursos(resRecursos)
+
+    if (resIns) {
+      // Filtrar inscripciones válidas (aceptando activa, confirmada o registros previos)
+      const activas = resIns.filter(i => {
+        const est = (i.estatus || 'activa').toLowerCase()
+        return est === 'activa' || est === 'confirmada' || est === 'activo'
+      })
+      setInscripciones(activas)
+    }
 
     setLoading(false)
   }
@@ -269,8 +258,8 @@ export default function PortalAlumnoPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {inscripciones.map((ins, idx) => {
-                  const grupo = ins.grupos
-                  const curso = grupo?.cursos
+                  const grupo = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+                  const curso = grupo ? cursos.find(c => Number(c.id) === Number(grupo.curso_id)) : (ins.curso_id ? cursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
                   if (!grupo || !curso) return null
 
                   const nombreCurso = curso.Nombre_curso || curso.nombre_curso || 'Curso'
@@ -279,7 +268,10 @@ export default function PortalAlumnoPage() {
 
                   // Validar pagos pendientes para este grupo
                   const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(grupo.id))
-                  const tienePagosPendientes = pagosDelGrupo.some(p => p.estatus !== 'Pagado')
+                  const tienePagosPendientes = pagosDelGrupo.some(p => {
+                    const est = (p.estatus || 'Pendiente').toLowerCase()
+                    return est !== 'pagado'
+                  })
 
                   const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupo.id))
 
