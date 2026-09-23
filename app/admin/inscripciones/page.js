@@ -71,7 +71,7 @@ export default function InscripcionesAdminPage() {
 
     setGuardando(true)
 
-    // A. Insertar inscripción incluyendo curso_id para cumplir con la restricción de Supabase
+    // A. Insertar inscripción incluyendo curso_id y grupo_id
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumnoSeleccionado.id,
@@ -86,7 +86,7 @@ export default function InscripcionesAdminPage() {
       return alert('Error al inscribir: ' + errIns.message)
     }
 
-    // B. Generar cuotas automáticas
+    // B. Generar cuotas automáticas incluyendo curso_id y grupo_id
     const costoTotal = Number(grupoSeleccionado.costo_total) || 0
     const numPagos = Number(grupoSeleccionado.num_pagos) || 1
     const montoPorPago = costoTotal / numPagos
@@ -105,6 +105,7 @@ export default function InscripcionesAdminPage() {
       cuotasARegistrar.push({
         alumno_id: alumnoSeleccionado.id,
         grupo_id: grupoSeleccionado.id,
+        curso_id: grupoSeleccionado.curso_id, // <-- Incluido correctamente
         monto: montoPorPago,
         fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
         estatus: 'Pendiente'
@@ -163,6 +164,7 @@ export default function InscripcionesAdminPage() {
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
           <a href="/admin/inscripciones" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">📋 Inscripciones</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
         </nav>
       </aside>
 
