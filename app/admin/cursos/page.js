@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase'
 export default function CursosAdminPage() {
   const [cursos, setCursos] = useState([])
   const [grupos, setGrupos] = useState([])
+  const [recursos, setRecursos] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Modales
@@ -15,16 +16,12 @@ export default function CursosAdminPage() {
   const [guardando, setGuardando] = useState(false)
 
   // Formulario Nuevo Curso
-  const [formCurso, setFormCurso] = useState({
-    Nombre_curso: '',
-    descripcion: ''
-  })
-
+  const [formCurso, setFormCurso] = useState({ Nombre_curso: '', descripcion: '' })
   // Formulario Editar Curso
-  const [formEdicion, setFormEdicion] = useState({
-    Nombre_curso: '',
-    descripcion: ''
-  })
+  const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '' })
+
+  // Formulario Nuevo Recurso / Material
+  const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
 
   useEffect(() => {
     cargarDatos()
@@ -32,20 +29,13 @@ export default function CursosAdminPage() {
 
   const cargarDatos = async () => {
     setLoading(true)
-    
-    // 1. Cargar cursos
-    const { data: resCursos } = await supabase
-      .from('cursos')
-      .select('*')
-      .order('id', { ascending: false })
-
-    // 2. Cargar grupos directamente sin join para evitar errores de relación
-    const { data: resGrupos } = await supabase
-      .from('grupos')
-      .select('*')
+    const { data: resCursos } = await supabase.from('cursos').select('*').order('id', { ascending: false })
+    const { data: resGrupos } = await supabase.from('grupos').select('*')
+    const { data: resRecursos } = await supabase.from('recursos').select('*')
 
     if (resCursos) setCursos(resCursos)
     if (resGrupos) setGrupos(resGrupos)
+    if (resRecursos) setRecursos(resRecursos)
     setLoading(false)
   }
 
@@ -53,12 +43,10 @@ export default function CursosAdminPage() {
     e.preventDefault()
     setGuardando(true)
 
-    const { error } = await supabase.from('cursos').insert([
-      {
-        Nombre_curso: formCurso.Nombre_curso.trim(),
-        descripcion: formCurso.descripcion.trim()
-      }
-    ])
+    const { error } = await supabase.from('cursos').insert([{
+      Nombre_curso: formCurso.Nombre_curso.trim(),
+      descripcion: formCurso.descripcion.trim()
+    }])
 
     if (error) {
       alert('Error al crear curso: ' + error.message)
@@ -93,27 +81,42 @@ export default function CursosAdminPage() {
     setGuardando(false)
   }
 
-  const eliminarCurso = async () => {
-    if (!cursoSeleccionado) return
+  const agregarRecurso = async (e) => {
+    e.preventDefault()
+    if (!formRecurso.titulo.trim() || !formRecurso.url.trim()) return
 
-    const confirmar = confirm(`¿Estás seguro de eliminar el curso "${cursoSeleccionado.Nombre_curso || cursoSeleccionado.nombre_curso}"? Se eliminarán también sus grupos e inscripciones asociadas. Esta acción es irreversible.`)
-    if (!confirmar) return
-
-    setGuardando(true)
-    const { error } = await supabase
-      .from('cursos')
-      .delete()
-      .eq('id', cursoSeleccionado.id)
+    const { error } = await supabase.from('recursos').insert([{
+      curso_id: cursoSeleccionado.id,
+      titulo: formRecurso.titulo.trim(),
+      tipo: formRecurso.tipo,
+      url: formRecurso.url.trim()
+    }])
 
     if (error) {
-      alert('Error al eliminar el curso: ' + error.message)
+      alert('Error al agregar recurso: ' + error.message)
     } else {
-      alert('Curso eliminado exitosamente.')
+      setFormRecurso({ titulo: '', tipo: 'video', url: '' })
+      cargarDatos()
+      alert('¡Material agregado al curso con éxito!')
+    }
+  }
+
+  const eliminarRecurso = async (idRecurso) => {
+    const { error } = await supabase.from('recursos').delete().eq('id', idRecurso)
+    if (!error) cargarDatos()
+  }
+
+  const eliminarCurso = async () => {
+    if (!cursoSeleccionado) return
+    if (!confirm('¿Estás seguro de eliminar este curso? Esta acción es irreversible.')) return
+
+    const { error } = await supabase.from('cursos').delete().eq('id', cursoSeleccionado.id)
+    if (!error) {
       setModalDetalle(false)
       setCursoSeleccionado(null)
       cargarDatos()
+      alert('Curso eliminado.')
     }
-    setGuardando(false)
   }
 
   const abrirDetalleCurso = (curso) => {
@@ -146,102 +149,50 @@ export default function CursosAdminPage() {
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
+          <a href="/admin/inscripciones" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📋 Inscripciones</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
         </nav>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
-        {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <h2 className="text-sm font-bold text-slate-800">Gestión de Cursos y Programas</h2>
-          <div className="flex items-center gap-3">
-            <a href="/admin/grupos" className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">
-              Ver Grupos →
-            </a>
-            <button 
-              onClick={() => setModalCurso(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition"
-            >
-              + Nuevo Curso
-            </button>
-          </div>
+          <h2 className="text-sm font-bold text-slate-800">Gestión de Cursos y Contenidos LMS</h2>
+          <button onClick={() => setModalCurso(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">
+            + Nuevo Curso
+          </button>
         </header>
 
-        {/* VISTA GENERAL */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
-          
-          {/* KPI Resumen */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Total Cursos</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 mt-1">{cursos.length}</h3>
-              </div>
-              <span className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl text-lg">📚</span>
-            </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Grupos Activos</span>
-                <h3 className="text-2xl font-extrabold text-slate-900 mt-1">{grupos.length}</h3>
-              </div>
-              <span className="p-3 bg-purple-50 text-purple-600 rounded-2xl text-lg">🏛️</span>
-            </div>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {cursos.map((c) => {
+              const nombreCurso = c.Nombre_curso || c.nombre_curso || 'Curso sin nombre'
+              const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(c.id))
+              const recursosCurso = recursos.filter(r => Number(r.curso_id) === Number(c.id))
 
-          {/* LISTADO DE CURSOS */}
-          <div className="space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos (Haz clic para ver, editar o eliminar)</h3>
-            {loading ? (
-              <div className="text-center py-12 text-xs text-slate-400">Cargando cursos...</div>
-            ) : cursos.length === 0 ? (
-              <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
-                No hay cursos registrados. Haz clic en "+ Nuevo Curso" para empezar.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {cursos.map((c) => {
-                  const nombreCurso = c.Nombre_curso || c.nombre_curso || 'Curso sin nombre'
-                  const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(c.id))
-
-                  return (
-                    <div 
-                      key={c.id} 
-                      onClick={() => abrirDetalleCurso(c)}
-                      className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition hover:shadow-md"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-start">
-                          <h4 className="text-sm font-bold text-slate-900">{nombreCurso}</h4>
-                          <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full">
-                            {gruposDelCurso.length} grupo{gruposDelCurso.length === 1 ? '' : 's'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 line-clamp-2">{c.descripcion || 'Sin descripción detallada.'}</p>
-                      </div>
-
-                      <div className="pt-4 border-t border-slate-100 space-y-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupos asociados:</span>
-                        {gruposDelCurso.length === 0 ? (
-                          <p className="text-[11px] text-slate-400 italic">Sin grupos configurados.</p>
-                        ) : (
-                          <div className="space-y-1">
-                            {gruposDelCurso.map(g => (
-                              <div key={g.id} className="text-xs bg-slate-50 p-2 rounded-xl flex justify-between items-center border border-slate-100">
-                                <span className="font-semibold text-slate-700">{g.nombre_grupo}</span>
-                                <span className="font-mono text-indigo-600 font-bold">${g.costo_total} ({g.num_pagos} pagos)</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+              return (
+                <div 
+                  key={c.id} 
+                  onClick={() => abrirDetalleCurso(c)}
+                  className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition"
+                >
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <h4 className="text-sm font-bold text-slate-900">{nombreCurso}</h4>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">
+                        {recursosCurso.length} material(es)
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    <p className="text-xs text-slate-500 line-clamp-2">{c.descripcion || 'Sin descripción.'}</p>
+                  </div>
+                  <div className="pt-3 border-t border-slate-100 text-xs text-indigo-600 font-semibold flex justify-between">
+                    <span>Administrar contenido →</span>
+                    <span>{gruposDelCurso.length} grupo(s)</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-
         </div>
       </main>
 
@@ -249,10 +200,7 @@ export default function CursosAdminPage() {
       {modalCurso && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Crear Nuevo Curso</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Define el programa académico general de la academia.</p>
-            </div>
+            <h3 className="text-base font-bold text-slate-900">Crear Nuevo Curso</h3>
             <form onSubmit={crearCurso} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Curso *</label>
@@ -261,8 +209,7 @@ export default function CursosAdminPage() {
                   required
                   value={formCurso.Nombre_curso}
                   onChange={(e) => setFormCurso({ ...formCurso, Nombre_curso: e.target.value })}
-                  placeholder="Ej. Canto y Espiritualidad"
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
                 />
               </div>
               <div>
@@ -271,68 +218,109 @@ export default function CursosAdminPage() {
                   rows="3"
                   value={formCurso.descripcion}
                   onChange={(e) => setFormCurso({ ...formCurso, descripcion: e.target.value })}
-                  placeholder="Breve descripción del programa..."
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 resize-none"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none resize-none"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setModalCurso(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
-                  {guardando ? 'Guardando...' : 'Crear Curso'}
-                </button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Guardar</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* MODAL DETALLE / EDITAR / ELIMINAR CURSO */}
+      {/* MODAL DETALLE, EDICIÓN Y SUBIDA DE RECURSOS */}
       {modalDetalle && cursoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Detalles y Edición de Curso</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Modifica la información o elimina este programa académico.</p>
+                <h3 className="text-base font-bold text-slate-900">Gestión del Curso y Materiales</h3>
+                <p className="text-xs text-slate-400">Actualiza la información y sube recursos para el estudiante.</p>
               </div>
-              <button 
-                type="button" 
-                onClick={eliminarCurso}
-                disabled={guardando}
-                className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-xl text-xs font-semibold transition border border-rose-200"
-              >
-                🗑️ Eliminar Curso
-              </button>
+              <button onClick={eliminarCurso} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-xs font-semibold">Eliminar Curso</button>
             </div>
             
-            <form onSubmit={guardarEdicionCurso} className="space-y-4">
+            <form onSubmit={guardarEdicionCurso} className="space-y-4 border-b border-slate-100 pb-6">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Curso *</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Curso</label>
                 <input 
                   type="text" 
                   required
                   value={formEdicion.Nombre_curso}
                   onChange={(e) => setFormEdicion({ ...formEdicion, Nombre_curso: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-semibold"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none font-semibold"
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Descripción</label>
                 <textarea 
-                  rows="4"
+                  rows="3"
                   value={formEdicion.descripcion}
                   onChange={(e) => setFormEdicion({ ...formEdicion, descripcion: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 resize-none"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none resize-none"
                 />
               </div>
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setModalDetalle(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cerrar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm">
-                  {guardando ? 'Guardando...' : 'Guardar Cambios'}
-                </button>
+              <div className="flex justify-end">
+                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Guardar Cambios</button>
               </div>
             </form>
+
+            {/* SECCIÓN DE RECURSOS Y MATERIALES */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Subir Clase Grabada o PDF</h4>
+              <form onSubmit={agregarRecurso} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input 
+                  type="text" 
+                  required
+                  placeholder="Título (Ej. Clase 1 - Grabación)"
+                  value={formRecurso.titulo}
+                  onChange={(e) => setFormRecurso({ ...formRecurso, titulo: e.target.value })}
+                  className="p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                />
+                <select 
+                  value={formRecurso.tipo}
+                  onChange={(e) => setFormRecurso({ ...formRecurso, tipo: e.target.value })}
+                  className="p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                >
+                  <option value="video">Video / Clase</option>
+                  <option value="pdf">Documento PDF</option>
+                </select>
+                <input 
+                  type="url" 
+                  required
+                  placeholder="URL (Enlace de YouTube, Drive...)"
+                  value={formRecurso.url}
+                  onChange={(e) => setFormRecurso({ ...formRecurso, url: e.target.value })}
+                  className="p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                />
+                <button type="submit" className="sm:col-span-3 bg-slate-900 text-white py-2.5 rounded-xl text-xs font-semibold">
+                  + Agregar Material al Curso
+                </button>
+              </form>
+
+              <div className="space-y-2 pt-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Materiales existentes:</span>
+                {recursos.filter(r => Number(r.curso_id) === Number(cursoSeleccionado.id)).length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No hay recursos subidos aún.</p>
+                ) : (
+                  recursos.filter(r => Number(r.curso_id) === Number(cursoSeleccionado.id)).map(rec => (
+                    <div key={rec.id} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100 text-xs">
+                      <div>
+                        <span className="font-bold text-slate-900">{rec.titulo}</span>
+                        <span className="text-[10px] text-indigo-600 block uppercase">{rec.tipo}</span>
+                      </div>
+                      <button onClick={() => eliminarRecurso(rec.id)} className="text-rose-600 font-bold hover:underline">Eliminar</button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <button type="button" onClick={() => setModalDetalle(false)} className="px-5 py-2 text-xs font-semibold bg-slate-100 rounded-xl">Cerrar Ventana</button>
+            </div>
           </div>
         </div>
       )}
