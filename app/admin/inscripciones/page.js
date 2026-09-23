@@ -11,13 +11,12 @@ export default function InscripcionesAdminPage() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
 
-  // Modal Nueva Inscripción (Estilo Craqui)
+  // Modal Nueva Inscripción
   const [modalNuevaInscripcion, setModalNuevaInscripcion] = useState(false)
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null)
   const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [busquedaAlumno, setBusquedaAlumno] = useState('')
-  const [busquedaCurso, setBusquedaCurso] = useState('')
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
@@ -27,10 +26,7 @@ export default function InscripcionesAdminPage() {
   const cargarDatos = async () => {
     setLoading(true)
 
-    // 1. Cargar inscripciones
     const { data: resIns } = await supabase.from('inscripciones').select('*').order('id', { ascending: false })
-    
-    // 2. Cargar catálogos
     const { data: resAlumnos } = await supabase.from('alumnos').select('*')
     const { data: resCursos } = await supabase.from('cursos').select('*')
     const { data: resGrupos } = await supabase.from('grupos').select('*')
@@ -72,7 +68,19 @@ export default function InscripcionesAdminPage() {
 
     setGuardando(true)
 
-    // A. Insertar inscripción asegurando el curso_id del curso seleccionado
+    // Validar si ya existe una inscripción activa para evitar duplicados
+    const { data: existente } = await supabase
+      .from('inscripciones')
+      .select('*')
+      .eq('alumno_id', alumnoSeleccionado.id)
+      .eq('grupo_id', grupoSeleccionado.id)
+
+    if (existente && existente.length > 0) {
+      setGuardando(false)
+      return alert('Este estudiante ya está inscrito en este grupo.')
+    }
+
+    // A. Insertar UNA sola inscripción
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumnoSeleccionado.id,
@@ -87,10 +95,10 @@ export default function InscripcionesAdminPage() {
       return alert('Error al inscribir: ' + errIns.message)
     }
 
-    // B. Generar cuotas automáticas usando cursoSeleccionado.id con seguridad
+    // B. Generar cuotas automáticas (dividiendo correctamente el total entre el número de pagos)
     const costoTotal = Number(grupoSeleccionado.costo_total) || 0
     const numPagos = Number(grupoSeleccionado.num_pagos) || 1
-    const montoPorPago = costoTotal / numPagos
+    const montoPorPago = Number((costoTotal / numPagos).toFixed(2))
     const frecuencia = grupoSeleccionado.frecuencia || 'mensual'
 
     const fechaInicioBase = grupoSeleccionado.fecha_inicio ? new Date(grupoSeleccionado.fecha_inicio) : new Date()
@@ -106,7 +114,7 @@ export default function InscripcionesAdminPage() {
       cuotasARegistrar.push({
         alumno_id: alumnoSeleccionado.id,
         grupo_id: grupoSeleccionado.id,
-        curso_id: cursoSeleccionado.id, // <-- Garantizado mediante el estado del curso seleccionado
+        curso_id: cursoSeleccionado.id,
         monto: montoPorPago,
         fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
         estatus: 'Pendiente'
@@ -172,7 +180,6 @@ export default function InscripcionesAdminPage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <h2 className="text-sm font-bold text-slate-800">Inscripciones</h2>
           <button 
@@ -183,10 +190,8 @@ export default function InscripcionesAdminPage() {
           </button>
         </header>
 
-        {/* VISTA GENERAL */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
           
-          {/* BARRA DE BÚSQUEDA */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
             <span className="text-slate-400 text-sm pl-2">🔍</span>
             <input 
@@ -198,7 +203,6 @@ export default function InscripcionesAdminPage() {
             />
           </div>
 
-          {/* TABLA ESTILO CRAQUI */}
           <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-sm font-bold text-slate-900">Listado de Inscripciones ({inscripcionesFiltradas.length})</h3>
@@ -253,7 +257,7 @@ export default function InscripcionesAdminPage() {
         </div>
       </main>
 
-      {/* MODAL NUEVA INSCRIPCIÓN (ESTILO CRAQUI DE DOS PANELES) */}
+      {/* MODAL NUEVA INSCRIPCIÓN */}
       {modalNuevaInscripcion && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-5xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
@@ -266,10 +270,8 @@ export default function InscripcionesAdminPage() {
               <button onClick={() => setModalNuevaInscripcion(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold">✕</button>
             </div>
 
-            {/* DOS COLUMNAS */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* COLUMNA IZQUIERDA: SELECCIONAR ESTUDIANTE */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider">1. Seleccionar Estudiante</h4>
                 <input 
@@ -302,7 +304,6 @@ export default function InscripcionesAdminPage() {
                 </div>
               </div>
 
-              {/* COLUMNA DERECHA: SELECCIONAR CURSO Y GRUPO */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase text-slate-500 tracking-wider">2. Seleccionar Curso y Grupo</h4>
                 
