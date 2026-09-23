@@ -8,7 +8,6 @@ export default function PagosAdminPage() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
 
-  // Métricas financieras
   const [stats, setStats] = useState({
     vencidosCount: 0,
     vencidosMonto: 0,
@@ -24,27 +23,33 @@ export default function PagosAdminPage() {
   const cargarPagos = async () => {
     setLoading(true)
 
-    // 1. Cargar pagos de Supabase
-    const { data: resPagos, error } = await supabase
-      .from('pagos')
-      .select(`
-        id,
-        monto,
-        fecha_vencimiento,
-        estatus,
-        fecha_pago,
-        alumnos (id, nombre, Nombre, matricula, correo, Correo),
-        grupos (nombre_grupo, cursos (Nombre_curso, nombre_curso))
-      `)
-      .order('fecha_vencimiento', { ascending: false })
+    // Cargar tablas de forma independiente para evitar fallos de relaciones en Supabase
+    const { data: resPagos } = await supabase.from('pagos').select('*').order('fecha_vencimiento', { ascending: false })
+    const { data: resAlumnos } = await supabase.from('alumnos').select('*')
+    const { data: resGrupos } = await supabase.from('grupos').select('*')
+    const { data: resCursos } = await supabase.from('cursos').select('*')
 
-    if (error) {
-      console.error('Error al cargar pagos:', error.message)
-    }
+    if (resPagos && resAlumnos && resGrupos && resCursos) {
+      const pagosMapeados = resPagos.map(p => {
+        const al = resAlumnos.find(a => Number(a.id) === Number(p.alumno_id))
+        const gr = resGrupos.find(g => Number(g.id) === Number(p.grupo_id))
+        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (p.curso_id ? resCursos.find(c => Number(c.id) === Number(p.curso_id)) : null)
 
-    if (resPagos) {
-      setPagos(resPagos)
-      calcularMetricas(resPagos)
+        return {
+          id: p.id,
+          monto: Number(p.monto) || 0,
+          fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
+          estatus: p.estatus || 'Pendiente',
+          alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
+          alumnoCorreo: al?.correo || al?.Correo || 'Sin mail',
+          alumnoMatricula: al?.matricula || `EAC-${al?.id}`,
+          cursoNombre: cur?.Nombre_curso || cur?.nombre_curso || 'Curso',
+          grupoNombre: gr?.nombre_grupo || 'Grupo'
+        }
+      })
+
+      setPagos(pagosMapeados)
+      calcularMetricas(pagosMapeados)
     }
 
     setLoading(false)
@@ -74,7 +79,8 @@ export default function PagosAdminPage() {
       }
     })
 
-    const tasa = totalGeneral > 0 ? ((listaPagos.filter(p => p.estatus === 'Pagado').length / totalGeneral) * 100).toFixed(1) : 0
+    const pagadosCount = listaPagos.filter(p => p.estatus === 'Pagado').length
+    const tasa = totalGeneral > 0 ? ((pagadosCount / totalGeneral) * 100).toFixed(1) : 0
 
     setStats({
       vencidosCount: vencidosC,
@@ -104,16 +110,11 @@ export default function PagosAdminPage() {
   }
 
   const pagosFiltrados = pagos.filter(p => {
-    const nombreAlumno = p.alumnos?.nombre || p.alumnos?.Nombre || ''
-    const matricula = p.alumnos?.matricula || ''
-    const cursoNombre = p.grupos?.cursos?.Nombre_curso || p.grupos?.cursos?.nombre_curso || ''
-    const grupoNombre = p.grupos?.nombre_grupo || ''
     const termino = busqueda.toLowerCase()
-
-    return nombreAlumno.toLowerCase().includes(termino) ||
-           matricula.toLowerCase().includes(termino) ||
-           cursoNombre.toLowerCase().includes(termino) ||
-           grupoNombre.toLowerCase().includes(termino)
+    return p.alumnoNombre.toLowerCase().includes(termino) ||
+           p.alumnoMatricula.toLowerCase().includes(termino) ||
+           p.cursoNombre.toLowerCase().includes(termino) ||
+           p.grupoNombre.toLowerCase().includes(termino)
   })
 
   return (
@@ -145,16 +146,13 @@ export default function PagosAdminPage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <h2 className="text-sm font-bold text-slate-800">Gestión de Pagos Programados</h2>
           <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Sincronizado con Supabase</span>
         </header>
 
-        {/* VISTA GENERAL */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* KPI RESUMEN FINANCIERO ESTILO CRAQUI */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
@@ -193,7 +191,6 @@ export default function PagosAdminPage() {
             </div>
           </div>
 
-          {/* BARRA DE BÚSQUEDA */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
             <span className="text-slate-400 text-sm pl-2">🔍</span>
             <input 
@@ -205,7 +202,6 @@ export default function PagosAdminPage() {
             />
           </div>
 
-          {/* TABLA DE HISTORIAL DE PAGOS */}
           <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-sm font-bold text-slate-900">Historial de Cuotas y Pagos ({pagosFiltrados.length})</h3>
@@ -230,26 +226,21 @@ export default function PagosAdminPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {pagosFiltrados.map((p) => {
-                      const nombreEstudiante = p.alumnos?.nombre || p.alumnos?.Nombre || 'Estudiante'
-                      const correoEstudiante = p.alumnos?.correo || p.alumnos?.Correo || 'Sin mail'
-                      const matricula = p.alumnos?.matricula || `EAC-${p.alumnos?.id}`
-                      const cursoNombre = p.grupos?.cursos?.Nombre_curso || p.grupos?.cursos?.nombre_curso || 'Curso'
-                      const grupoNombre = p.grupos?.nombre_grupo || 'Grupo'
                       const estatus = p.estatus || 'Pendiente'
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
                           <td className="py-4 px-6 font-mono font-bold text-indigo-600">
                             #PAG-{p.id}
-                            <div className="text-[10px] text-slate-400">{matricula}</div>
+                            <div className="text-[10px] text-slate-400">#{p.alumnoMatricula}</div>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="font-bold text-slate-900">{nombreEstudiante}</div>
-                            <span className="text-[10px] text-slate-400">{correoEstudiante}</span>
+                            <div className="font-bold text-slate-900">{p.alumnoNombre}</div>
+                            <span className="text-[10px] text-slate-400">{p.alumnoCorreo}</span>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="font-bold text-slate-800">{cursoNombre}</div>
-                            <span className="text-[11px] text-indigo-600">{grupoNombre}</span>
+                            <div className="font-bold text-slate-800">{p.cursoNombre}</div>
+                            <span className="text-[11px] text-indigo-600">{p.grupoNombre}</span>
                           </td>
                           <td className="py-4 px-6 text-slate-500">
                             {p.fecha_vencimiento}
