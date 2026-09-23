@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
 export default function CursosPage() {
   const [cursos, setCursos] = useState([])
@@ -194,7 +194,7 @@ export default function CursosPage() {
                 <textarea 
                   rows="3"
                   value={nuevoCurso.descripcion}
-                  onChange={(e) => setNuevoCurso({ ...nuevoCurso, descripcion: e.target.value })}
+                  onChange={(e) => setNuevoCurso({ ...nuevoOption => setNuevoCurso({ ...nuevoCurso, descripcion: e.target.value })} // wait, let's keep it clean
                   placeholder="Breve resumen del contenido programático..."
                   className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-600 outline-none bg-slate-50 resize-none"
                 />
