@@ -23,23 +23,26 @@ export default function DetalleEstudiantePage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const id = params.get('id')
+    const idParam = params.get('id')
     
-    if (id) {
-      setAlumnoId(id)
-      cargarDatosAlumno(id)
+    if (idParam) {
+      setAlumnoId(idParam)
+      cargarDatosAlumno(idParam)
     } else {
       setLoading(false)
     }
   }, [])
 
-  const cargarDatosAlumno = async (id) => {
+  const cargarDatosAlumno = async (valor) => {
     setLoading(true)
+    // Limpiamos el valor por si viene con 'EAC-' para buscar por ID o Matrícula con seguridad
+    const valorLimpio = valor.replace('EAC-', '')
+
     const { data, error } = await supabase
       .from('alumnos')
       .select('*')
-      .eq('id', id)
-      .single()
+      .or(`id.eq.${valorLimpio},matricula.eq.${valor},matricula.eq.${valorLimpio}`)
+      .maybeSingle()
 
     if (!error && data) {
       setAlumno(data)
@@ -49,7 +52,7 @@ export default function DetalleEstudiantePage() {
 
   const eliminarEstudiante = async () => {
     if (confirm('¿Estás seguro de eliminar este estudiante de la academia? Esta acción es irreversible.')) {
-      const { error } = await supabase.from('alumnos').delete().eq('id', alumnoId)
+      const { error } = await supabase.from('alumnos').delete().eq('id', alumno.id)
       if (!error) {
         window.location.href = '/admin/estudiantes'
       } else {
@@ -70,7 +73,7 @@ export default function DetalleEstudiantePage() {
   }
 
   if (!alumno) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado o ID inválido.</div>
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado en la base de datos.</div>
   }
 
   const iniciales = alumno.nombre ? alumno.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AL'
@@ -92,7 +95,7 @@ export default function DetalleEstudiantePage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-extrabold text-slate-900">{alumno.nombre}</h1>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || alumno.id}</span>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || `EAC-${alumno.id}`}</span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">Matriculado en la academia</p>
             </div>
@@ -119,42 +122,12 @@ export default function DetalleEstudiantePage() {
 
         {/* PESTAÑAS DE NAVEGACIÓN */}
         <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100 text-xs font-semibold">
-          <button 
-            onClick={() => setTabActiva('resumen')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            📊 Resumen
-          </button>
-          <button 
-            onClick={() => setTabActiva('personal')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            👤 Personal
-          </button>
-          <button 
-            onClick={() => setTabActiva('inscripciones')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'inscripciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            📚 Inscripciones
-          </button>
-          <button 
-            onClick={() => setTabActiva('pagos')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'pagos' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            💳 Pagos
-          </button>
-          <button 
-            onClick={() => setTabActiva('asistencia')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            ✅ Asistencia
-          </button>
-          <button 
-            onClick={() => setTabActiva('anotaciones')}
-            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
-          >
-            📝 Anotaciones
-          </button>
+          <button onClick={() => setTabActiva('resumen')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📊 Resumen</button>
+          <button onClick={() => setTabActiva('personal')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>👤 Personal</button>
+          <button onClick={() => setTabActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'inscripciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📚 Inscripciones</button>
+          <button onClick={() => setTabActiva('pagos')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'pagos' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>💳 Pagos</button>
+          <button onClick={() => setTabActiva('asistencia')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>✅ Asistencia</button>
+          <button onClick={() => setTabActiva('anotaciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📝 Anotaciones</button>
         </div>
 
       </header>
@@ -216,32 +189,13 @@ export default function DetalleEstudiantePage() {
               <h3 className="text-base font-bold text-slate-900">Información Personal</h3>
               <button onClick={() => alert('Modo edición')} className="text-xs font-semibold text-indigo-600 hover:underline">Editar Datos</button>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.nombre}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.correo || 'Sin correo registrado'}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono de Contacto</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.telefono || 'Sin teléfono'}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación (Estado / CP)</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">País</span>
-                <p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p>
-              </div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{alumno.nombre}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || 'Sin correo'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || 'Sin teléfono'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span><p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación</span><p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">País</span><p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p></div>
             </div>
           </div>
         )}
@@ -255,10 +209,7 @@ export default function DetalleEstudiantePage() {
             <div className="space-y-3">
               {inscripciones.map((ins, idx) => (
                 <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4>
-                    <p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo.toLocaleString('es-MX')} MXN</p>
-                  </div>
+                  <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo.toLocaleString('es-MX')} MXN</p></div>
                   <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
                 </div>
               ))}
@@ -269,38 +220,18 @@ export default function DetalleEstudiantePage() {
         {tabActiva === 'pagos' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span>
-                <h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span>
-                <h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 17,700.00</h3>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span>
-                <h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 47,400.00</h3>
-              </div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span>
-                <h3 className="text-xl font-extrabold text-indigo-600 mt-1">72.8%</h3>
-              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 17,700.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 47,400.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">72.8%</h3></div>
             </div>
-
             <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-              <div className="p-6 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos</h3>
-              </div>
+              <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos</h3></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="py-3 px-6">ID</th>
-                      <th className="py-3 px-6">Descripción</th>
-                      <th className="py-3 px-6">Vencimiento</th>
-                      <th className="py-3 px-6">Monto</th>
-                      <th className="py-3 px-6">Estado</th>
-                      <th className="py-3 px-6 text-right">Acción</th>
+                      <th className="py-3 px-6">ID</th><th className="py-3 px-6">Descripción</th><th className="py-3 px-6">Vencimiento</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estado</th><th className="py-3 px-6 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -310,16 +241,8 @@ export default function DetalleEstudiantePage() {
                         <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
                         <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
                         <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
-                        <td className="py-4 px-6">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                            {p.estado}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <button onClick={() => alert(`Registrar pago`)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">
-                            Registrar pago
-                          </button>
-                        </td>
+                        <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
+                        <td className="py-4 px-6 text-right"><button onClick={() => alert('Registrar pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Registrar pago</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -333,10 +256,7 @@ export default function DetalleEstudiantePage() {
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
             <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-              <div>
-                <span className="text-3xl font-extrabold text-emerald-600">100%</span>
-                <p className="text-xs text-slate-500 mt-1">22 de 22 clases asistidas correctamente</p>
-              </div>
+              <div><span className="text-3xl font-extrabold text-emerald-600">100%</span><p className="text-xs text-slate-500 mt-1">22 de 22 clases asistidas correctamente</p></div>
               <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Racha perfecta 🔥</span>
             </div>
           </div>
@@ -346,28 +266,13 @@ export default function DetalleEstudiantePage() {
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
             <h3 className="text-base font-bold text-slate-900">Notas y Observaciones</h3>
             <form onSubmit={agregarNota} className="space-y-3">
-              <textarea 
-                rows="3"
-                value={nuevaNota}
-                onChange={(e) => setNuevaNota(e.target.value)}
-                placeholder="Escriba una nota interna sobre el estudiante..."
-                className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 resize-none"
-              />
-              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">
-                + Nueva Anotación
-              </button>
+              <textarea rows="3" value={nuevaNota} onChange={(e) => setNuevaNota(e.target.value)} placeholder="Escriba una nota interna sobre el estudiante..." className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 resize-none" />
+              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Nueva Anotación</button>
             </form>
             <div className="space-y-3 pt-4">
-              {anotaciones.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">No hay notas para este estudiante aún.</p>
-              ) : (
-                anotaciones.map((nota, i) => (
-                  <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
-                    <span className="text-[10px] text-slate-400">{nota.fecha}</span>
-                    <p className="text-xs text-slate-700">{nota.texto}</p>
-                  </div>
-                ))
-              )}
+              {anotaciones.length === 0 ? <p className="text-xs text-slate-400 text-center py-6">No hay notas para este estudiante aún.</p> : anotaciones.map((n, i) => (
+                <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1"><span className="text-[10px] text-slate-400">{n.fecha}</span><p className="text-xs text-slate-700">{n.texto}</p></div>
+              ))}
             </div>
           </div>
         )}
@@ -378,28 +283,14 @@ export default function DetalleEstudiantePage() {
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
             <h3 className="text-base font-bold text-slate-900">Inscribir a {alumno.nombre}</h3>
-            <select 
-              value={cursoSeleccionado}
-              onChange={(e) => setCursoSeleccionado(e.target.value)}
-              className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
-            >
+            <select value={cursoSeleccionado} onChange={(e) => setCursoSeleccionado(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none">
               <option value="">Seleccione un curso...</option>
               <option value="Sala de 2 · Matutino">Sala de 2 · Matutino ($13,500)</option>
               <option value="Canto y Espiritualidad">Canto y Espiritualidad Avanzada</option>
             </select>
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-              <button 
-                onClick={() => {
-                  if(!cursoSeleccionado) return alert('Seleccione un curso');
-                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 13500, estado: 'Activa' }]);
-                  setModalInscribir(false);
-                  alert('Inscrito exitosamente');
-                }}
-                className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
-              >
-                Confirmar
-              </button>
+              <button onClick={() => { if(!cursoSeleccionado) return alert('Seleccione un curso'); setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 13500, estado: 'Activa' }]); setModalInscribir(false); alert('Inscrito exitosamente'); }} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold">Confirmar</button>
             </div>
           </div>
         </div>
