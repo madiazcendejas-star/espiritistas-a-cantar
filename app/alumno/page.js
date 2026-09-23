@@ -38,15 +38,23 @@ export default function PortalAlumnoPage() {
     const { data: alumnos, error } = await supabase.from('alumnos').select('*')
 
     if (error) {
-      setErrorLogin('Error de conexión.')
+      setErrorLogin('Error de conexión con la base de datos.')
       setLoading(false)
       return
     }
 
-    const encontrado = alumnos.find(a => 
-      String(a.matricula).trim().toLowerCase() === matriculaIngresada.trim().toLowerCase() ||
-      String(a.correo).trim().toLowerCase() === matriculaIngresada.trim().toLowerCase()
-    )
+    const inputLimpio = matriculaIngresada.trim().toLowerCase()
+
+    // Buscar coincidencia por matrícula, correo o teléfono
+    const encontrado = alumnos.find(a => {
+      const mat = String(a.matricula || '').trim().toLowerCase()
+      const corr = String(a.correo || a.Correo || '').trim().toLowerCase()
+      const tel = String(a.telefono || a.Telefono || '').trim().toLowerCase()
+
+      return (mat && mat === inputLimpio) || 
+             (corr && corr === inputLimpio) || 
+             (tel && tel === inputLimpio)
+    })
 
     if (encontrado) {
       const passwordRegistrada = encontrado.password || 'EAC2026*'
@@ -55,10 +63,10 @@ export default function PortalAlumnoPage() {
         localStorage.setItem('eac_alumno_sesion', JSON.stringify(encontrado))
         cargarDatosLMS(encontrado.id)
       } else {
-        setErrorLogin('Contraseña incorrecta.')
+        setErrorLogin('Contraseña incorrecta. Verifica tus datos.')
       }
     } else {
-      setErrorLogin('Estudiante no encontrado.')
+      setErrorLogin('No se encontró ningún estudiante con esa matrícula, correo o teléfono.')
     }
     setLoading(false)
   }
@@ -148,15 +156,29 @@ export default function PortalAlumnoPage() {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula o Correo</label>
-              <input type="text" required value={matriculaIngresada} onChange={(e) => setMatriculaIngresada(e.target.value)} placeholder="Ej. EAC-1024" className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula, Correo o Teléfono</label>
+              <input 
+                type="text" 
+                required 
+                value={matriculaIngresada} 
+                onChange={(e) => setMatriculaIngresada(e.target.value)} 
+                placeholder="Ej. EAC-1024, correo@ejemplo.com o teléfono" 
+                className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600" 
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña LMS</label>
-              <input type="password" required value={passwordIngresada} onChange={(e) => setPasswordIngresada(e.target.value)} placeholder="••••••••" className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none font-mono" />
+              <input 
+                type="password" 
+                required 
+                value={passwordIngresada} 
+                onChange={(e) => setPasswordIngresada(e.target.value)} 
+                placeholder="••••••••" 
+                className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-mono" 
+              />
             </div>
             {errorLogin && <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-semibold text-center">{errorLogin}</div>}
-            <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-xs font-bold transition">
+            <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-xs font-bold transition shadow-sm">
               {loading ? 'Verificando...' : 'Iniciar Sesión'}
             </button>
           </form>
