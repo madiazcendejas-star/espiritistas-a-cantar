@@ -31,6 +31,11 @@ export default function GruposAdminPage() {
   // Formulario Recurso para el Grupo
   const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
 
+  // Estados para Reprogramación Masiva de Pagos por Grupo
+  const [fechaOriginalAjuste, setFechaOriginalAjuste] = useState('')
+  const [fechaNuevaAjuste, setFechaNuevaAjuste] = useState('')
+  const [guardandoMasivo, setGuardandoMasivo] = useState(false)
+
   useEffect(() => {
     cargarDatos()
   }, [])
@@ -107,6 +112,57 @@ export default function GruposAdminPage() {
       cargarDatos()
       alert('Grupo eliminado.')
     }
+  }
+
+  // Función de Reprogramación Masiva por Grupo (Afecta a todos los alumnos del grupo en cadena)
+  const ejecutarAjusteMasivoPagos = async (e) => {
+    e.preventDefault()
+    if (!fechaOriginalAjuste || !fechaNuevaAjuste) return alert('Selecciona ambas fechas.')
+
+    setGuardandoMasivo(true)
+
+    const fAntigua = new Date(fechaOriginalAjuste)
+    const fNueva = new Date(fechaNuevaAjuste)
+    const diffMs = fNueva.getTime() - fAntigua.getTime()
+    const diffDias = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+    // Buscar todos los pagos pendientes de este grupo cuya fecha sea >= fecha original buscada
+    const { data: pagosGrupo, error: errBusqueda } = await supabase
+      .from('pagos')
+      .select('*')
+      .eq('grupo_id', grupoSeleccionado.id)
+      .eq('estatus', 'Pendiente')
+      .gte('fecha_vencimiento', fechaOriginalAjuste)
+
+    if (errBusqueda) {
+      setGuardandoMasivo(false)
+      return alert('Error al buscar pagos: ' + errBusqueda.message)
+    }
+
+    if (!pagosGrupo || pagosGrupo.length === 0) {
+      setGuardandoMasivo(false)
+      return alert('No se encontraron pagos pendientes con esa fecha o posteriores en este grupo.')
+    }
+
+    // Actualizar en cadena cada pago afectado sumándole la diferencia exacta de días
+    let contadorActualizados = 0
+    for (let p of pagosGrupo) {
+      const fAct = new Date(p.fecha_vencimiento)
+      fAct.setDate(fAct.getDate() + diffDias)
+      const nuevaFStr = fAct.toISOString().split('T')[0]
+
+      const { error: errUpdate } = await supabase
+        .from('pagos')
+        .update({ fecha_vencimiento: nuevaFStr })
+        .eq('id', p.id)
+
+      if (!errUpdate) contadorActualizados++
+    }
+
+    alert(`¡Calendario actualizado con éxito! Se reprogramaron ${contadorActualizados} cuotas pendientes para todos los alumnos de este grupo.`)
+    setFechaOriginalAjuste('')
+    setFechaNuevaAjuste('')
+    setGuardandoMasivo(false)
   }
 
   const gruposFiltrados = grupos.filter(g => {
@@ -268,16 +324,54 @@ export default function GruposAdminPage() {
         </div>
       )}
 
-      {/* MODAL DETALLE DE GRUPO Y GESTIÓN DE RECURSOS */}
+      {/* MODAL DETALLE DE GRUPO, RECURSOS Y AJUSTE MASIVO DE PAGOS */}
       {modalDetalle && grupoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Gestión del Grupo: {grupoSeleccionado.nombre_grupo}</h3>
-                <p className="text-xs text-slate-400">Sube clases grabadas y PDFs exclusivos para este grupo.</p>
+                <p className="text-xs text-slate-400">Administra recursos y ajusta el calendario financiero para todo el grupo.</p>
               </div>
               <button onClick={eliminarGrupo} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-xs font-semibold">Eliminar Grupo</button>
+            </div>
+
+            {/* NUEVA SECCIÓN: REPROGRAMACIÓN MASIVA DE PAGOS POR GRUPO */}
+            <div className="p-5 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-3">
+              <div>
+                <h4 className="text-xs font-bold uppercase text-indigo-900 tracking-wider">📅 Ajuste Masivo de Calendario de Pagos</h4>
+                <p className="text-[11px] text-indigo-700">Si un día festivo recorrió una clase (ej. del 15 al 22 de septiembre), indica la fecha original y la nueva fecha para desplazar en cadena a todos los alumnos inscritos en este grupo.</p>
+              </div>
+
+              <form onSubmit={ejecutarAjusteMasivoPagos} className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha original a mover</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={fechaOriginalAjuste}
+                    onChange={(e) => setFechaOriginalAjuste(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva fecha de destino</label>
+                  <input 
+                    type="date" 
+                    required
+                    value={fechaNuevaAjuste}
+                    onChange={(e) => setFechaNuevaAjuste(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-white outline-none"
+                  />
+                </div>
+                <button 
+                  type="submit" 
+                  disabled={guardandoMasivo}
+                  className="sm:col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50"
+                >
+                  {guardandoMasivo ? 'Actualizando pagos del grupo...' : '🔄 Reprogramar Pagos de todo el Grupo'}
+                </button>
+              </form>
             </div>
 
             {/* SUBIR RECURSOS */}
