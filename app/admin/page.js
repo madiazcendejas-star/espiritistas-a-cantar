@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../../lib/supabase'
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({ estudiantes: 0, cursos: 0, ingresos: 0 })
