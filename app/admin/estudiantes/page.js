@@ -10,7 +10,6 @@ export default function EstudiantesAdminPage() {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario nuevo estudiante con todos los campos requeridos
   const [nuevoAlumno, setNuevoAlumno] = useState({
     nombre: '',
     telefono: '',
@@ -44,7 +43,6 @@ export default function EstudiantesAdminPage() {
     setLoading(false)
   }
 
-  // Generar matrícula única de 4 dígitos
   const generarMatricula4Digitos = () => {
     return Math.floor(1000 + Math.random() * 9000).toString()
   }
@@ -94,7 +92,6 @@ export default function EstudiantesAdminPage() {
     window.location.href = '/'
   }
 
-  // Buscador dinámico por nombre, apellido, teléfono, matrícula o correo
   const alumnosFiltrados = alumnos.filter((a) => {
     const query = busqueda.toLowerCase()
     const nombre = (a.nombre || '').toLowerCase()
@@ -196,19 +193,23 @@ export default function EstudiantesAdminPage() {
                         <td className="py-4 px-6 font-mono font-bold text-indigo-600">
                           #{a.matricula || `EAC-${a.id}`}
                         </td>
-                        <td className="py-4 px-6 font-bold text-slate-900">{a.nombre}</td>
+                        <td className="py-4 px-6">
+                          <a href={`/admin/estudiantes/${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
+                            {a.nombre}
+                          </a>
+                        </td>
                         <td className="py-4 px-6 text-slate-600">{a.telefono || 'Sin teléfono'}</td>
                         <td className="py-4 px-6 text-slate-500">{a.correo || 'Sin correo'}</td>
                         <td className="py-4 px-6 text-slate-500">
                           {a.estado ? `${a.estado} (CP: ${a.cp || 'N/A'})` : 'No especificado'}
                         </td>
                         <td className="py-4 px-6 text-right">
-                          <button 
-                            onClick={() => alert(`Expediente de ${a.nombre}\nMatrícula: ${a.matricula}\nTeléfono: ${a.telefono}`)}
+                          <a 
+                            href={`/admin/estudiantes/${a.id}`}
                             className="text-indigo-600 font-semibold hover:underline"
                           >
-                            Ver Expediente
-                          </button>
+                            Ver Expediente →
+                          </a>
                         </td>
                       </tr>
                     ))}
@@ -290,7 +291,6 @@ export default function EstudiantesAdminPage() {
                 </div>
               </div>
 
-              {/* Información de Dirección: Estado, CP y País */}
               <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Estado</label>
