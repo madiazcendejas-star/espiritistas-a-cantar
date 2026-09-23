@@ -1,346 +1,509 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase } from '../../../../lib/supabase'
 
-export default function EstudiantesAdminPage() {
-  const [alumnos, setAlumnos] = useState([])
-  const [busqueda, setBusqueda] = useState('')
+export default function DetalleEstudiantePage() {
+  const [alumno, setAlumno] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modalAbierto, setModalAbierto] = useState(false)
-  const [guardando, setGuardando] = useState(false)
+  const [tabActiva, setTabActiva] = useState('resumen')
+  
+  // Modales y datos de grupos / inscripciones
+  const [modalInscribir, setModalInscribir] = useState(false)
+  const [gruposDisponibles, setGruposDisponibles] = useState([])
+  const [grupoSeleccionadoId, setGrupoSeleccionadoId] = useState('')
+  
+  const [modalEditar, setModalEditar] = useState(false)
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
 
-  const [nuevoAlumno, setNuevoAlumno] = useState({
-    nombre: '',
-    telefono: '',
-    correo: '',
-    fecha_nacimiento: '',
-    estado: '',
-    cp: '',
-    pais: 'México',
+  const [formEdicion, setFormEdicion] = useState({
     password: ''
   })
 
+  const [inscripciones, setInscripciones] = useState([])
+  const [pagos, setPagos] = useState([])
+  const [anotaciones, setAnotaciones] = useState([])
+  const [nuevaNota, setNuevaNota] = useState('')
+
   useEffect(() => {
-    const sesion = localStorage.getItem('eac_sesion')
-    if (!sesion || JSON.parse(sesion).rol !== 'admin') {
-      window.location.href = '/'
-      return
+    const params = new URLSearchParams(window.location.search)
+    const idParam = params.get('id')
+    
+    if (idParam) {
+      cargarDatosAlumno(idParam)
+      cargarGruposReal()
+    } else {
+      setLoading(false)
     }
-    cargarAlumnos()
   }, [])
 
-  const cargarAlumnos = async () => {
+  const cargarDatosAlumno = async (valor) => {
     setLoading(true)
-    const { data, error } = await supabase
+    const { data: todos, error } = await supabase
       .from('alumnos')
       .select('*')
-      .order('id', { ascending: false })
 
-    if (!error && data) {
-      setAlumnos(data)
+    if (!error && todos) {
+      const encontrado = todos.find(
+        (a) => String(a.id) === String(valor) || String(a.matricula) === String(valor)
+      )
+      if (encontrado) {
+        setAlumno(encontrado)
+        setFormEdicion({
+          password: encontrado.password || 'EAC2026*'
+        })
+        cargarPagosReal(encontrado.id)
+        cargarInscripcionesReal(encontrado.id)
+      }
     }
     setLoading(false)
   }
 
-  const generarMatricula4Digitos = () => {
-    return Math.floor(1000 + Math.random() * 9000).toString()
+  // Cargar grupos reales de Supabase para el modal de inscripción
+  const cargarGruposReal = async () => {
+    const { data, error } = await supabase
+      .from('grupos')
+      .select('*, cursos(nombre_curso)')
+    
+    if (!error && data) {
+      setGruposDisponibles(data)
+    }
   }
 
-  const registrarEstudiante = async (e) => {
+  // Cargar inscripciones reales del alumno
+  const cargarInscripcionesReal = async (alumnoId) => {
+    const { data, error } = await supabase
+      .from('inscripciones')
+      .select(`
+        id,
+        estatus,
+        grupos (
+          nombre_grupo,
+          costo_total,
+          cursos (
+            nombre_curso
+          )
+        )
+      `)
+      .eq('alumno_id', alumnoId)
+
+    if (!error && data) {
+      const inscripcionesMapeadas = data.map(ins => ({
+        id: ins.id,
+        curso: `${ins.grupos?.cursos?.nombre_curso || 'Curso'} — ${ins.grupos?.nombre_grupo || 'Grupo'}`,
+        costo: Number(ins.grupos?.costo_total) || 0,
+        estado: ins.estatus === 'activa' ? 'Activa' : 'Baja'
+      }))
+      setInscripciones(inscripcionesMapeadas)
+    }
+  }
+
+  // Cargar pagos reales de Supabase
+  const cargarPagosReal = async (alumnoId) => {
+    const { data, error } = await supabase
+      .from('pagos')
+      .select(`
+        id,
+        monto,
+        fecha_vencimiento,
+        estatus,
+        grupos (
+          nombre_grupo,
+          cursos (
+            nombre_curso
+          )
+        )
+      `)
+      .eq('alumno_id', alumnoId)
+
+    if (!error && data) {
+      const pagosMapeados = data.map(p => ({
+        id: p.id,
+        descripcion: `${p.grupos?.cursos?.nombre_curso || 'Curso'} (${p.grupos?.nombre_grupo || 'Grupo'})`,
+        vencimiento: p.fecha_vencimiento || 'Sin fecha',
+        monto: Number(p.monto) || 0,
+        estado: p.estatus || 'Pendiente'
+      }))
+      setPagos(pagosMapeados)
+    }
+  }
+
+  const guardarEdicion = async (e) => {
     e.preventDefault()
-    setGuardando(true)
+    setGuardandoEdicion(true)
 
-    const matriculaUnica = generarMatricula4Digitos()
-    const passwordGenerada = nuevoAlumno.password.trim() || 'EAC2026*'
-
-    const { error } = await supabase.from('alumnos').insert([
-      {
-        matricula: matriculaUnica,
-        nombre: nuevoAlumno.nombre.trim(),
-        telefono: nuevoAlumno.telefono.trim(),
-        correo: nuevoAlumno.correo.trim(),
-        fecha_nacimiento: nuevoAlumno.fecha_nacimiento || null,
-        estado: nuevoAlumno.estado.trim(),
-        cp: nuevoAlumno.cp.trim(),
-        pais: nuevoAlumno.pais.trim(),
-        password: passwordGenerada
-      }
-    ])
+    const { error } = await supabase
+      .from('alumnos')
+      .update({
+        password: formEdicion.password.trim()
+      })
+      .eq('id', alumno.id)
 
     if (error) {
-      alert('Error al registrar estudiante: ' + error.message)
+      alert('Error al actualizar la contraseña LMS: ' + error.message)
     } else {
-      setModalAbierto(false)
-      setNuevoAlumno({
-        nombre: '',
-        telefono: '',
-        correo: '',
-        fecha_nacimiento: '',
-        estado: '',
-        cp: '',
-        pais: 'México',
-        password: ''
-      })
-      cargarAlumnos()
+      alert('¡Contraseña de acceso LMS actualizada exitosamente!')
+      setModalEditar(false)
+      cargarDatosAlumno(alumno.id)
     }
-    setGuardando(false)
+    setGuardandoEdicion(false)
   }
 
-  const cerrarSesion = () => {
-    localStorage.removeItem('eac_sesion')
-    window.location.href = '/'
+  const eliminarEstudiante = async () => {
+    if (confirm('¿Estás seguro de eliminar este estudiante de la academia? Esta acción es irreversible.')) {
+      const { error } = await supabase.from('alumnos').delete().eq('id', alumno.id)
+      if (!error) {
+        window.location.href = '/admin/estudiantes'
+      } else {
+        alert('Error al eliminar: ' + error.message)
+      }
+    }
   }
 
-  const alumnosFiltrados = alumnos.filter((a) => {
-    const query = busqueda.toLowerCase()
-    const nombre = (a.nombre || a.Nombre || a.nombre_completo || '').toLowerCase()
-    const telefono = (a.telefono || '').toLowerCase()
-    const correo = (a.correo || '').toLowerCase()
-    const matricula = (a.matricula || a.id?.toString() || '').toLowerCase()
+  const agregarNota = (e) => {
+    e.preventDefault()
+    if (!nuevaNota.trim()) return
+    setAnotaciones([...anotaciones, { texto: nuevaNota, fecha: new Date().toLocaleDateString() }])
+    setNuevaNota('')
+  }
 
-    return (
-      nombre.includes(query) ||
-      telefono.includes(query) ||
-      correo.includes(query) ||
-      matricula.includes(query)
-    )
-  })
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Cargando expediente del estudiante...</div>
+  }
+
+  if (!alumno) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado en la base de datos.</div>
+  }
+
+  const nombreAlumno = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
+  const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+
+  const totalCobrado = pagos.filter(p => p.estado === 'Pagado').reduce((acc, p) => acc + p.monto, 0)
+  const totalPendiente = pagos.filter(p => p.estado !== 'Pagado').reduce((acc, p) => acc + p.monto, 0)
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR INSTITUCIONAL */}
-      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
-        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
-            <div className="flex flex-col">
-              <span className="font-bold text-white text-xs leading-tight">Espiritistas a Cantar</span>
-              <span className="text-[10px] text-indigo-400 font-medium">Panel Administrativo</span>
-            </div>
-          </div>
-        </div>
-
-        <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto text-xs font-medium">
-          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
-          <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
-          <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
-          <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
-        </nav>
-      </aside>
-
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
-        {/* Barra Superior con Buscador Dinámico */}
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-4 w-full max-w-lg">
-            <div className="relative w-full">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-xs">🔍</span>
-              <input 
-                type="text" 
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre, apellido, teléfono, matrícula o correo..." 
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 transition"
-              />
-            </div>
-          </div>
+      {/* HEADER */}
+      <header className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-30 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
-            <span className="text-xs font-semibold text-slate-600">Control Escolar</span>
-          </div>
-        </header>
-
-        {/* CONTENEDOR DE LA VISTA */}
-        <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
-          
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900">Directorio de Estudiantes</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Gestión y expedientes del alumnado activo en la academia.</p>
+            <a href="/admin/estudiantes" className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-600 transition text-sm font-bold">
+              ←
+            </a>
+            <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold text-sm shadow-xs">
+              {iniciales}
             </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-extrabold text-slate-900">{nombreAlumno}</h1>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || `EAC-${alumno.id}`}</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Matriculado en la academia</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
             <button 
-              onClick={() => setModalAbierto(true)}
+              onClick={() => setModalInscribir(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
             >
-              <span>+</span> Nuevo Estudiante
+              <span>+</span> Inscribir a {nombreAlumno.split(' ')[0]}
             </button>
           </div>
-
-          {/* TABLA DE ALUMNOS */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-            {loading ? (
-              <div className="text-center py-16 text-slate-400 text-xs">Cargando directorio de estudiantes...</div>
-            ) : alumnosFiltrados.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-xs">No se encontraron estudiantes con ese criterio de búsqueda.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="py-4 px-6">Matrícula</th>
-                      <th className="py-4 px-6">Nombre Completo</th>
-                      <th className="py-4 px-6">Teléfono</th>
-                      <th className="py-4 px-6">Correo</th>
-                      <th className="py-4 px-6">Ubicación (Estado / CP)</th>
-                      <th className="py-4 px-6 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                    {alumnosFiltrados.map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-4 px-6 font-mono font-bold text-indigo-600">
-                          #{a.matricula || `EAC-${a.id}`}
-                        </td>
-                        <td className="py-4 px-6">
-                          <a href={`/admin/estudiantes/detalle?id=${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
-                            {a.nombre || a.Nombre || a.nombre_completo || a.full_name || 'Estudiante sin nombre'}
-                          </a>
-                        </td>
-                        <td className="py-4 px-6 text-slate-600">{a.telefono || 'Sin teléfono'}</td>
-                        <td className="py-4 px-6 text-slate-500">{a.correo || 'Sin correo'}</td>
-                        <td className="py-4 px-6 text-slate-500">
-                          {a.estado ? `${a.estado} (CP: ${a.cp || 'N/A'})` : 'No especificado'}
-                        </td>
-                        <td className="py-4 px-6 text-right">
-                          <a 
-                            href={`/admin/estudiantes/detalle?id=${a.id}`}
-                            className="text-indigo-600 font-semibold hover:underline"
-                          >
-                            Ver Expediente →
-                          </a>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
         </div>
-      </main>
 
-      {/* MODAL NUEVO ESTUDIANTE */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-6">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Inscribir Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-400 mt-0.5">El sistema asignará automáticamente una matrícula única de 4 dígitos.</p>
+        {/* PESTAÑAS */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100 text-xs font-semibold">
+          <button onClick={() => setTabActiva('resumen')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📊 Resumen</button>
+          <button onClick={() => setTabActiva('personal')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>👤 Personal</button>
+          <button onClick={() => setTabActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'inscripciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📚 Inscripciones</button>
+          <button onClick={() => setTabActiva('pagos')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'pagos' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>💳 Pagos</button>
+          <button onClick={() => setTabActiva('asistencia')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>✅ Asistencia</button>
+          <button onClick={() => setTabActiva('anotaciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📝 Anotaciones</button>
+        </div>
+      </header>
+
+      {/* CONTENIDO */}
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-8 space-y-6">
+        
+        {tabActiva === 'resumen' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Pagos</h3>
+                  <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
+                </div>
+                <div>
+                  <h4 className="text-2xl font-extrabold text-slate-900">$ {totalPendiente.toLocaleString('es-MX')} <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
+                    <div className="bg-emerald-500 h-full w-full"></div>
+                  </div>
+                  <p className="text-xs text-slate-500">Historial sincronizado desde Supabase</p>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Inscripciones Activas</h3>
+                  <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{inscripciones.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {inscripciones.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-2">Sin inscripciones registradas.</p>
+                  ) : (
+                    inscripciones.map((ins, i) => (
+                      <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                        <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
 
-            <form onSubmit={registrarEstudiante} className="space-y-4">
-              
+            <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo *</label>
+                <h4 className="text-sm font-bold text-rose-600">Zona de peligro</h4>
+                <p className="text-xs text-slate-400">Eliminar este estudiante de la academia es una acción irreversible.</p>
+              </div>
+              <button onClick={eliminarEstudiante} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2.5 rounded-xl text-xs font-semibold transition border border-rose-200">
+                Eliminar Estudiante
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tabActiva === 'personal' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Información Personal y Acceso LMS</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Credenciales y datos generales registrados en el sistema.</p>
+              </div>
+              <button 
+                onClick={() => setModalEditar(true)} 
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
+              >
+                🔑 Administrar Contraseña LMS
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{nombreAlumno}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || alumno.Correo || 'Sin correo'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || alumno.Telefono || 'Sin teléfono'}</p></div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Contraseña de Acceso LMS</span>
+                <p className="text-indigo-600 font-mono font-bold mt-1 bg-indigo-50 px-2.5 py-1 rounded-lg inline-block">
+                  {alumno.password || 'EAC2026*'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tabActiva === 'inscripciones' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-base font-bold text-slate-900">Inscripciones a Grupos y Cursos</h3>
+              <button onClick={() => setModalInscribir(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Inscribir a Grupo</button>
+            </div>
+            <div className="space-y-3">
+              {inscripciones.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">Este estudiante no cuenta con inscripciones activas.</p>
+              ) : (
+                inscripciones.map((ins, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                    <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo del grupo: $ {ins.costo} MXN</p></div>
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {tabActiva === 'pagos' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Pendientes</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ {totalPendiente.toLocaleString('es-MX')}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ {totalCobrado.toLocaleString('es-MX')}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Registros de Cuotas</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">{pagos.length}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Estado General</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">Sincronizado</h3></div>
+            </div>
+            <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
+              <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Cuotas en Supabase</h3></div>
+              <div className="overflow-x-auto">
+                {pagos.length === 0 ? (
+                  <div className="text-center py-12 text-xs text-slate-400">No hay registros de pagos en la base de datos para este alumno.</div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
+                        <th className="py-3 px-6">ID</th><th className="py-3 px-6">Grupo / Curso</th><th className="py-3 px-6">Vencimiento</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estatus</th><th className="py-3 px-6 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      {pagos.map((p, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
+                          <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
+                          <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
+                          <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
+                          <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
+                          <td className="py-4 px-6 text-right"><button onClick={() => alert('Detalle de pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Ver comprobante</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tabActiva === 'asistencia' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div><span className="text-3xl font-extrabold text-emerald-600">100%</span><p className="text-xs text-slate-500 mt-1">Clases asistidas correctamente</p></div>
+              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Racha perfecta 🔥</span>
+            </div>
+          </div>
+        )}
+
+        {tabActiva === 'anotaciones' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <h3 className="text-base font-bold text-slate-900">Notas y Observaciones</h3>
+            <form onSubmit={agregarNota} className="space-y-3">
+              <textarea rows="3" value={nuevaNota} onChange={(e) => setNuevaNota(e.target.value)} placeholder="Escriba una nota interna sobre el estudiante..." className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 resize-none" />
+              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Nueva Anotación</button>
+            </form>
+            <div className="space-y-3 pt-4">
+              {anotaciones.length === 0 ? <p className="text-xs text-slate-400 text-center py-6">No hay notas para este estudiante aún.</p> : anotaciones.map((n, i) => (
+                <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1"><span className="text-[10px] text-slate-400">{n.fecha}</span><p className="text-xs text-slate-700">{n.texto}</p></div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* MODAL DE CONTRASEÑA LMS */}
+      {modalEditar && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Actualizar Contraseña de Acceso LMS</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Establezca la contraseña con la que el alumno iniciará sesión en su portal.</p>
+            </div>
+
+            <form onSubmit={guardarEdicion} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Nueva Contraseña LMS</label>
                 <input 
                   type="text" 
                   required
-                  value={nuevoAlumno.nombre}
-                  onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, nombre: e.target.value })}
-                  placeholder="Ej. Roberto Carlos Mendoza"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
+                  value={formEdicion.password}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, password: e.target.value })}
+                  placeholder="Ej. EAC2026*"
+                  className="w-full p-3.5 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={nuevoAlumno.telefono}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, telefono: e.target.value })}
-                    placeholder="Ej. 5512345678"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    value={nuevoAlumno.correo}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, correo: e.target.value })}
-                    placeholder="correo@ejemplo.com"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Nacimiento</label>
-                  <input 
-                    type="date" 
-                    value={nuevoAlumno.fecha_nacimiento}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, fecha_nacimiento: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 text-slate-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña de Acceso LMS</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.password}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, password: e.target.value })}
-                    placeholder="Contraseña inicial (opcional)"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Estado</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.estado}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, estado: e.target.value })}
-                    placeholder="Ej. Estado de México"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">C.P.</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.cp}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, cp: e.target.value })}
-                    placeholder="54900"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">País</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.pais}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, pais: e.target.value })}
-                    placeholder="México"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setModalAbierto(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={guardando}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50"
-                >
-                  {guardando ? 'Guardando...' : 'Crear Estudiante'}
+                <button type="button" onClick={() => setModalEditar(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardandoEdicion} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
+                  {guardandoEdicion ? 'Actualizando...' : 'Guardar Contraseña'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INSCRIBIR A GRUPO (CON GENERACIÓN AUTOMÁTICA DE CUOTAS) */}
+      {modalInscribir && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Inscribir a {nombreAlumno} a un Grupo</h3>
+            <p className="text-xs text-slate-400">El sistema registrará la inscripción y generará el plan de pagos correspondiente de forma automática.</p>
+            
+            <select 
+              value={grupoSeleccionadoId} 
+              onChange={(e) => setGrupoSeleccionadoId(e.target.value)} 
+              className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+            >
+              <option value="">Seleccione un grupo o edición...</option>
+              {gruposDisponibles.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.cursos?.nombre_curso} — {g.nombre_grupo} (${g.costo_total} MXN / {g.num_pagos} pagos)
+                </option>
+              ))}
+            </select>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+              <button 
+                onClick={async () => {
+                  if (!grupoSeleccionadoId) return alert('Seleccione un grupo válido');
+                  
+                  const grupoObj = gruposDisponibles.find(g => String(g.id) === String(grupoSeleccionadoId));
+                  if (!grupoObj) return;
+
+                  // 1. Insertar inscripción
+                  const { error: errInscripcion } = await supabase.from('inscripciones').insert([
+                    {
+                      alumno_id: alumno.id,
+                      grupo_id: grupoObj.id,
+                      estatus: 'activa'
+                    }
+                  ]);
+
+                  if (errInscripcion) {
+                    return alert('Error al inscribir: ' + errInscripcion.message);
+                  }
+
+                  // 2. Generar cuotas de pago automáticas
+                  const costoTotal = Number(grupoObj.costo_total);
+                  const numPagos = Number(grupoObj.num_pagos) || 1;
+                  const montoPorPago = costoTotal / numPagos;
+                  
+                  const fechaInicioBase = grupoObj.fecha_inicio ? new Date(grupoObj.fecha_inicio) : new Date();
+                  const cuotasARegistrar = [];
+
+                  for (let i = 0; i < numPagos; i++) {
+                    let fechaVenc = new Date(fechaInicioBase);
+                    fechaVenc.setMonth(fechaVenc.getMonth() + i);
+
+                    cuotasARegistrar.push({
+                      alumno_id: alumno.id,
+                      grupo_id: grupoObj.id,
+                      monto: montoPorPago,
+                      fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
+                      estatus: 'Pendiente'
+                    });
+                  }
+
+                  const { error: errPagos } = await supabase.from('pagos').insert(cuotasARegistrar);
+
+                  if (errPagos) {
+                    alert('Inscripción registrada, pero hubo un error al generar las cuotas de pago: ' + errPagos.message);
+                  } else {
+                    setModalInscribir(false);
+                    alert(`¡Inscripción exitosa! Se generaron ${numPagos} pagos automáticos de $${montoPorPago.toFixed(2)} MXN.`);
+                    cargarPagosReal(alumno.id);
+                    cargarInscripcionesReal(alumno.id);
+                  }
+                }} 
+                className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
+              >
+                Confirmar Inscripción
+              </button>
+            </div>
           </div>
         </div>
       )}
