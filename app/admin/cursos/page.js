@@ -10,40 +10,30 @@ export default function CursosAdminPage() {
 
   // Modales
   const [modalCurso, setModalCurso] = useState(false)
-  const [modalGrupo, setModalGrupo] = useState(false)
+  const [modalDetalle, setModalDetalle] = useState(false)
+  const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
   // Formulario Nuevo Curso
   const [formCurso, setFormCurso] = useState({
-    nombre_curso: '',
+    Nombre_curso: '',
     descripcion: ''
   })
 
-  // Formulario Nuevo Grupo
-  const [formGrupo, setFormGrupo] = useState({
-    curso_id: '',
-    nombre_grupo: '',
-    fecha_inicio: '',
-    fecha_fin: '',
-    duracion_acceso: '1_ano',
-    costo_total: '',
-    num_pagos: 1,
-    frecuencia: 'mensual'
+  // Formulario Editar Curso
+  const [formEdicion, setFormEdicion] = useState({
+    Nombre_curso: '',
+    descripcion: ''
   })
 
   useEffect(() => {
-    const sesion = localStorage.getItem('eac_sesion')
-    if (!sesion || JSON.parse(sesion).rol !== 'admin') {
-      window.location.href = '/'
-      return
-    }
     cargarDatos()
   }, [])
 
   const cargarDatos = async () => {
     setLoading(true)
     const { data: resCursos } = await supabase.from('cursos').select('*').order('id', { ascending: false })
-    const { data: resGrupos } = await supabase.from('grupos').select('*, cursos(nombre_curso)')
+    const { data: resGrupos } = await supabase.from('grupos').select('*, cursos(Nombre_curso, nombre_curso)')
 
     if (resCursos) setCursos(resCursos)
     if (resGrupos) setGrupos(resGrupos)
@@ -56,7 +46,7 @@ export default function CursosAdminPage() {
 
     const { error } = await supabase.from('cursos').insert([
       {
-        nombre_curso: formCurso.nombre_curso.trim(),
+        Nombre_curso: formCurso.Nombre_curso.trim(),
         descripcion: formCurso.descripcion.trim()
       }
     ])
@@ -65,46 +55,42 @@ export default function CursosAdminPage() {
       alert('Error al crear curso: ' + error.message)
     } else {
       setModalCurso(false)
-      setFormCurso({ nombre_curso: '', descripcion: '' })
+      setFormCurso({ Nombre_curso: '', descripcion: '' })
+      cargarDatos()
+      alert('¡Curso creado exitosamente!')
+    }
+    setGuardando(false)
+  }
+
+  const guardarEdicionCurso = async (e) => {
+    e.preventDefault()
+    setGuardando(true)
+
+    const { error } = await supabase
+      .from('cursos')
+      .update({
+        Nombre_curso: formEdicion.Nombre_curso.trim(),
+        descripcion: formEdicion.descripcion.trim()
+      })
+      .eq('id', cursoSeleccionado.id)
+
+    if (error) {
+      alert('Error al actualizar: ' + error.message)
+    } else {
+      alert('¡Curso actualizado exitosamente!')
+      setModalDetalle(false)
       cargarDatos()
     }
     setGuardando(false)
   }
 
-  const crearGrupo = async (e) => {
-    e.preventDefault()
-    setGuardando(true)
-
-    const { error } = await supabase.from('grupos').insert([
-      {
-        curso_id: formGrupo.curso_id,
-        nombre_grupo: formGrupo.nombre_grupo.trim(),
-        fecha_inicio: formGrupo.fecha_inicio || null,
-        fecha_fin: formGrupo.fecha_fin || null,
-        duracion_acceso: formGrupo.duracion_acceso,
-        costo_total: Number(formGrupo.costo_total),
-        num_pagos: Number(formGrupo.num_pagos),
-        frecuencia: formGrupo.frecuencia
-      }
-    ])
-
-    if (error) {
-      alert('Error al crear grupo: ' + error.message)
-    } else {
-      setModalGrupo(false)
-      setFormGrupo({
-        curso_id: '',
-        nombre_grupo: '',
-        fecha_inicio: '',
-        fecha_fin: '',
-        duracion_acceso: '1_ano',
-        costo_total: '',
-        num_pagos: 1,
-        frecuencia: 'mensual'
-      })
-      cargarDatos()
-    }
-    setGuardando(false)
+  const abrirDetalleCurso = (curso) => {
+    setCursoSeleccionado(curso)
+    setFormEdicion({
+      Nombre_curso: curso.Nombre_curso || curso.nombre_curso || '',
+      descripcion: curso.descripcion || ''
+    })
+    setModalDetalle(true)
   }
 
   return (
@@ -127,6 +113,7 @@ export default function CursosAdminPage() {
           <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">📚 Cursos / Programas</a>
+          <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
         </nav>
       </aside>
 
@@ -135,17 +122,14 @@ export default function CursosAdminPage() {
         
         {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <h2 className="text-sm font-bold text-slate-800">Gestión de Cursos y Grupos</h2>
+          <h2 className="text-sm font-bold text-slate-800">Gestión de Cursos y Programas</h2>
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setModalGrupo(true)}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
-            >
-              + Nuevo Grupo
-            </button>
+            <a href="/admin/grupos" className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">
+              Ver Grupos →
+            </a>
             <button 
               onClick={() => setModalCurso(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition"
             >
               + Nuevo Curso
             </button>
@@ -175,7 +159,7 @@ export default function CursosAdminPage() {
 
           {/* LISTADO DE CURSOS */}
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos</h3>
+            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos (Haz clic para ver y editar)</h3>
             {loading ? (
               <div className="text-center py-12 text-xs text-slate-400">Cargando cursos...</div>
             ) : cursos.length === 0 ? (
@@ -185,12 +169,18 @@ export default function CursosAdminPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {cursos.map((c) => {
+                  const nombreCurso = c.Nombre_curso || c.nombre_curso || 'Curso sin nombre'
                   const gruposDelCurso = grupos.filter(g => g.curso_id === c.id)
+
                   return (
-                    <div key={c.id} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+                    <div 
+                      key={c.id} 
+                      onClick={() => abrirDetalleCurso(c)}
+                      className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition hover:shadow-md"
+                    >
                       <div className="space-y-2">
                         <div className="flex justify-between items-start">
-                          <h4 className="text-sm font-bold text-slate-900">{c.nombre_curso}</h4>
+                          <h4 className="text-sm font-bold text-slate-900">{nombreCurso}</h4>
                           <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full">
                             {gruposDelCurso.length} grupo{gruposDelCurso.length === 1 ? '' : 's'}
                           </span>
@@ -198,20 +188,9 @@ export default function CursosAdminPage() {
                         <p className="text-xs text-slate-500 line-clamp-2">{c.descripcion || 'Sin descripción detallada.'}</p>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-100 space-y-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupos asociados:</span>
-                        {gruposDelCurso.length === 0 ? (
-                          <p className="text-[11px] text-slate-400 italic">Sin grupos configurados.</p>
-                        ) : (
-                          <div className="space-y-1">
-                            {gruposDelCurso.map(g => (
-                              <div key={g.id} className="text-xs bg-slate-50 p-2 rounded-xl flex justify-between items-center border border-slate-100">
-                                <span className="font-semibold text-slate-700">{g.nombre_grupo}</span>
-                                <span className="font-mono text-indigo-600 font-bold">${g.costo_total} ({g.num_pagos} pagos)</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                      <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-indigo-600 font-semibold">
+                        <span>Gestionar información →</span>
+                        <span className="text-slate-400 text-[10px]">ID: #{c.id}</span>
                       </div>
                     </div>
                   )
@@ -237,8 +216,8 @@ export default function CursosAdminPage() {
                 <input 
                   type="text" 
                   required
-                  value={formCurso.nombre_curso}
-                  onChange={(e) => setFormCurso({ ...formCurso, nombre_curso: e.target.value })}
+                  value={formCurso.Nombre_curso}
+                  onChange={(e) => setFormCurso({ ...formCurso, Nombre_curso: e.target.value })}
                   placeholder="Ej. Canto y Espiritualidad"
                   className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 />
@@ -264,105 +243,40 @@ export default function CursosAdminPage() {
         </div>
       )}
 
-      {/* MODAL NUEVO GRUPO */}
-      {modalGrupo && (
+      {/* MODAL DETALLE / EDITAR CURSO */}
+      {modalDetalle && cursoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Crear Nuevo Grupo / Edición</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Configura fechas, costos y planes de pago específicos para este grupo.</p>
+              <h3 className="text-base font-bold text-slate-900">Detalles y Edición de Curso</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Modifica la información general de este programa académico.</p>
             </div>
-            <form onSubmit={crearGrupo} className="space-y-4">
+            
+            <form onSubmit={guardarEdicionCurso} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Seleccionar Curso *</label>
-                <select 
-                  required
-                  value={formGrupo.curso_id}
-                  onChange={(e) => setFormGrupo({ ...formGrupo, curso_id: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
-                >
-                  <option value="">Seleccione un curso...</option>
-                  {cursos.map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre_curso}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Grupo (Horario/Edición) *</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Curso *</label>
                 <input 
                   type="text" 
                   required
-                  value={formGrupo.nombre_grupo}
-                  onChange={(e) => setFormGrupo({ ...formGrupo, nombre_grupo: e.target.value })}
-                  placeholder="Ej. Matutino · Lunes y Miércoles"
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  value={formEdicion.Nombre_curso}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, Nombre_curso: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-semibold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Descripción</label>
+                <textarea 
+                  rows="4"
+                  value={formEdicion.descripcion}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, descripcion: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 resize-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Inicio</label>
-                  <input 
-                    type="date" 
-                    value={formGrupo.fecha_inicio}
-                    onChange={(e) => setFormGrupo({ ...formGrupo, fecha_inicio: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none text-slate-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Término</label>
-                  <input 
-                    type="date" 
-                    value={formGrupo.fecha_fin}
-                    onChange={(e) => setFormGrupo({ ...formGrupo, fecha_fin: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none text-slate-600"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Total ($ MXN) *</label>
-                  <input 
-                    type="number" 
-                    required
-                    value={formGrupo.costo_total}
-                    onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })}
-                    placeholder="1800"
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Número de Pagos *</label>
-                  <input 
-                    type="number" 
-                    required
-                    min="1"
-                    value={formGrupo.num_pagos}
-                    onChange={(e) => setFormGrupo({ ...formGrupo, num_pagos: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Disponibilidad / Vigencia de Acceso</label>
-                <select 
-                  value={formGrupo.duracion_acceso}
-                  onChange={(e) => setFormGrupo({ ...formGrupo, duracion_acceso: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
-                >
-                  <option value="1_ano">1 Año</option>
-                  <option value="2_anos">2 Años</option>
-                  <option value="ilimitado">Ilimitado</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setModalGrupo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
-                  {guardando ? 'Guardando...' : 'Crear Grupo'}
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onClick={() => setModalDetalle(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cerrar</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm">
+                  {guardando ? 'Guardando...' : 'Guardar Cambios'}
                 </button>
               </div>
             </form>
