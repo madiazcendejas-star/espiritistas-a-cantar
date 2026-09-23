@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase } from '../../../../lib/supabase'
 
 export default function DetalleEstudiantePage() {
   const [alumnoId, setAlumnoId] = useState(null)
@@ -22,7 +22,6 @@ export default function DetalleEstudiantePage() {
   const [cursoSeleccionado, setCursoSeleccionado] = useState('')
 
   useEffect(() => {
-    // Obtener el ID de forma segura desde los parámetros de la URL (?id=XX)
     const params = new URLSearchParams(window.location.search)
     const id = params.get('id')
     
