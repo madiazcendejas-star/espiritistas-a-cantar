@@ -94,7 +94,7 @@ export default function EstudiantesAdminPage() {
 
   const alumnosFiltrados = alumnos.filter((a) => {
     const query = busqueda.toLowerCase()
-    const nombre = (a.nombre || '').toLowerCase()
+    const nombre = (a.nombre || a.Nombre || a.nombre_completo || '').toLowerCase()
     const telefono = (a.telefono || '').toLowerCase()
     const correo = (a.correo || '').toLowerCase()
     const matricula = (a.matricula || a.id?.toString() || '').toLowerCase()
@@ -195,7 +195,7 @@ export default function EstudiantesAdminPage() {
                         </td>
                         <td className="py-4 px-6">
                           <a href={`/admin/estudiantes/detalle?id=${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
-                            {a.nombre}
+                            {a.nombre || a.Nombre || a.nombre_completo || a.full_name || 'Estudiante sin nombre'}
                           </a>
                         </td>
                         <td className="py-4 px-6 text-slate-600">{a.telefono || 'Sin teléfono'}</td>
