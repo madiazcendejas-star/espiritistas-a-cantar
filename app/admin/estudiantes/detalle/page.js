@@ -22,11 +22,11 @@ export default function DetalleEstudiantePage() {
   })
 
   const [inscripciones, setInscripciones] = useState([
-    { id: 1, curso: 'Programa Principal', costo: 0, estado: 'Activa' }
+    { id: 1, curso: 'Entrenamiento Bóveda G6', costo: 1800, estado: 'Activa' }
   ])
   const [pagos, setPagos] = useState([
-    { id: 'D61MFX', descripcion: 'Cuota mensual - Activa', vencimiento: '22 oct 2026', monto: 1500, estado: 'Pendiente' },
-    { id: '9A58CT', descripcion: 'Cuota mensual - Anterior', vencimiento: '22 sep 2026', monto: 1500, estado: 'Pagado' }
+    { id: 'D61MFX', descripcion: 'Cuota mensual - Activa', vencimiento: '22 oct 2026', monto: 1800, estado: 'Pendiente' },
+    { id: '9A58CT', descripcion: 'Cuota mensual - Anterior', vencimiento: '22 sep 2026', monto: 1800, estado: 'Pagado' }
   ])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
@@ -66,7 +66,7 @@ export default function DetalleEstudiantePage() {
     setLoading(false)
   }
 
-  // Cargar cursos reales desde la tabla 'cursos' de Supabase
+  // Carga correcta conectada a la tabla 'cursos' y su columna 'Nombre_curso'
   const cargarCursosReal = async () => {
     const { data, error } = await supabase.from('cursos').select('*')
     if (!error && data) {
@@ -179,7 +179,7 @@ export default function DetalleEstudiantePage() {
                   <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
                 </div>
                 <div>
-                  <h4 className="text-2xl font-extrabold text-slate-900">$ 1,500.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
+                  <h4 className="text-2xl font-extrabold text-slate-900">$ 1,800.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
                     <div className="bg-emerald-500 h-full w-3/4"></div>
                   </div>
@@ -265,8 +265,8 @@ export default function DetalleEstudiantePage() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 1,500.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 3,000.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 1,800.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 3,600.00</h3></div>
               <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">100%</h3></div>
             </div>
             <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
@@ -356,7 +356,7 @@ export default function DetalleEstudiantePage() {
         </div>
       )}
 
-      {/* MODAL INSCRIBIR (CARGA CURSOS REALES DE SUPABASE) */}
+      {/* MODAL INSCRIBIR (CONECTADO A LA TABLA CURSOS DE SUPABASE) */}
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
@@ -367,9 +367,9 @@ export default function DetalleEstudiantePage() {
               className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
             >
               <option value="">Seleccione un curso de la academia...</option>
-              {cursosDisponibles.map((c) => (
-                <option key={c.id} value={c.nombre || c.titulo || c.curso}>
-                  {c.nombre || c.titulo || c.curso} {c.costo ? `($${c.costo})` : ''}
+              {cursosDisponibles.map((c, index) => (
+                <option key={c.id || index} value={c.Nombre_curso}>
+                  {c.Nombre_curso} {c.costo_total ? `($${c.costo_total} MXN)` : ''}
                 </option>
               ))}
             </select>
@@ -378,7 +378,9 @@ export default function DetalleEstudiantePage() {
               <button 
                 onClick={() => {
                   if(!cursoSeleccionado) return alert('Seleccione un curso válido');
-                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 1500, estado: 'Activa' }]);
+                  const cursoObj = cursosDisponibles.find(c => c.Nombre_curso === cursoSeleccionado);
+                  const costoFinal = cursoObj?.costo_total ? Number(cursoObj.costo_total) : 1800;
+                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: costoFinal, estado: 'Activa' }]);
                   setModalInscribir(false);
                   alert('¡Estudiante inscrito exitosamente!');
                 }} 
