@@ -43,7 +43,7 @@ export default function InscripcionesAdminPage() {
       const mapeadas = resIns.map(ins => {
         const al = resAlumnos.find(a => Number(a.id) === Number(ins.alumno_id))
         const gr = resGrupos.find(g => Number(g.id) === Number(ins.grupo_id))
-        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : null
+        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (ins.curso_id ? resCursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
 
         return {
           id: ins.id,
@@ -67,16 +67,17 @@ export default function InscripcionesAdminPage() {
 
   const confirmarInscripcionModal = async () => {
     if (!alumnoSeleccionado) return alert('Seleccione un estudiante.')
+    if (!cursoSeleccionado) return alert('Seleccione un curso.')
     if (!grupoSeleccionado) return alert('Seleccione un grupo o horario.')
 
     setGuardando(true)
 
-    // A. Insertar inscripción incluyendo curso_id y grupo_id
+    // A. Insertar inscripción asegurando el curso_id del curso seleccionado
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumnoSeleccionado.id,
         grupo_id: grupoSeleccionado.id,
-        curso_id: grupoSeleccionado.curso_id,
+        curso_id: cursoSeleccionado.id,
         estatus: 'activa'
       }
     ])
@@ -86,7 +87,7 @@ export default function InscripcionesAdminPage() {
       return alert('Error al inscribir: ' + errIns.message)
     }
 
-    // B. Generar cuotas automáticas incluyendo curso_id y grupo_id
+    // B. Generar cuotas automáticas usando cursoSeleccionado.id con seguridad
     const costoTotal = Number(grupoSeleccionado.costo_total) || 0
     const numPagos = Number(grupoSeleccionado.num_pagos) || 1
     const montoPorPago = costoTotal / numPagos
@@ -105,7 +106,7 @@ export default function InscripcionesAdminPage() {
       cuotasARegistrar.push({
         alumno_id: alumnoSeleccionado.id,
         grupo_id: grupoSeleccionado.id,
-        curso_id: grupoSeleccionado.curso_id, // <-- Incluido correctamente
+        curso_id: cursoSeleccionado.id, // <-- Garantizado mediante el estado del curso seleccionado
         monto: montoPorPago,
         fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
         estatus: 'Pendiente'
@@ -362,7 +363,7 @@ export default function InscripcionesAdminPage() {
               <button type="button" onClick={() => setModalNuevaInscripcion(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
               <button 
                 type="button" 
-                disabled={guardando || !alumnoSeleccionado || !grupoSeleccionado}
+                disabled={guardando || !alumnoSeleccionado || !cursoSeleccionado || !grupoSeleccionado}
                 onClick={confirmarInscripcionModal}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50"
               >
