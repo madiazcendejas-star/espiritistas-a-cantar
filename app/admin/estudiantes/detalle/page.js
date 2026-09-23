@@ -8,6 +8,24 @@ export default function DetalleEstudiantePage() {
   const [loading, setLoading] = useState(true)
   const [tabActiva, setTabActiva] = useState('resumen')
   
+  // Estados para modales y edición
+  const [modalInscribir, setModalInscribir] = useState(false)
+  const [cursoSeleccionado, setCursoSeleccionado] = useState('')
+  const [modalEditar, setModalEditar] = useState(false)
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
+
+  // Formulario de edición de datos y contraseña LMS
+  const [formEdicion, setFormEdicion] = useState({
+    nombre: '',
+    correo: '',
+    telefono: '',
+    password: '',
+    fecha_nacimiento: '',
+    estado: '',
+    cp: '',
+    pais: ''
+  })
+
   const [inscripciones, setInscripciones] = useState([
     { id: 1, curso: 'Sala de 2 · Matutino', costo: 13500, estado: 'Activa' }
   ])
@@ -17,8 +35,6 @@ export default function DetalleEstudiantePage() {
   ])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
-  const [modalInscribir, setModalInscribir] = useState(false)
-  const [cursoSeleccionado, setCursoSeleccionado] = useState('')
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -33,7 +49,6 @@ export default function DetalleEstudiantePage() {
 
   const cargarDatosAlumno = async (valor) => {
     setLoading(true)
-    
     const { data: todos, error } = await supabase
       .from('alumnos')
       .select('*')
@@ -44,9 +59,47 @@ export default function DetalleEstudiantePage() {
       )
       if (encontrado) {
         setAlumno(encontrado)
+        setFormEdicion({
+          nombre: encontrado.nombre || '',
+          correo: encontrado.correo || '',
+          telefono: encontrado.telefono || '',
+          password: encontrado.password || '',
+          fecha_nacimiento: encontrado.fecha_nacimiento || '',
+          estado: encontrado.estado || '',
+          cp: encontrado.cp || '',
+          pais: encontrado.pais || 'México'
+        })
       }
     }
     setLoading(false)
+  }
+
+  const guardarEdicion = async (e) => {
+    e.preventDefault()
+    setGuardandoEdicion(true)
+
+    const { error } = await supabase
+      .from('alumnos')
+      .update({
+        nombre: formEdicion.nombre.trim(),
+        correo: formEdicion.correo.trim(),
+        telefono: formEdicion.telefono.trim(),
+        password: formEdicion.password.trim(),
+        fecha_nacimiento: formEdicion.fecha_nacimiento || null,
+        estado: formEdicion.estado.trim(),
+        cp: formEdicion.cp.trim(),
+        pais: formEdicion.pais.trim()
+      })
+      .eq('id', alumno.id)
+
+    if (error) {
+      alert('Error al actualizar: ' + error.message)
+    } else {
+      alert('Información y contraseña actualizadas exitosamente')
+      setModalEditar(false)
+      cargarDatosAlumno(alumno.id)
+    }
+    setGuardandoEdicion(false)
   }
 
   const eliminarEstudiante = async () => {
@@ -81,9 +134,8 @@ export default function DetalleEstudiantePage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* BARRA SUPERIOR / HEADER DE PERFIL */}
+      {/* HEADER DE PERFIL */}
       <header className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-30 shadow-xs space-y-4">
-        
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
             <a href="/admin/estudiantes" className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-600 transition text-sm font-bold">
@@ -111,7 +163,7 @@ export default function DetalleEstudiantePage() {
           </div>
         </div>
 
-        {/* Badges de estado rápido */}
+        {/* Badges */}
         <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-slate-500 border-t border-slate-100">
           <span className="text-indigo-600 font-semibold">{inscripciones.length} Inscripción activa</span>
           <span>•</span>
@@ -120,7 +172,7 @@ export default function DetalleEstudiantePage() {
           <span className="text-emerald-600 font-semibold">100% Asistencia</span>
         </div>
 
-        {/* PESTAÑAS DE NAVEGACIÓN */}
+        {/* PESTAÑAS */}
         <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100 text-xs font-semibold">
           <button onClick={() => setTabActiva('resumen')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📊 Resumen</button>
           <button onClick={() => setTabActiva('personal')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>👤 Personal</button>
@@ -129,12 +181,12 @@ export default function DetalleEstudiantePage() {
           <button onClick={() => setTabActiva('asistencia')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>✅ Asistencia</button>
           <button onClick={() => setTabActiva('anotaciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📝 Anotaciones</button>
         </div>
-
       </header>
 
-      {/* CONTENIDO DE LAS PESTAÑAS */}
+      {/* CONTENIDO */}
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-8 space-y-6">
         
+        {/* TAB 1: RESUMEN */}
         {tabActiva === 'resumen' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -183,23 +235,58 @@ export default function DetalleEstudiantePage() {
           </div>
         )}
 
+        {/* TAB 2: PERSONAL (INCLUYE CONTRASEÑA LMS) */}
         {tabActiva === 'personal' && (
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="text-base font-bold text-slate-900">Información Personal</h3>
-              <button onClick={() => alert('Modo edición')} className="text-xs font-semibold text-indigo-600 hover:underline">Editar Datos</button>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Información Personal y Acceso LMS</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Credenciales y datos generales registrados en el sistema.</p>
+              </div>
+              <button 
+                onClick={() => setModalEditar(true)} 
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
+              >
+                ✏️ Editar Datos y Contraseña
+              </button>
             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{nombreAlumno}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || alumno.Correo || 'Sin correo'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || alumno.Telefono || 'Sin teléfono'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span><p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación</span><p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">País</span><p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p></div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span>
+                <p className="text-slate-900 font-semibold mt-1">{nombreAlumno}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.correo || alumno.Correo || 'Sin correo'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.telefono || alumno.Telefono || 'Sin teléfono'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Contraseña de Acceso LMS</span>
+                <p className="text-indigo-600 font-mono font-bold mt-1 bg-indigo-50 px-2.5 py-1 rounded-lg inline-block">
+                  {alumno.password || 'EAC2026*'}
+                </p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación (Estado / CP)</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">País</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p>
+              </div>
             </div>
           </div>
         )}
 
+        {/* TAB 3: INSCRIPCIONES */}
         {tabActiva === 'inscripciones' && (
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -217,6 +304,7 @@ export default function DetalleEstudiantePage() {
           </div>
         )}
 
+        {/* TAB 4: PAGOS */}
         {tabActiva === 'pagos' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -252,6 +340,7 @@ export default function DetalleEstudiantePage() {
           </div>
         )}
 
+        {/* TAB 5: ASISTENCIA */}
         {tabActiva === 'asistencia' && (
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
@@ -262,6 +351,7 @@ export default function DetalleEstudiantePage() {
           </div>
         )}
 
+        {/* TAB 6: ANOTACIONES */}
         {tabActiva === 'anotaciones' && (
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
             <h3 className="text-base font-bold text-slate-900">Notas y Observaciones</h3>
@@ -279,6 +369,106 @@ export default function DetalleEstudiantePage() {
 
       </main>
 
+      {/* MODAL DE EDICIÓN DE DATOS Y CONTRASEÑA LMS */}
+      {modalEditar && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Editar Datos y Contraseña LMS</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Modifica la información del alumno o establece su contraseña de acceso al sitio.</p>
+            </div>
+
+            <form onSubmit={guardarEdicion} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formEdicion.nombre}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, nombre: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono</label>
+                  <input 
+                    type="text" 
+                    value={formEdicion.telefono}
+                    onChange={(e) => setFormEdicion({ ...formEdicion, telefono: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
+                  <input 
+                    type="email" 
+                    value={formEdicion.correo}
+                    onChange={(e) => setFormEdicion({ ...formEdicion, correo: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña de Acceso LMS</label>
+                <input 
+                  type="text" 
+                  required
+                  value={formEdicion.password}
+                  onChange={(e) => setFormEdicion({ ...formEdicion, password: e.target.value })}
+                  placeholder="Contraseña para el portal del alumno"
+                  className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Estado</label>
+                  <input 
+                    type="text" 
+                    value={formEdicion.estado}
+                    onChange={(e) => setFormEdicion({ ...formEdicion, estado: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">C.P.</label>
+                  <input 
+                    type="text" 
+                    value={formEdicion.cp}
+                    onChange={(e) => setFormEdicion({ ...formEdicion, cp: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">País</label>
+                  <input 
+                    type="text" 
+                    value={formEdicion.pais}
+                    onChange={(e) => setFormEdicion({ ...formEdicion, pais: e.target.value })}
+                    className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setModalEditar(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button 
+                  type="submit" 
+                  disabled={guardandoEdicion}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                >
+                  {guardandoEdicion ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INSCRIBIR */}
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
