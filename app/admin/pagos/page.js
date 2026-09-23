@@ -8,6 +8,13 @@ export default function PagosAdminPage() {
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
 
+  // Modal para reprogramar fecha
+  const [modalFecha, setModalFecha] = useState(false)
+  const [pagoSeleccionado, setPagoSeleccionado] = useState(null)
+  const [nuevaFecha, setNuevaFecha] = useState('')
+  const [desplazarResto, setDesplazarResto] = useState(true)
+  const [guardandoFecha, setGuardandoFecha] = useState(false)
+
   const [stats, setStats] = useState({
     vencidosCount: 0,
     vencidosMonto: 0,
@@ -23,8 +30,7 @@ export default function PagosAdminPage() {
   const cargarPagos = async () => {
     setLoading(true)
 
-    // Cargar tablas de forma independiente para evitar fallos de relaciones en Supabase
-    const { data: resPagos } = await supabase.from('pagos').select('*').order('fecha_vencimiento', { ascending: false })
+    const { data: resPagos } = await supabase.from('pagos').select('*').order('fecha_vencimiento', { ascending: true })
     const { data: resAlumnos } = await supabase.from('alumnos').select('*')
     const { data: resGrupos } = await supabase.from('grupos').select('*')
     const { data: resCursos } = await supabase.from('cursos').select('*')
@@ -37,6 +43,8 @@ export default function PagosAdminPage() {
 
         return {
           id: p.id,
+          alumno_id: p.alumno_id,
+          grupo_id: p.grupo_id,
           monto: Number(p.monto) || 0,
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
           estatus: p.estatus || 'Pendiente',
@@ -107,6 +115,69 @@ export default function PagosAdminPage() {
       alert('¡Pago registrado exitosamente!')
       cargarPagos()
     }
+  }
+
+  const abrirModalFecha = (pago) => {
+    setPagoSeleccionado(pago)
+    setNuevaFecha(pago.fecha_vencimiento)
+    setDesplazarResto(true)
+    setModalFecha(true)
+  }
+
+  const guardarNuevaFecha = async (e) => {
+    e.preventDefault()
+    if (!pagoSeleccionado || !nuevaFecha) return
+
+    setGuardandoFecha(true)
+
+    const fechaAntigua = new Date(pagoSeleccionado.fecha_vencimiento)
+    const fechaNueva = new Date(nuevaFecha)
+    
+    // Calcular la diferencia en días entre la fecha vieja y la nueva
+    const diferenciaMs = fechaNueva.getTime() - fechaAntigua.getTime()
+    const diferenciaDias = Math.round(diferenciaMs / (1000 * 60 * 60 * 24))
+
+    // 1. Actualizar la fecha del pago seleccionado
+    const { error: err1 } = await supabase
+      .from('pagos')
+      .update({ fecha_vencimiento: nuevaFecha })
+      .eq('id', pagoSeleccionado.id)
+
+    if (err1) {
+      setGuardandoFecha(false)
+      return alert('Error al actualizar fecha: ' + err1.message)
+    }
+
+    // 2. Si el usuario activó desplazar el resto, actualizar los pagos pendientes posteriores del mismo alumno y grupo
+    if (desplazarResto && diferenciaDias !== 0) {
+      // Buscar todos los pagos pendientes de este alumno en este grupo cuya fecha sea mayor a la antigua
+      const { data: pagosPosteriores } = await supabase
+        .from('pagos')
+        .select('*')
+        .eq('alumno_id', pagoSeleccionado.alumno_id)
+        .eq('grupo_id', pagoSeleccionado.grupo_id)
+        .eq('estatus', 'Pendiente')
+        .gt('fecha_vencimiento', pagoSeleccionado.fecha_vencimiento)
+
+      if (pagosPosteriores && pagosPosteriores.length > 0) {
+        for (let p of pagosPosteriores) {
+          const fActual = new Date(p.fecha_vencimiento)
+          fActual.setDate(fActual.getDate() + diferenciaDias)
+          const nuevaFStr = fActual.toISOString().split('T')[0]
+
+          await supabase
+            .from('pagos')
+            .update({ fecha_vencimiento: nuevaFStr })
+            .eq('id', p.id)
+        }
+      }
+    }
+
+    alert('¡Fechas de vencimiento reprogramadas con éxito!')
+    setModalFecha(false)
+    setPagoSeleccionado(null)
+    setGuardandoFecha(false)
+    cargarPagos()
   }
 
   const pagosFiltrados = pagos.filter(p => {
@@ -242,8 +313,17 @@ export default function PagosAdminPage() {
                             <div className="font-bold text-slate-800">{p.cursoNombre}</div>
                             <span className="text-[11px] text-indigo-600">{p.grupoNombre}</span>
                           </td>
-                          <td className="py-4 px-6 text-slate-500">
-                            {p.fecha_vencimiento}
+                          <td className="py-4 px-6 text-slate-500 flex items-center gap-2">
+                            <span>{p.fecha_vencimiento}</span>
+                            {estatus !== 'Pagado' && (
+                              <button 
+                                onClick={() => abrirModalFecha(p)} 
+                                className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition"
+                                title="Reprogramar fecha"
+                              >
+                                ✏️ Cambiar
+                              </button>
+                            )}
                           </td>
                           <td className="py-4 px-6 font-extrabold text-slate-900">
                             $ {Number(p.monto).toLocaleString('es-MX')} MXN
@@ -276,6 +356,51 @@ export default function PagosAdminPage() {
 
         </div>
       </main>
+
+      {/* MODAL REPROGRAMAR FECHA */}
+      {modalFecha && pagoSeleccionado && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Reprogramar Fecha de Vencimiento</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Estudiante: <strong className="text-slate-700">{pagoSeleccionado.alumnoNombre}</strong></p>
+            </div>
+
+            <form onSubmit={guardarNuevaFecha} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva Fecha de Vencimiento</label>
+                <input 
+                  type="date" 
+                  required
+                  value={nuevaFecha}
+                  onChange={(e) => setNuevaFecha(e.target.value)}
+                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input 
+                  type="checkbox" 
+                  id="desplazar" 
+                  checked={desplazarResto}
+                  onChange={(e) => setDesplazarResto(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300"
+                />
+                <label htmlFor="desplazar" className="text-xs text-slate-700 select-none cursor-pointer">
+                  Desplazar en cadena los pagos pendientes siguientes (manteniendo el intervalo de días)
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setModalFecha(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardandoFecha} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
+                  {guardandoFecha ? 'Guardando...' : 'Aplicar Reprogramación'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )
