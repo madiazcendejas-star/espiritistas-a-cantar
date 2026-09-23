@@ -15,19 +15,11 @@ export default function DetalleEstudiantePage() {
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
 
   const [formEdicion, setFormEdicion] = useState({
-    nombre: '',
-    correo: '',
-    telefono: '',
     password: ''
   })
 
-  const [inscripciones, setInscripciones] = useState([
-    { id: 1, curso: 'Entrenamiento Bóveda G6', costo: 1800, estado: 'Activa' }
-  ])
-  const [pagos, setPagos] = useState([
-    { id: 'D61MFX', descripcion: 'Cuota mensual - Activa', vencimiento: '22 oct 2026', monto: 1800, estado: 'Pendiente' },
-    { id: '9A58CT', descripcion: 'Cuota mensual - Anterior', vencimiento: '22 sep 2026', monto: 1800, estado: 'Pagado' }
-  ])
+  const [inscripciones, setInscripciones] = useState([])
+  const [pagos, setPagos] = useState([])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
 
@@ -56,17 +48,42 @@ export default function DetalleEstudiantePage() {
       if (encontrado) {
         setAlumno(encontrado)
         setFormEdicion({
-          nombre: encontrado.nombre || encontrado.Nombre || '',
-          correo: encontrado.correo || encontrado.Correo || '',
-          telefono: encontrado.telefono || encontrado.Telefono || '',
           password: encontrado.password || 'EAC2026*'
         })
+        // Cargar pagos y cursos del alumno real
+        cargarPagosReal(encontrado.id)
       }
     }
     setLoading(false)
   }
 
-  // Carga correcta conectada a la tabla 'cursos' y su columna 'Nombre_curso'
+  // Carga los pagos reales filtrados por el ID del alumno desde Supabase
+  const cargarPagosReal = async (alumnoId) => {
+    const { data, error } = await supabase
+      .from('pagos')
+      .select(`
+        id,
+        monto,
+        fecha_pago,
+        estatus,
+        cursos (
+          Nombre_curso
+        )
+      `)
+      .eq('alumno_id', alumnoId)
+
+    if (!error && data) {
+      const pagosMapeados = data.map(p => ({
+        id: p.id,
+        descripcion: p.cursos?.Nombre_curso || 'Curso de la Academia',
+        vencimiento: p.fecha_pago || 'Sin fecha',
+        monto: Number(p.monto) || 0,
+        estado: p.estatus || 'Pendiente'
+      }))
+      setPagos(pagosMapeados)
+    }
+  }
+
   const cargarCursosReal = async () => {
     const { data, error } = await supabase.from('cursos').select('*')
     if (!error && data) {
@@ -124,6 +141,10 @@ export default function DetalleEstudiantePage() {
   const nombreAlumno = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
+  // Cálculos automáticos basados en pagos reales
+  const totalCobrado = pagos.filter(p => p.estado === 'Pagado').reduce((acc, p) => acc + p.monto, 0)
+  const totalPendiente = pagos.filter(p => p.estado !== 'Pagado').reduce((acc, p) => acc + p.monto, 0)
+
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
       
@@ -179,11 +200,11 @@ export default function DetalleEstudiantePage() {
                   <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
                 </div>
                 <div>
-                  <h4 className="text-2xl font-extrabold text-slate-900">$ 1,800.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
+                  <h4 className="text-2xl font-extrabold text-slate-900">$ {totalPendiente.toLocaleString('es-MX')} <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
-                    <div className="bg-emerald-500 h-full w-3/4"></div>
+                    <div className="bg-emerald-500 h-full w-full"></div>
                   </div>
-                  <p className="text-xs text-slate-500">Cuotas al día</p>
+                  <p className="text-xs text-slate-500">Historial sincronizado desde Supabase</p>
                 </div>
               </div>
 
@@ -193,12 +214,16 @@ export default function DetalleEstudiantePage() {
                   <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{inscripciones.length}</span>
                 </div>
                 <div className="space-y-3">
-                  {inscripciones.map((ins, i) => (
-                    <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                      <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
-                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
-                    </div>
-                  ))}
+                  {inscripciones.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-2">Sin inscripciones registradas.</p>
+                  ) : (
+                    inscripciones.map((ins, i) => (
+                      <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                        <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -251,12 +276,16 @@ export default function DetalleEstudiantePage() {
               <button onClick={() => setModalInscribir(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Inscribir a Curso</button>
             </div>
             <div className="space-y-3">
-              {inscripciones.map((ins, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                  <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo} MXN</p></div>
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
-                </div>
-              ))}
+              {inscripciones.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">Este estudiante no cuenta con inscripciones activas.</p>
+              ) : (
+                inscripciones.map((ins, idx) => (
+                  <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                    <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo} MXN</p></div>
+                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -264,33 +293,37 @@ export default function DetalleEstudiantePage() {
         {tabActiva === 'pagos' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 1,800.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 3,600.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">100%</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Pendientes</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ {totalPendiente.toLocaleString('es-MX')}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ {totalCobrado.toLocaleString('es-MX')}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Registros de Pago</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">{pagos.length}</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Estado General</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">Al día</h3></div>
             </div>
             <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-              <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos</h3></div>
+              <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos en Supabase</h3></div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="py-3 px-6">ID</th><th className="py-3 px-6">Descripción</th><th className="py-3 px-6">Vencimiento</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estado</th><th className="py-3 px-6 text-right">Acción</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                    {pagos.map((p, i) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
-                        <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
-                        <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
-                        <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto}</td>
-                        <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
-                        <td className="py-4 px-6 text-right"><button onClick={() => alert('Registrar pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Registrar pago</button></td>
+                {pagos.length === 0 ? (
+                  <div className="text-center py-12 text-xs text-slate-400">No hay registros de pagos en la base de datos para este alumno.</div>
+                ) : (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
+                        <th className="py-3 px-6">ID Pago</th><th className="py-3 px-6">Curso / Concepto</th><th className="py-3 px-6">Fecha de Pago</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estatus</th><th className="py-3 px-6 text-right">Acción</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                      {pagos.map((p, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
+                          <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
+                          <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
+                          <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
+                          <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
+                          <td className="py-4 px-6 text-right"><button onClick={() => alert('Detalle de pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Ver comprobante</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           </div>
@@ -356,7 +389,7 @@ export default function DetalleEstudiantePage() {
         </div>
       )}
 
-      {/* MODAL INSCRIBIR (CONECTADO A LA TABLA CURSOS DE SUPABASE) */}
+      {/* MODAL INSCRIBIR */}
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
@@ -376,13 +409,29 @@ export default function DetalleEstudiantePage() {
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
               <button 
-                onClick={() => {
+                onClick={async () => {
                   if(!cursoSeleccionado) return alert('Seleccione un curso válido');
                   const cursoObj = cursosDisponibles.find(c => c.Nombre_curso === cursoSeleccionado);
                   const costoFinal = cursoObj?.costo_total ? Number(cursoObj.costo_total) : 1800;
-                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: costoFinal, estado: 'Activa' }]);
-                  setModalInscribir(false);
-                  alert('¡Estudiante inscrito exitosamente!');
+
+                  // Insertar el nuevo pago/inscripción directamente en Supabase si se desea persistir
+                  const { error } = await supabase.from('pagos').insert([
+                    {
+                      alumno_id: alumno.id,
+                      curso_id: cursoObj?.id || null,
+                      monto: costoFinal,
+                      estatus: 'Pendiente',
+                      fecha_pago: new Date().toISOString().split('T')[0]
+                    }
+                  ]);
+
+                  if (error) {
+                    alert('Error al registrar inscripción/pago: ' + error.message);
+                  } else {
+                    setModalInscribir(false);
+                    alert('¡Inscripción y pago registrados exitosamente!');
+                    cargarPagosReal(alumno.id);
+                  }
                 }} 
                 className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
               >
