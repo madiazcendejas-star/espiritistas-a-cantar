@@ -9,8 +9,10 @@ export default function DetalleEstudiantePage() {
   const [tabActiva, setTabActiva] = useState('resumen')
   
   const [modalInscribir, setModalInscribir] = useState(false)
-  const [cursoSeleccionado, setCursoSeleccionado] = useState('')
+  const [gruposDisponibles, setGruposDisponibles] = useState([])
   const [cursosDisponibles, setCursosDisponibles] = useState([])
+  const [grupoSeleccionadoId, setGrupoSeleccionadoId] = useState('')
+
   const [modalEditar, setModalEditar] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
 
@@ -29,7 +31,7 @@ export default function DetalleEstudiantePage() {
     
     if (idParam) {
       cargarDatosAlumno(idParam)
-      cargarCursosReal()
+      cargarCatalogos()
     } else {
       setLoading(false)
     }
@@ -50,44 +52,67 @@ export default function DetalleEstudiantePage() {
         setFormEdicion({
           password: encontrado.password || 'EAC2026*'
         })
-        // Cargar pagos y cursos del alumno real
-        cargarPagosReal(encontrado.id)
+        cargarInscripcionesYPagos(encontrado.id)
       }
     }
     setLoading(false)
   }
 
-  // Carga los pagos reales filtrados por el ID del alumno desde Supabase
-  const cargarPagosReal = async (alumnoId) => {
+  const cargarCatalogos = async () => {
+    const { data: resCursos } = await supabase.from('cursos').select('*')
+    const { data: resGrupos } = await supabase.from('grupos').select('*')
+    if (resCursos) setCursosDisponibles(resCursos)
+    if (resGrupos) setGruposDisponibles(resGrupos)
+  }
+
+  const cargarInscripcionesYPagos = async (alumnoId) => {
+    // Cargar inscripciones reales
+    const { data: resIns } = await supabase
+      .from('inscripciones')
+      .select('*')
+      .eq('alumno_id', alumnoId)
+
+    const { data: resCursos } = await supabase.from('cursos').select('*')
+    const { data: resGrupos } = await supabase.from('grupos').select('*')
+
+    if (resIns && resCursos && resGrupos) {
+      const insMapeadas = resIns.map(ins => {
+        const gr = resGrupos.find(g => Number(g.id) === Number(ins.grupo_id))
+        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (ins.curso_id ? resCursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
+        return {
+          id: ins.id,
+          curso: cur?.Nombre_curso || cur?.nombre_curso || 'Curso',
+          grupo: gr?.nombre_grupo || 'Grupo general',
+          costo: gr?.costo_total || 0,
+          estado: ins.estatus || 'activa'
+        }
+      })
+      setInscripciones(insMapeadas)
+    }
+
+    // Cargar pagos reales
     const { data, error } = await supabase
       .from('pagos')
       .select(`
         id,
         monto,
+        fecha_vencimiento,
         fecha_pago,
         estatus,
-        cursos (
-          Nombre_curso
-        )
+        grupos (nombre_grupo, cursos (Nombre_curso, nombre_curso))
       `)
       .eq('alumno_id', alumnoId)
+      .order('fecha_vencimiento', { ascending: false })
 
     if (!error && data) {
       const pagosMapeados = data.map(p => ({
         id: p.id,
-        descripcion: p.cursos?.Nombre_curso || 'Curso de la Academia',
-        vencimiento: p.fecha_pago || 'Sin fecha',
+        descripcion: p.grupos?.cursos?.Nombre_curso || p.grupos?.cursos?.nombre_curso || p.grupos?.nombre_grupo || 'Cuota de la Academia',
+        vencimiento: p.fecha_vencimiento || p.fecha_pago || 'Sin fecha',
         monto: Number(p.monto) || 0,
         estado: p.estatus || 'Pendiente'
       }))
       setPagos(pagosMapeados)
-    }
-  }
-
-  const cargarCursosReal = async () => {
-    const { data, error } = await supabase.from('cursos').select('*')
-    if (!error && data) {
-      setCursosDisponibles(data)
     }
   }
 
@@ -130,6 +155,64 @@ export default function DetalleEstudiantePage() {
     setNuevaNota('')
   }
 
+  const confirmarInscripcionDesdeExpediente = async () => {
+    if (!grupoSeleccionadoId) return alert('Seleccione un grupo y horario válido.')
+
+    const grupoObj = gruposDisponibles.find(g => Number(g.id) === Number(grupoSeleccionadoId))
+    if (!grupoObj) return alert('Grupo no encontrado.')
+
+    // 1. Insertar inscripción con alumno_id, grupo_id y curso_id
+    const { error: errIns } = await supabase.from('inscripciones').insert([
+      {
+        alumno_id: alumno.id,
+        grupo_id: grupoObj.id,
+        curso_id: grupoObj.curso_id,
+        estatus: 'activa'
+      }
+    ])
+
+    if (errIns) {
+      return alert('Error al inscribir: ' + errIns.message)
+    }
+
+    // 2. Generar cuotas automáticas según frecuencia del grupo
+    const costoTotal = Number(grupoObj.costo_total) || 0
+    const numPagos = Number(grupoObj.num_pagos) || 1
+    const montoPorPago = costoTotal / numPagos
+    const frecuencia = grupoObj.frecuencia || 'mensual'
+
+    const fechaInicioBase = grupoObj.fecha_inicio ? new Date(grupoObj.fecha_inicio) : new Date()
+    const cuotasARegistrar = []
+
+    for (let i = 0; i < numPagos; i++) {
+      let fechaVenc = new Date(fechaInicioBase)
+      if (frecuencia === 'diaria') fechaVenc.setDate(fechaVenc.getDate() + i)
+      else if (frecuencia === 'semanal') fechaVenc.setDate(fechaVenc.getDate() + (i * 7))
+      else if (frecuencia === 'quincenal') fechaVenc.setDate(fechaVenc.getDate() + (i * 15))
+      else fechaVenc.setMonth(fechaVenc.getMonth() + i)
+
+      cuotasARegistrar.push({
+        alumno_id: alumno.id,
+        grupo_id: grupoObj.id,
+        curso_id: grupoObj.curso_id,
+        monto: montoPorPago,
+        fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
+        estatus: 'Pendiente'
+      })
+    }
+
+    const { error: errPagos } = await supabase.from('pagos').insert(cuotasARegistrar)
+
+    if (errPagos) {
+      alert('Inscripción creada, pero hubo un error al generar las cuotas: ' + errPagos.message)
+    } else {
+      alert('¡Inscripción y plan de pagos generado con éxito!')
+      setModalInscribir(false)
+      setGrupoSeleccionadoId('')
+      cargarInscripcionesYPagos(alumno.id)
+    }
+  }
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Cargando expediente del estudiante...</div>
   }
@@ -141,7 +224,6 @@ export default function DetalleEstudiantePage() {
   const nombreAlumno = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
-  // Cálculos automáticos basados en pagos reales
   const totalCobrado = pagos.filter(p => p.estado === 'Pagado').reduce((acc, p) => acc + p.monto, 0)
   const totalPendiente = pagos.filter(p => p.estado !== 'Pagado').reduce((acc, p) => acc + p.monto, 0)
 
@@ -219,7 +301,7 @@ export default function DetalleEstudiantePage() {
                   ) : (
                     inscripciones.map((ins, i) => (
                       <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                        <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
+                        <div><p className="text-xs font-bold text-slate-900">{ins.curso} ({ins.grupo})</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
                         <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
                       </div>
                     ))
@@ -281,7 +363,7 @@ export default function DetalleEstudiantePage() {
               ) : (
                 inscripciones.map((ins, idx) => (
                   <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                    <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo} MXN</p></div>
+                    <div><h4 className="text-xs font-bold text-slate-900">{ins.curso} — {ins.grupo}</h4><p className="text-[11px] text-slate-500">Costo total: $ {ins.costo} MXN</p></div>
                     <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
                   </div>
                 ))
@@ -307,7 +389,7 @@ export default function DetalleEstudiantePage() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                        <th className="py-3 px-6">ID Pago</th><th className="py-3 px-6">Curso / Concepto</th><th className="py-3 px-6">Fecha de Pago</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estatus</th><th className="py-3 px-6 text-right">Acción</th>
+                        <th className="py-3 px-6">ID Pago</th><th className="py-3 px-6">Curso / Concepto</th><th className="py-3 px-6">Vencimiento</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estatus</th><th className="py-3 px-6 text-right">Acción</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -318,7 +400,7 @@ export default function DetalleEstudiantePage() {
                           <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
                           <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
                           <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
-                          <td className="py-4 px-6 text-right"><button onClick={() => alert('Detalle de pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Ver comprobante</button></td>
+                          <td className="py-4 px-6 text-right"><span className="text-[10px] text-slate-400">Gestionado</span></td>
                         </tr>
                       ))}
                     </tbody>
@@ -389,53 +471,37 @@ export default function DetalleEstudiantePage() {
         </div>
       )}
 
-      {/* MODAL INSCRIBIR */}
+      {/* MODAL INSCRIBIR DESDE EXPEDIENTE */}
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
             <h3 className="text-base font-bold text-slate-900">Inscribir a {nombreAlumno}</h3>
+            <p className="text-xs text-slate-400">Selecciona el grupo y horario al que deseas matricular al estudiante:</p>
+            
             <select 
-              value={cursoSeleccionado} 
-              onChange={(e) => setCursoSeleccionado(e.target.value)} 
+              value={grupoSeleccionadoId} 
+              onChange={(e) => setGrupoSeleccionadoId(e.target.value)} 
               className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
             >
-              <option value="">Seleccione un curso de la academia...</option>
-              {cursosDisponibles.map((c, index) => (
-                <option key={c.id || index} value={c.Nombre_curso}>
-                  {c.Nombre_curso} {c.costo_total ? `($${c.costo_total} MXN)` : ''}
-                </option>
-              ))}
+              <option value="">Seleccione un grupo o horario...</option>
+              {gruposDisponibles.map((g) => {
+                const cursoAsoc = cursosDisponibles.find(c => Number(c.id) === Number(g.curso_id))
+                const nombreCur = cursoAsoc?.Nombre_curso || cursoAsoc?.nombre_curso || 'Curso'
+                return (
+                  <option key={g.id} value={g.id}>
+                    {nombreCur} — {g.nombre_grupo} (${g.costo_total} MXN, {g.num_pagos} pagos {g.frecuencia})
+                  </option>
+                )
+              })}
             </select>
+
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
               <button 
-                onClick={async () => {
-                  if(!cursoSeleccionado) return alert('Seleccione un curso válido');
-                  const cursoObj = cursosDisponibles.find(c => c.Nombre_curso === cursoSeleccionado);
-                  const costoFinal = cursoObj?.costo_total ? Number(cursoObj.costo_total) : 1800;
-
-                  // Insertar el nuevo pago/inscripción directamente en Supabase si se desea persistir
-                  const { error } = await supabase.from('pagos').insert([
-                    {
-                      alumno_id: alumno.id,
-                      curso_id: cursoObj?.id || null,
-                      monto: costoFinal,
-                      estatus: 'Pendiente',
-                      fecha_pago: new Date().toISOString().split('T')[0]
-                    }
-                  ]);
-
-                  if (error) {
-                    alert('Error al registrar inscripción/pago: ' + error.message);
-                  } else {
-                    setModalInscribir(false);
-                    alert('¡Inscripción y pago registrados exitosamente!');
-                    cargarPagosReal(alumno.id);
-                  }
-                }} 
-                className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
+                onClick={confirmarInscripcionDesdeExpediente} 
+                className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm"
               >
-                Confirmar
+                Confirmar Inscripción
               </button>
             </div>
           </div>
