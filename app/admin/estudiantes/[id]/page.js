@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 
-export default function DetalleEstudiantePage({ params }) {
+export default function DetalleEstudiantePage() {
+  const params = useParams()
+  const alumnoId = params?.id
+
   const [alumno, setAlumno] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tabActiva, setTabActiva] = useState('resumen')
@@ -21,16 +25,10 @@ export default function DetalleEstudiantePage({ params }) {
   const [cursoSeleccionado, setCursoSeleccionado] = useState('')
 
   useEffect(() => {
-    // Captura blindada del ID desde la URL o params de Next.js
-    const pathSegments = window.location.pathname.split('/')
-    const idParam = params?.id || pathSegments[pathSegments.length - 1]
-
-    if (idParam) {
-      cargarDatosAlumno(idParam)
-    } else {
-      setLoading(false)
+    if (alumnoId) {
+      cargarDatosAlumno(alumnoId)
     }
-  }, [params])
+  }, [alumnoId])
 
   const cargarDatosAlumno = async (valor) => {
     setLoading(true)
@@ -275,7 +273,7 @@ export default function DetalleEstudiantePage({ params }) {
           </div>
         )}
 
-      </main>
+     </main>
 
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
