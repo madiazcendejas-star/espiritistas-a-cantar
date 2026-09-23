@@ -30,14 +30,25 @@ export default function GruposAdminPage() {
 
   const cargarDatos = async () => {
     setLoading(true)
-    // Cargar grupos con su curso relacionado
-    const { data: resGrupos } = await supabase
+    
+    // 1. Cargar grupos directamente de la tabla
+    const { data: resGrupos, error: errGrupos } = await supabase
       .from('grupos')
-      .select('*, cursos(Nombre_curso, nombre_curso)')
+      .select('*')
       .order('id', { ascending: false })
 
-    // Cargar catálogo de cursos para el selector
-    const { data: resCursos } = await supabase.from('cursos').select('*')
+    if (errGrupos) {
+      console.error('Error al cargar grupos:', errGrupos.message)
+    }
+
+    // 2. Cargar catálogo de cursos
+    const { data: resCursos, error: errCursos } = await supabase
+      .from('cursos')
+      .select('*')
+
+    if (errCursos) {
+      console.error('Error al cargar cursos:', errCursos.message)
+    }
 
     if (resGrupos) setGrupos(resGrupos)
     if (resCursos) setCursos(resCursos)
@@ -50,7 +61,7 @@ export default function GruposAdminPage() {
 
     const { error } = await supabase.from('grupos').insert([
       {
-        curso_id: formGrupo.curso_id,
+        curso_id: Number(formGrupo.curso_id),
         nombre_grupo: formGrupo.nombre_grupo.trim(),
         fecha_inicio: formGrupo.fecha_inicio || null,
         fecha_fin: formGrupo.fecha_fin || null,
@@ -82,7 +93,8 @@ export default function GruposAdminPage() {
   }
 
   const gruposFiltrados = grupos.filter(g => {
-    const nombreCurso = g.cursos?.Nombre_curso || g.cursos?.nombre_curso || ''
+    const cursoAsociado = cursos.find(c => Number(c.id) === Number(g.curso_id))
+    const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || ''
     return g.nombre_grupo.toLowerCase().includes(busqueda.toLowerCase()) ||
            nombreCurso.toLowerCase().includes(busqueda.toLowerCase())
   })
@@ -177,7 +189,8 @@ export default function GruposAdminPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {gruposFiltrados.map((g) => {
-                  const nombreCurso = g.cursos?.Nombre_curso || g.cursos?.nombre_curso || 'Curso General'
+                  const cursoAsociado = cursos.find(c => Number(c.id) === Number(g.curso_id))
+                  const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || 'Curso General'
 
                   return (
                     <div key={g.id} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
