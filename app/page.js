@@ -49,7 +49,7 @@ export default function LoginPage() {
       {/* Efectos visuales de fondo sutiles e institucionales */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-15 pointer-events-none">
         <div className="absolute -top-[20%] -right-[10%] w-[50%] h-[50%] bg-indigo-600 blur-[150px] rounded-full"></div>
-        <div class="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600 blur-[130px] rounded-full"></div>
+        <div className="absolute bottom-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600 blur-[130px] rounded-full"></div>
       </div>
 
       {/* Header Institucional */}
