@@ -71,11 +71,12 @@ export default function InscripcionesAdminPage() {
 
     setGuardando(true)
 
-    // A. Insertar inscripción
+    // A. Insertar inscripción incluyendo curso_id para cumplir con la restricción de Supabase
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumnoSeleccionado.id,
         grupo_id: grupoSeleccionado.id,
+        curso_id: grupoSeleccionado.curso_id,
         estatus: 'activa'
       }
     ])
