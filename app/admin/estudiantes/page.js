@@ -1,346 +1,421 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { supabase } from '../../../../lib/supabase'
 
-export default function EstudiantesAdminPage() {
-  const [alumnos, setAlumnos] = useState([])
-  const [busqueda, setBusqueda] = useState('')
+export default function DetalleEstudiantePage({ params }) {
+  const alumnoId = params.id
+  const [alumno, setAlumno] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [modalAbierto, setModalAbierto] = useState(false)
-  const [guardando, setGuardando] = useState(false)
-
-  const [nuevoAlumno, setNuevoAlumno] = useState({
-    nombre: '',
-    telefono: '',
-    correo: '',
-    fecha_nacimiento: '',
-    estado: '',
-    cp: '',
-    pais: 'México',
-    password: ''
-  })
+  const [tabActiva, setTabActiva] = useState('resumen') // resumen | personal | inscripciones | pagos | asistencia | anotaciones
+  
+  const [inscripciones, setInscripciones] = useState([
+    { id: 1, curso: 'Sala de 2 · Matutino', costo: 13500, estado: 'Activa' }
+  ])
+  const [pagos, setPagos] = useState([
+    { id: 'D61MFX', descripcion: 'October 2026 - Sala de 2', vencimiento: '22 oct 2026', monto: 17700, estado: 'Pendiente' },
+    { id: '9A58CT', descripcion: 'September 2026 - Sala de 2', vencimiento: '22 sep 2026', monto: 17700, estado: 'Pagado' }
+  ])
+  const [anotaciones, setAnotaciones] = useState([])
+  const [nuevaNota, setNuevaNota] = useState('')
+  const [modalInscribir, setModalInscribir] = useState(false)
+  const [cursoSeleccionado, setCursoSeleccionado] = useState('')
 
   useEffect(() => {
-    const sesion = localStorage.getItem('eac_sesion')
-    if (!sesion || JSON.parse(sesion).rol !== 'admin') {
-      window.location.href = '/'
-      return
+    if (alumnoId) {
+      cargarDatosAlumno(alumnoId)
     }
-    cargarAlumnos()
-  }, [])
+  }, [alumnoId])
 
-  const cargarAlumnos = async () => {
+  const cargarDatosAlumno = async (id) => {
     setLoading(true)
     const { data, error } = await supabase
       .from('alumnos')
       .select('*')
-      .order('id', { ascending: false })
+      .eq('id', id)
+      .single()
 
     if (!error && data) {
-      setAlumnos(data)
+      setAlumno(data)
     }
     setLoading(false)
   }
 
-  const generarMatricula4Digitos = () => {
-    return Math.floor(1000 + Math.random() * 9000).toString()
-  }
-
-  const registrarEstudiante = async (e) => {
-    e.preventDefault()
-    setGuardando(true)
-
-    const matriculaUnica = generarMatricula4Digitos()
-    const passwordGenerada = nuevoAlumno.password.trim() || 'EAC2026*'
-
-    const { error } = await supabase.from('alumnos').insert([
-      {
-        matricula: matriculaUnica,
-        nombre: nuevoAlumno.nombre.trim(),
-        telefono: nuevoAlumno.telefono.trim(),
-        correo: nuevoAlumno.correo.trim(),
-        fecha_nacimiento: nuevoAlumno.fecha_nacimiento || null,
-        estado: nuevoAlumno.estado.trim(),
-        cp: nuevoAlumno.cp.trim(),
-        pais: nuevoAlumno.pais.trim(),
-        password: passwordGenerada
+  const eliminarEstudiante = async () => {
+    if (confirm('¿Estás seguro de eliminar este estudiante de la academia? Esta acción es irreversible.')) {
+      const { error } = await supabase.from('alumnos').delete().eq('id', alumnoId)
+      if (!error) {
+        window.location.href = '/admin/estudiantes'
+      } else {
+        alert('Error al eliminar: ' + error.message)
       }
-    ])
-
-    if (error) {
-      alert('Error al registrar estudiante: ' + error.message)
-    } else {
-      setModalAbierto(false)
-      setNuevoAlumno({
-        nombre: '',
-        telefono: '',
-        correo: '',
-        fecha_nacimiento: '',
-        estado: '',
-        cp: '',
-        pais: 'México',
-        password: ''
-      })
-      cargarAlumnos()
     }
-    setGuardando(false)
   }
 
-  const cerrarSesion = () => {
-    localStorage.removeItem('eac_sesion')
-    window.location.href = '/'
+  const agregarNota = (e) => {
+    e.preventDefault()
+    if (!nuevaNota.trim()) return
+    setAnotaciones([...anotaciones, { texto: nuevaNota, fecha: new Date().toLocaleDateString() }])
+    setNuevaNota('')
   }
 
-  const alumnosFiltrados = alumnos.filter((a) => {
-    const query = busqueda.toLowerCase()
-    const nombre = (a.nombre || '').toLowerCase()
-    const telefono = (a.telefono || '').toLowerCase()
-    const correo = (a.correo || '').toLowerCase()
-    const matricula = (a.matricula || a.id?.toString() || '').toLowerCase()
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Cargando expediente del estudiante...</div>
+  }
 
-    return (
-      nombre.includes(query) ||
-      telefono.includes(query) ||
-      correo.includes(query) ||
-      matricula.includes(query)
-    )
-  })
+  if (!alumno) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado.</div>
+  }
+
+  const iniciales = alumno.nombre ? alumno.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AL'
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
+    <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR INSTITUCIONAL */}
-      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
-        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
-            <div className="flex flex-col">
-              <span className="font-bold text-white text-xs leading-tight">Espiritistas a Cantar</span>
-              <span className="text-[10px] text-indigo-400 font-medium">Panel Administrativo</span>
+      {/* BARRA SUPERIOR / HEADER DE PERFIL */}
+      <header className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-30 shadow-xs space-y-4">
+        
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex items-center gap-4">
+            <a href="/admin/estudiantes" className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-600 transition text-sm font-bold">
+              ←
+            </a>
+            <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold text-sm shadow-xs">
+              {iniciales}
             </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-extrabold text-slate-900">{alumno.nombre}</h1>
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || alumno.id}</span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">Matriculado en la academia</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setModalInscribir(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
+            >
+              <span>+</span> Inscribir a {alumno.nombre.split(' ')[0]}
+            </button>
           </div>
         </div>
 
-        <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto text-xs font-medium">
-          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
-          <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
-          <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
-          <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
-        </nav>
-      </aside>
+        {/* Badges de estado rápido */}
+        <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-slate-500 border-t border-slate-100">
+          <span className="text-indigo-600 font-semibold">{inscripciones.length} Inscripción activa</span>
+          <span>•</span>
+          <span className="text-amber-600 font-semibold">1 Pago pendiente</span>
+          <span>•</span>
+          <span className="text-emerald-600 font-semibold">100% Asistencia</span>
+        </div>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto">
+        {/* PESTAÑAS DE NAVEGACIÓN */}
+        <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100 text-xs font-semibold">
+          <button 
+            onClick={() => setTabActiva('resumen')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            📊 Resumen
+          </button>
+          <button 
+            onClick={() => setTabActiva('personal')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            👤 Personal
+          </button>
+          <button 
+            onClick={() => setTabActiva('inscripciones')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'inscripciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            📚 Inscripciones
+          </button>
+          <button 
+            onClick={() => setTabActiva('pagos')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'pagos' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            💳 Pagos
+          </button>
+          <button 
+            onClick={() => setTabActiva('asistencia')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            ✅ Asistencia
+          </button>
+          <button 
+            onClick={() => setTabActiva('anotaciones')}
+            className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            📝 Anotaciones
+          </button>
+        </div>
+
+      </header>
+
+      {/* CONTENIDO DE LAS PESTAÑAS */}
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-8 space-y-6">
         
-        {/* Barra Superior con Buscador Dinámico */}
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-4 w-full max-w-lg">
-            <div className="relative w-full">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400 text-xs">🔍</span>
-              <input 
-                type="text" 
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por nombre, apellido, teléfono, matrícula o correo..." 
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 transition"
-              />
+        {/* TAB 1: RESUMEN */}
+        {tabActiva === 'resumen' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Pagos</h3>
+                  <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
+                </div>
+                <div>
+                  <h4 className="text-2xl font-extrabold text-slate-900">$ 17,700.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
+                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
+                    <div className="bg-emerald-500 h-full w-3/4"></div>
+                  </div>
+                  <p className="text-xs text-slate-500">3/4 cuotas pagadas • Próximo vto: 22 oct</p>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Inscripciones Activas</h3>
+                  <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{inscripciones.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {inscripciones.map((ins, i) => (
+                    <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                      <div>
+                        <p className="text-xs font-bold text-slate-900">{ins.curso}</p>
+                        <span className="text-[10px] text-slate-400">$ {ins.costo.toLocaleString('es-MX')} MXN</span>
+                      </div>
+                      <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h4 className="text-sm font-bold text-rose-600">Zona de peligro</h4>
+                <p className="text-xs text-slate-400">Eliminar este estudiante de la academia es una acción irreversible.</p>
+              </div>
+              <button 
+                onClick={eliminarEstudiante}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2.5 rounded-xl text-xs font-semibold transition border border-rose-200"
+              >
+                Eliminar Estudiante
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-semibold text-slate-600">Control Escolar</span>
-          </div>
-        </header>
+        )}
 
-        {/* CONTENEDOR DE LA VISTA */}
-        <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
-          
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900">Directorio de Estudiantes</h1>
-              <p className="text-xs text-slate-500 mt-0.5">Gestión y expedientes del alumnado activo en la academia.</p>
+        {/* TAB 2: PERSONAL */}
+        {tabActiva === 'personal' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-base font-bold text-slate-900">Información Personal</h3>
+              <button onClick={() => alert('Modo edición activado')} className="text-xs font-semibold text-indigo-600 hover:underline">Editar Datos</button>
             </div>
-            <button 
-              onClick={() => setModalAbierto(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
-            >
-              <span>+</span> Nuevo Estudiante
-            </button>
-          </div>
 
-          {/* TABLA DE ALUMNOS */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-            {loading ? (
-              <div className="text-center py-16 text-slate-400 text-xs">Cargando directorio de estudiantes...</div>
-            ) : alumnosFiltrados.length === 0 ? (
-              <div className="text-center py-16 text-slate-400 text-xs">No se encontraron estudiantes con ese criterio de búsqueda.</div>
-            ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.nombre}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.correo || 'Sin correo registrado'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono de Contacto</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.telefono || 'Sin teléfono'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación (Estado / CP)</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p>
+              </div>
+              <div>
+                <span className="text-slate-400 block font-bold uppercase text-[10px]">País</span>
+                <p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: INSCRIPCIONES */}
+        {tabActiva === 'inscripciones' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-base font-bold text-slate-900">Inscripciones a Grupos y Cursos</h3>
+              <button onClick={() => setModalInscribir(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Inscribir a Curso</button>
+            </div>
+
+            <div className="space-y-3">
+              {inscripciones.map((ins, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4>
+                    <p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo.toLocaleString('es-MX')} MXN</p>
+                  </div>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: PAGOS */}
+        {tabActiva === 'pagos' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span>
+                <h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span>
+                <h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 17,700.00</h3>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span>
+                <h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 47,400.00</h3>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span>
+                <h3 className="text-xl font-extrabold text-indigo-600 mt-1">72.8%</h3>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos</h3>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <th className="py-4 px-6">Matrícula</th>
-                      <th className="py-4 px-6">Nombre Completo</th>
-                      <th className="py-4 px-6">Teléfono</th>
-                      <th className="py-4 px-6">Correo</th>
-                      <th className="py-4 px-6">Ubicación (Estado / CP)</th>
-                      <th className="py-4 px-6 text-right">Acciones</th>
+                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
+                      <th className="py-3 px-6">ID</th>
+                      <th className="py-3 px-6">Descripción</th>
+                      <th className="py-3 px-6">Vencimiento</th>
+                      <th className="py-3 px-6">Monto</th>
+                      <th className="py-3 px-6">Estado</th>
+                      <th className="py-3 px-6 text-right">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                    {alumnosFiltrados.map((a) => (
-                      <tr key={a.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-4 px-6 font-mono font-bold text-indigo-600">
-                          #{a.matricula || `EAC-${a.id}`}
-                        </td>
+                    {pagos.map((p, i) => (
+                      <tr key={i} className="hover:bg-slate-50">
+                        <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
+                        <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
+                        <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
+                        <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
                         <td className="py-4 px-6">
-                          <a href={`/admin/estudiantes/${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
-                            {a.nombre}
-                          </a>
-                        </td>
-                        <td className="py-4 px-6 text-slate-600">{a.telefono || 'Sin teléfono'}</td>
-                        <td className="py-4 px-6 text-slate-500">{a.correo || 'Sin correo'}</td>
-                        <td className="py-4 px-6 text-slate-500">
-                          {a.estado ? `${a.estado} (CP: ${a.cp || 'N/A'})` : 'No especificado'}
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                            {p.estado}
+                          </span>
                         </td>
                         <td className="py-4 px-6 text-right">
-                          <a 
-                            href={`/admin/estudiantes/${a.id}`}
-                            className="text-indigo-600 font-semibold hover:underline"
-                          >
-                            Ver Expediente →
-                          </a>
+                          <button onClick={() => alert(`Registrar pago para ${p.id}`)} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">
+                            Registrar pago
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
+            </div>
           </div>
+        )}
 
-        </div>
-      </main>
+        {/* TAB 5: ASISTENCIA */}
+        {tabActiva === 'asistencia' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
+            <p className="text-xs text-slate-500">Historial y porcentaje de asistencia acumulada en clases.</p>
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-3xl font-extrabold text-emerald-600">100%</span>
+                <p className="text-xs text-slate-500 mt-1">22 de 22 clases asistidas correctamente</p>
+              </div>
+              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Racha perfecta 🔥</span>
+            </div>
+          </div>
+        )}
 
-      {/* MODAL NUEVO ESTUDIANTE */}
-      {modalAbierto && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150 space-y-6">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Inscribir Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-400 mt-0.5">El sistema asignará automáticamente una matrícula única de 4 dígitos.</p>
+        {/* TAB 6: ANOTACIONES */}
+        {tabActiva === 'anotaciones' && (
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <h3 className="text-base font-bold text-slate-900">Notas y Observaciones</h3>
             </div>
 
-            <form onSubmit={registrarEstudiante} className="space-y-4">
-              
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo *</label>
-                <input 
-                  type="text" 
-                  required
-                  value={nuevoAlumno.nombre}
-                  onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, nombre: e.target.value })}
-                  placeholder="Ej. Roberto Carlos Mendoza"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={nuevoAlumno.telefono}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, telefono: e.target.value })}
-                    placeholder="Ej. 5512345678"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    value={nuevoAlumno.correo}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, correo: e.target.value })}
-                    placeholder="correo@ejemplo.com"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Nacimiento</label>
-                  <input 
-                    type="date" 
-                    value={nuevoAlumno.fecha_nacimiento}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, fecha_nacimiento: e.target.value })}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 text-slate-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña de Acceso LMS</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.password}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, password: e.target.value })}
-                    placeholder="Contraseña inicial (opcional)"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Estado</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.estado}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, estado: e.target.value })}
-                    placeholder="Ej. Estado de México"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">C.P.</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.cp}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, cp: e.target.value })}
-                    placeholder="54900"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">País</label>
-                  <input 
-                    type="text" 
-                    value={nuevoAlumno.pais}
-                    onChange={(e) => setNuevoAlumno({ ...nuevoAlumno, pais: e.target.value })}
-                    placeholder="México"
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setModalAbierto(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={guardando}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50"
-                >
-                  {guardando ? 'Guardando...' : 'Crear Estudiante'}
-                </button>
-              </div>
+            <form onSubmit={agregarNota} className="space-y-3">
+              <textarea 
+                rows="3"
+                value={nuevaNota}
+                onChange={(e) => setNuevaNota(e.target.value)}
+                placeholder="Escriba una nota interna sobre el estudiante..."
+                className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 resize-none"
+              />
+              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">
+                + Nueva Anotación
+              </button>
             </form>
+
+            <div className="space-y-3 pt-4">
+              {anotaciones.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center py-6">No hay notas para este estudiante aún.</p>
+              ) : (
+                anotaciones.map((nota, i) => (
+                  <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+                    <span className="text-[10px] text-slate-400">{nota.fecha}</span>
+                    <p className="text-xs text-slate-700">{nota.texto}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+      </main>
+
+      {/* MODAL INSCRIBIR A CURSO */}
+      {modalInscribir && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Inscribir a {alumno.nombre}</h3>
+            <p className="text-xs text-slate-400">Seleccione el programa académico o grupo disponible.</p>
+            
+            <select 
+              value={cursoSeleccionado}
+              onChange={(e) => setCursoSeleccionado(e.target.value)}
+              className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+            >
+              <option value="">Seleccione un curso...</option>
+              <option value="Sala de 2 · Matutino">Sala de 2 · Matutino ($13,500)</option>
+              <option value="Canto y Espiritualidad">Canto y Espiritualidad Avanzada</option>
+            </select>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+              <button 
+                onClick={() => {
+                  if(!cursoSeleccionado) return alert('Seleccione un curso');
+                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 13500, estado: 'Activa' }]);
+                  setModalInscribir(false);
+                  alert('Estudiante inscrito exitosamente');
+                }}
+                className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
+              >
+                Confirmar Inscripción
+              </button>
+            </div>
           </div>
         </div>
       )}
