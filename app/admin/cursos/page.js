@@ -3,230 +3,366 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase'
 
-export default function CursosPage() {
+export default function CursosAdminPage() {
   const [cursos, setCursos] = useState([])
+  const [grupos, setGrupos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [modalAbierto, setModalAbierto] = useState(false)
+
+  // Modales
+  const [modalCurso, setModalCurso] = useState(false)
+  const [modalGrupo, setModalGrupo] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario nuevo curso
-  const [nuevoCurso, setNuevoCurso] = useState({
-    nombre: '',
-    descripcion: '',
-    costo: ''
+  // Formulario Nuevo Curso
+  const [formCurso, setFormCurso] = useState({
+    nombre_curso: '',
+    descripcion: ''
+  })
+
+  // Formulario Nuevo Grupo
+  const [formGrupo, setFormGrupo] = useState({
+    curso_id: '',
+    nombre_grupo: '',
+    fecha_inicio: '',
+    fecha_fin: '',
+    duracion_acceso: '1_ano',
+    costo_total: '',
+    num_pagos: 1,
+    frecuencia: 'mensual'
   })
 
   useEffect(() => {
-    // Validar sesión de administrador
     const sesion = localStorage.getItem('eac_sesion')
-    if (!sesion) {
+    if (!sesion || JSON.parse(sesion).rol !== 'admin') {
       window.location.href = '/'
       return
     }
-    const datos = JSON.parse(sesion)
-    if (datos.rol !== 'admin') {
-      window.location.href = '/'
-      return
-    }
-
-    cargarCursos()
+    cargarDatos()
   }, [])
 
-  const cargarCursos = async () => {
+  const cargarDatos = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('cursos')
-      .select('*')
-      .order('id', { ascending: false })
+    const { data: resCursos } = await supabase.from('cursos').select('*').order('id', { ascending: false })
+    const { data: resGrupos } = await supabase.from('grupos').select('*, cursos(nombre_curso)')
 
-    if (!error && data) {
-      setCursos(data)
-    }
+    if (resCursos) setCursos(resCursos)
+    if (resGrupos) setGrupos(resGrupos)
     setLoading(false)
   }
 
-  const registrarCurso = async (e) => {
+  const crearCurso = async (e) => {
     e.preventDefault()
     setGuardando(true)
 
     const { error } = await supabase.from('cursos').insert([
       {
-        nombre: nuevoCurso.nombre.trim(),
-        descripcion: nuevoCurso.descripcion.trim(),
-        costo: parseFloat(nuevoCurso.costo) || 0
+        nombre_curso: formCurso.nombre_curso.trim(),
+        descripcion: formCurso.descripcion.trim()
       }
     ])
 
     if (error) {
-      alert('Error al registrar programa académico: ' + error.message)
+      alert('Error al crear curso: ' + error.message)
     } else {
-      setModalAbierto(false)
-      setNuevoCurso({ nombre: '', descripcion: '', costo: '' })
-      cargarCursos()
+      setModalCurso(false)
+      setFormCurso({ nombre_curso: '', descripcion: '' })
+      cargarDatos()
     }
     setGuardando(false)
   }
 
-  const cerrarSesion = () => {
-    localStorage.removeItem('eac_sesion')
-    window.location.href = '/'
+  const crearGrupo = async (e) => {
+    e.preventDefault()
+    setGuardando(true)
+
+    const { error } = await supabase.from('grupos').insert([
+      {
+        curso_id: formGrupo.curso_id,
+        nombre_grupo: formGrupo.nombre_grupo.trim(),
+        fecha_inicio: formGrupo.fecha_inicio || null,
+        fecha_fin: formGrupo.fecha_fin || null,
+        duracion_acceso: formGrupo.duracion_acceso,
+        costo_total: Number(formGrupo.costo_total),
+        num_pagos: Number(formGrupo.num_pagos),
+        frecuencia: formGrupo.frecuencia
+      }
+    ])
+
+    if (error) {
+      alert('Error al crear grupo: ' + error.message)
+    } else {
+      setModalGrupo(false)
+      setFormGrupo({
+        curso_id: '',
+        nombre_grupo: '',
+        fecha_inicio: '',
+        fecha_fin: '',
+        duracion_acceso: '1_ano',
+        costo_total: '',
+        num_pagos: 1,
+        frecuencia: 'mensual'
+      })
+      cargarDatos()
+    }
+    setGuardando(false)
   }
 
   return (
-    <div className="h-screen flex overflow-hidden bg-slate-100 font-sans">
+    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR INSTITUCIONAL */}
-      <aside className="w-64 bg-[#0f172a] text-slate-300 hidden md:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
-        <div className="h-16 px-6 flex items-center border-b border-slate-800/60">
-          <div className="flex items-center gap-3.5">
-            <div className="w-8 h-8 bg-indigo-600 text-white rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">EC</div>
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
             <div className="flex flex-col">
-              <span className="font-bold text-white text-[13px] leading-tight">Espiritistas a Cantar</span>
-              <span className="text-[10px] text-indigo-400 font-medium">Panel Directivo</span>
+              <span className="font-bold text-white text-xs leading-tight">Espiritistas a Cantar</span>
+              <span className="text-[10px] text-indigo-400 font-medium">Panel Administrativo</span>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 py-6 px-3 space-y-1.5 overflow-y-auto text-sm">
-          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión Académica</div>
-          
-          <a href="/admin" className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">
-            <span>📊</span> Dashboard
-          </a>
-          <a href="/admin/estudiantes" className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">
-            <span>🎓</span> Estudiantes
-          </a>
-          <a href="/admin/cursos" className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl bg-indigo-600 text-white font-semibold transition">
-            <span>📚</span> Programas / Cursos
-          </a>
+        <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto text-xs font-medium">
+          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
+          <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
+          <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
+          <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">📚 Cursos / Programas</a>
         </nav>
-
-        <div className="p-4 border-t border-slate-800/60">
-          <button 
-            onClick={cerrarSesion}
-            className="w-full flex items-center justify-center gap-2 bg-slate-800/40 hover:bg-rose-950/40 hover:text-rose-400 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition"
-          >
-            Cerrar Sesión
-          </button>
-        </div>
       </aside>
 
-      {/* ÁREA DE CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto relative w-full">
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* Header Superior */}
-        <header className="bg-white border-b border-slate-200/80 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-sm flex-shrink-0">
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Programas y Cursos Académicos</h1>
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <span className="block text-xs font-bold text-slate-900">Control Escolar</span>
-              <span className="block text-[10px] text-indigo-600 font-semibold">Oferta Educativa</span>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">A</div>
+        {/* HEADER */}
+        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
+          <h2 className="text-sm font-bold text-slate-800">Gestión de Cursos y Grupos</h2>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setModalGrupo(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
+            >
+              + Nuevo Grupo
+            </button>
+            <button 
+              onClick={() => setModalCurso(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
+            >
+              + Nuevo Curso
+            </button>
           </div>
         </header>
 
-        {/* Contenedor de la Vista */}
-        <div className="p-8 max-w-[1400px] mx-auto w-full space-y-6">
+        {/* VISTA GENERAL */}
+        <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* Barra de Acciones */}
-          <div className="flex justify-between items-center">
-            <p className="text-sm text-slate-500">Gestione los planes de estudio y costos vigentes de la academia.</p>
-            <button 
-              onClick={() => setModalAbierto(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
-            >
-              <span>+</span> Nuevo Programa
-            </button>
+          {/* KPI Resumen */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase">Total Cursos</span>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-1">{cursos.length}</h3>
+              </div>
+              <span className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl text-lg">📚</span>
+            </div>
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
+              <div>
+                <span className="text-xs font-bold text-slate-400 uppercase">Grupos Activos</span>
+                <h3 className="text-2xl font-extrabold text-slate-900 mt-1">{grupos.length}</h3>
+              </div>
+              <span className="p-3 bg-purple-50 text-purple-600 rounded-2xl text-lg">🏛️</span>
+            </div>
           </div>
 
-          {/* Listado de Cursos en Tarjetas Grid */}
-          {loading ? (
-            <div className="text-center py-12 text-slate-400 text-sm">Cargando programas académicos...</div>
-          ) : cursos.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-sm bg-white rounded-3xl border border-slate-200">No hay cursos registrados en el sistema.</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {cursos.map((c) => (
-                <div key={c.id} className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm flex flex-col justify-between hover:shadow-md transition">
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-bold uppercase tracking-wider">Activo</span>
-                      <span className="text-sm font-extrabold text-slate-900">${c.costo ? c.costo.toFixed(2) : '0.00'}</span>
+          {/* LISTADO DE CURSOS */}
+          <div className="space-y-4">
+            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos</h3>
+            {loading ? (
+              <div className="text-center py-12 text-xs text-slate-400">Cargando cursos...</div>
+            ) : cursos.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
+                No hay cursos registrados. Haz clic en "+ Nuevo Curso" para empezar.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {cursos.map((c) => {
+                  const gruposDelCurso = grupos.filter(g => g.curso_id === c.id)
+                  return (
+                    <div key={c.id} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-sm font-bold text-slate-900">{c.nombre_curso}</h4>
+                          <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full">
+                            {gruposDelCurso.length} grupo{gruposDelCurso.length === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 line-clamp-2">{c.descripcion || 'Sin descripción detallada.'}</p>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100 space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupos asociados:</span>
+                        {gruposDelCurso.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic">Sin grupos configurados.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {gruposDelCurso.map(g => (
+                              <div key={g.id} className="text-xs bg-slate-50 p-2 rounded-xl flex justify-between items-center border border-slate-100">
+                                <span className="font-semibold text-slate-700">{g.nombre_grupo}</span>
+                                <span className="font-mono text-indigo-600 font-bold">${g.costo_total} ({g.num_pagos} pagos)</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 mb-1">{c.nombre}</h3>
-                    <p className="text-xs text-slate-500 line-clamp-3">{c.descripcion || 'Sin descripción detallada.'}</p>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>ID del Programa: #{c.id}</span>
-                    <span className="text-indigo-600 font-semibold cursor-pointer hover:underline" onClick={() => alert(`Detalles del curso: ${c.nombre}`)}>Ver detalles</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </div>
 
         </div>
       </main>
 
       {/* MODAL NUEVO CURSO */}
-      {modalAbierto && (
+      {modalCurso && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-150">
-            <h3 className="text-base font-bold text-slate-900 mb-1">Registrar Nuevo Curso</h3>
-            <p className="text-xs text-slate-400 mb-6">Añada un programa académico a la oferta educativa.</p>
-
-            <form onSubmit={registrarCurso} className="space-y-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Crear Nuevo Curso</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Define el programa académico general de la academia.</p>
+            </div>
+            <form onSubmit={crearCurso} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Curso *</label>
                 <input 
                   type="text" 
                   required
-                  value={nuevoCurso.nombre}
-                  onChange={(e) => setNuevoCurso({ ...nuevoCurso, nombre: e.target.value })}
-                  placeholder="Ej. Canto y Espiritualidad Avanzada"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-600 outline-none bg-slate-50"
+                  value={formCurso.nombre_curso}
+                  onChange={(e) => setFormCurso({ ...formCurso, nombre_curso: e.target.value })}
+                  placeholder="Ej. Canto y Espiritualidad"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 />
               </div>
-
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Descripción</label>
                 <textarea 
                   rows="3"
-                  value={nuevoCurso.descripcion}
-                  onChange={(e) => setNuevoCurso({ ...nuevoCurso, descripcion: e.target.value })}
-                  placeholder="Breve resumen del contenido programático..."
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-600 outline-none bg-slate-50 resize-none"
+                  value={formCurso.descripcion}
+                  onChange={(e) => setFormCurso({ ...formCurso, descripcion: e.target.value })}
+                  placeholder="Breve descripción del programa..."
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 resize-none"
                 />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModalCurso(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
+                  {guardando ? 'Guardando...' : 'Crear Curso'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL NUEVO GRUPO */}
+      {modalGrupo && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Crear Nuevo Grupo / Edición</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Configura fechas, costos y planes de pago específicos para este grupo.</p>
+            </div>
+            <form onSubmit={crearGrupo} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Seleccionar Curso *</label>
+                <select 
+                  required
+                  value={formGrupo.curso_id}
+                  onChange={(e) => setFormGrupo({ ...formGrupo, curso_id: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                >
+                  <option value="">Seleccione un curso...</option>
+                  {cursos.map(c => (
+                    <option key={c.id} value={c.id}>{c.nombre_curso}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo ($ MXN) *</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre del Grupo (Horario/Edición) *</label>
                 <input 
-                  type="number" 
-                  step="0.01"
+                  type="text" 
                   required
-                  value={nuevoCurso.costo}
-                  onChange={(e) => setNuevoCurso({ ...nuevoCurso, costo: e.target.value })}
-                  placeholder="Ej. 1500.00"
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-1 focus:ring-indigo-600 outline-none bg-slate-50"
+                  value={formGrupo.nombre_grupo}
+                  onChange={(e) => setFormGrupo({ ...formGrupo, nombre_grupo: e.target.value })}
+                  placeholder="Ej. Matutino · Lunes y Miércoles"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Inicio</label>
+                  <input 
+                    type="date" 
+                    value={formGrupo.fecha_inicio}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, fecha_inicio: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none text-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Término</label>
+                  <input 
+                    type="date" 
+                    value={formGrupo.fecha_fin}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, fecha_fin: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none text-slate-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Total ($ MXN) *</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={formGrupo.costo_total}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })}
+                    placeholder="1800"
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Número de Pagos *</label>
+                  <input 
+                    type="number" 
+                    required
+                    min="1"
+                    value={formGrupo.num_pagos}
+                    onChange={(e) => setFormGrupo({ ...formGrupo, num_pagos: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Disponibilidad / Vigencia de Acceso</label>
+                <select 
+                  value={formGrupo.duracion_acceso}
+                  onChange={(e) => setFormGrupo({ ...formGrupo, duracion_acceso: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                >
+                  <option value="1_ano">1 Año</option>
+                  <option value="2_anos">2 Años</option>
+                  <option value="ilimitado">Ilimitado</option>
+                </select>
+              </div>
+
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button 
-                  type="button" 
-                  onClick={() => setModalAbierto(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 transition"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={guardando}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50"
-                >
-                  {guardando ? 'Guardando...' : 'Crear Programa'}
+                <button type="button" onClick={() => setModalGrupo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
+                  {guardando ? 'Guardando...' : 'Crear Grupo'}
                 </button>
               </div>
             </form>
