@@ -21,22 +21,18 @@ export default function AdminDashboardPage() {
   const cargarMetricasReales = async () => {
     setLoading(true)
 
-    // 1. Contar estudiantes
     const { count: countAlumnos } = await supabase
       .from('alumnos')
       .select('*', { count: 'exact', head: true })
 
-    // 2. Contar grupos
-    const { count: countGrupos, data: dataGrupos } = await supabase
+    const { count: countGrupos } = await supabase
       .from('grupos')
-      .select('*', { count: 'exact' })
+      .select('*', { count: 'exact', head: true })
 
-    // 3. Contar cursos
     const { count: countCursos } = await supabase
       .from('cursos')
       .select('*', { count: 'exact', head: true })
 
-    // 4. Cargar pagos para calcular finanzas
     const { data: dataPagos } = await supabase
       .from('pagos')
       .select(`
@@ -73,7 +69,7 @@ export default function AdminDashboardPage() {
       totalPendiente: pendiente
     })
 
-    setPagosPendientes(pendientesLista.slice(0, 5)) // Mostrar los primeros 5 pendientes
+    setPagosPendientes(pendientesLista.slice(0, 5))
     setLoading(false)
   }
 
@@ -98,13 +94,12 @@ export default function AdminDashboardPage() {
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
+          <a href="/admin/inscripciones" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📋 Inscripciones</a>
         </nav>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
-        {/* HEADER */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500">Panel General de la Academia</span>
@@ -112,10 +107,7 @@ export default function AdminDashboardPage() {
           <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Academia Espiritistas a Cantar</span>
         </header>
 
-        {/* VISTA GENERAL */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
-          
-          {/* KPI RESUMEN EN VIVO */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
@@ -150,13 +142,9 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* ACCESOS RÁPIDOS Y ESTADO FINANCIERO */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* ACCESOS RÁPIDOS */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-1">
               <h3 className="text-sm font-bold text-slate-900">Acciones Rápidas</h3>
-              
               <div className="space-y-3">
                 <a href="/admin/estudiantes" className="p-3.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl border border-slate-100 flex items-center justify-between transition group">
                   <div className="flex items-center gap-3">
@@ -181,10 +169,17 @@ export default function AdminDashboardPage() {
                   </div>
                   <span className="text-slate-400 group-hover:text-indigo-600">→</span>
                 </a>
+
+                <a href="/admin/inscripciones" className="p-3.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl border border-slate-100 flex items-center justify-between transition group">
+                  <div className="flex items-center gap-3">
+                    <span className="p-2 bg-white rounded-xl shadow-xs text-indigo-600">📋</span>
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">Ver Inscripciones</span>
+                  </div>
+                  <span className="text-slate-400 group-hover:text-indigo-600">→</span>
+                </a>
               </div>
             </div>
 
-            {/* PAGOS PENDIENTES / RECORDATORIOS */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-2">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold text-slate-900">Cuotas Pendientes y Vencidas en Supabase</h3>
@@ -227,12 +222,9 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
-
           </div>
-
         </div>
       </main>
-
     </div>
   )
 }
