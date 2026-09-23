@@ -134,6 +134,27 @@ export default function PortalAlumnoPage() {
     setGrupoActivo(null)
   }
 
+  // Función para convertir enlaces comunes de YouTube o Google Drive en formatos incrustables (embed)
+  const obtenerUrlEmbed = (url) => {
+    if (!url) return ''
+    // YouTube watch URL
+    if (url.includes('youtube.com/watch?v=')) {
+      const videoId = url.split('v=')[1]?.split('&')[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    // YouTube short URL
+    if (url.includes('youtu.be/')) {
+      const videoId = url.split('youtu.be/')[1]?.split('?')[0]
+      return `https://www.youtube.com/embed/${videoId}`
+    }
+    // Google Drive share URL -> Preview URL
+    if (url.includes('drive.google.com/file/d/')) {
+      const fileId = url.split('/file/d/')[1]?.split('/')[0]
+      return `https://drive.google.com/file/d/${fileId}/preview`
+    }
+    return url
+  }
+
   if (!alumno) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0f1d] font-sans px-4">
@@ -229,18 +250,43 @@ export default function PortalAlumnoPage() {
                   El profesor aún no ha publicado recursos para este grupo.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {grupoActivo.recursosGrupo.map((rec, i) => (
-                    <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
-                      <div className="space-y-1">
-                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase font-bold">{rec.tipo}</span>
-                        <h4 className="text-xs font-bold text-slate-900">{rec.titulo}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {grupoActivo.recursosGrupo.map((rec, i) => {
+                    const urlEmbed = obtenerUrlEmbed(rec.url)
+                    const esVideo = rec.tipo === 'video' || rec.url.includes('youtube') || rec.url.includes('youtu.be') || rec.url.includes('drive.google.com')
+
+                    return (
+                      <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">{rec.tipo}</span>
+                            <a href={rec.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-indigo-600 font-semibold hover:underline">
+                              Abrir original ↗
+                            </a>
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-900">{rec.titulo}</h4>
+                        </div>
+
+                        {esVideo ? (
+                          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
+                            <iframe 
+                              src={urlEmbed} 
+                              title={rec.titulo} 
+                              className="w-full h-full border-0" 
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                              allowFullScreen 
+                            />
+                          </div>
+                        ) : (
+                          <div className="pt-2">
+                            <a href={rec.url} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-semibold transition shadow-sm">
+                              Ver / Descargar Documento →
+                            </a>
+                          </div>
+                        )}
                       </div>
-                      <a href={rec.url} target="_blank" rel="noopener noreferrer" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition">
-                        Abrir material →
-                      </a>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -267,14 +313,13 @@ export default function PortalAlumnoPage() {
                   const descripcionCurso = curso.descripcion || 'Sin descripción.'
                   const nombreGrupo = grupo.nombre_grupo || 'Grupo'
 
-                  // Validar si tiene pagos realmente VENCIDOS y pendientes (ignorando cuotas futuras)
+                  // Validar pagos vencidos
                   const hoy = new Date().toISOString().split('T')[0]
                   const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(grupo.id))
                   
                   const tienePagosVencidos = pagosDelGrupo.some(p => {
                     const est = (p.estatus || 'Pendiente').toLowerCase()
                     if (est === 'pagado') return false
-                    // Solo bloquea si el pago no está pagado y su fecha de vencimiento ya llegó o pasó
                     return p.fecha_vencimiento && p.fecha_vencimiento <= hoy
                   })
 
