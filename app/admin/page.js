@@ -95,11 +95,13 @@ export default function AdminDashboardPage() {
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
           <a href="/admin/inscripciones" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📋 Inscripciones</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
         </nav>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
+        
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500">Panel General de la Academia</span>
@@ -108,6 +110,7 @@ export default function AdminDashboardPage() {
         </header>
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
@@ -143,8 +146,10 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-1">
               <h3 className="text-sm font-bold text-slate-900">Acciones Rápidas</h3>
+              
               <div className="space-y-3">
                 <a href="/admin/estudiantes" className="p-3.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl border border-slate-100 flex items-center justify-between transition group">
                   <div className="flex items-center gap-3">
@@ -174,6 +179,14 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-3">
                     <span className="p-2 bg-white rounded-xl shadow-xs text-indigo-600">📋</span>
                     <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">Ver Inscripciones</span>
+                  </div>
+                  <span className="text-slate-400 group-hover:text-indigo-600">→</span>
+                </a>
+
+                <a href="/admin/pagos" className="p-3.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl border border-slate-100 flex items-center justify-between transition group">
+                  <div className="flex items-center gap-3">
+                    <span className="p-2 bg-white rounded-xl shadow-xs text-indigo-600">💳</span>
+                    <span className="text-xs font-bold text-slate-700 group-hover:text-indigo-600">Módulo de Pagos</span>
                   </div>
                   <span className="text-slate-400 group-hover:text-indigo-600">→</span>
                 </a>
@@ -222,9 +235,12 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
+
           </div>
+
         </div>
       </main>
+
     </div>
   )
 }
