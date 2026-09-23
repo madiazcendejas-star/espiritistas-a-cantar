@@ -10,6 +10,7 @@ export default function DetalleEstudiantePage() {
   
   const [modalInscribir, setModalInscribir] = useState(false)
   const [cursoSeleccionado, setCursoSeleccionado] = useState('')
+  const [cursosDisponibles, setCursosDisponibles] = useState([])
   const [modalEditar, setModalEditar] = useState(false)
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
 
@@ -17,19 +18,15 @@ export default function DetalleEstudiantePage() {
     nombre: '',
     correo: '',
     telefono: '',
-    password: '',
-    fecha_nacimiento: '',
-    estado: '',
-    cp: '',
-    pais: 'México'
+    password: ''
   })
 
   const [inscripciones, setInscripciones] = useState([
-    { id: 1, curso: 'Sala de 2 · Matutino', costo: 13500, estado: 'Activa' }
+    { id: 1, curso: 'Programa Principal', costo: 0, estado: 'Activa' }
   ])
   const [pagos, setPagos] = useState([
-    { id: 'D61MFX', descripcion: 'October 2026 - Sala de 2', vencimiento: '22 oct 2026', monto: 17700, estado: 'Pendiente' },
-    { id: '9A58CT', descripcion: 'September 2026 - Sala de 2', vencimiento: '22 sep 2026', monto: 17700, estado: 'Pagado' }
+    { id: 'D61MFX', descripcion: 'Cuota mensual - Activa', vencimiento: '22 oct 2026', monto: 1500, estado: 'Pendiente' },
+    { id: '9A58CT', descripcion: 'Cuota mensual - Anterior', vencimiento: '22 sep 2026', monto: 1500, estado: 'Pagado' }
   ])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
@@ -40,6 +37,7 @@ export default function DetalleEstudiantePage() {
     
     if (idParam) {
       cargarDatosAlumno(idParam)
+      cargarCursosReal()
     } else {
       setLoading(false)
     }
@@ -61,15 +59,19 @@ export default function DetalleEstudiantePage() {
           nombre: encontrado.nombre || encontrado.Nombre || '',
           correo: encontrado.correo || encontrado.Correo || '',
           telefono: encontrado.telefono || encontrado.Telefono || '',
-          password: encontrado.password || 'EAC2026*',
-          fecha_nacimiento: encontrado.fecha_nacimiento || '',
-          estado: encontrado.estado || '',
-          cp: encontrado.cp || '',
-          pais: encontrado.pais || 'México'
+          password: encontrado.password || 'EAC2026*'
         })
       }
     }
     setLoading(false)
+  }
+
+  // Cargar cursos reales desde la tabla 'cursos' de Supabase
+  const cargarCursosReal = async () => {
+    const { data, error } = await supabase.from('cursos').select('*')
+    if (!error && data) {
+      setCursosDisponibles(data)
+    }
   }
 
   const guardarEdicion = async (e) => {
@@ -79,21 +81,14 @@ export default function DetalleEstudiantePage() {
     const { error } = await supabase
       .from('alumnos')
       .update({
-        nombre: formEdicion.nombre.trim(),
-        correo: formEdicion.correo.trim(),
-        telefono: formEdicion.telefono.trim(),
-        password: formEdicion.password.trim(),
-        fecha_nacimiento: formEdicion.fecha_nacimiento || null,
-        estado: formEdicion.estado.trim(),
-        cp: formEdicion.cp.trim(),
-        pais: formEdicion.pais.trim()
+        password: formEdicion.password.trim()
       })
       .eq('id', alumno.id)
 
     if (error) {
-      alert('Error al actualizar: ' + error.message)
+      alert('Error al actualizar la contraseña LMS: ' + error.message)
     } else {
-      alert('Información y contraseña actualizadas exitosamente')
+      alert('¡Contraseña de acceso LMS actualizada exitosamente!')
       setModalEditar(false)
       cargarDatosAlumno(alumno.id)
     }
@@ -184,11 +179,11 @@ export default function DetalleEstudiantePage() {
                   <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
                 </div>
                 <div>
-                  <h4 className="text-2xl font-extrabold text-slate-900">$ 17,700.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
+                  <h4 className="text-2xl font-extrabold text-slate-900">$ 1,500.00 <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
                     <div className="bg-emerald-500 h-full w-3/4"></div>
                   </div>
-                  <p className="text-xs text-slate-500">3/4 cuotas pagadas • Próximo vto: 22 oct</p>
+                  <p className="text-xs text-slate-500">Cuotas al día</p>
                 </div>
               </div>
 
@@ -200,7 +195,7 @@ export default function DetalleEstudiantePage() {
                 <div className="space-y-3">
                   {inscripciones.map((ins, i) => (
                     <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                      <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo.toLocaleString('es-MX')} MXN</span></div>
+                      <div><p className="text-xs font-bold text-slate-900">{ins.curso}</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
                       <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
                     </div>
                   ))}
@@ -231,7 +226,7 @@ export default function DetalleEstudiantePage() {
                 onClick={() => setModalEditar(true)} 
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
               >
-                ✏️ Editar Datos y Contraseña
+                🔑 Administrar Contraseña LMS
               </button>
             </div>
 
@@ -245,9 +240,6 @@ export default function DetalleEstudiantePage() {
                   {alumno.password || 'EAC2026*'}
                 </p>
               </div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span><p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación</span><p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">País</span><p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p></div>
             </div>
           </div>
         )}
@@ -261,7 +253,7 @@ export default function DetalleEstudiantePage() {
             <div className="space-y-3">
               {inscripciones.map((ins, idx) => (
                 <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                  <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo.toLocaleString('es-MX')} MXN</p></div>
+                  <div><h4 className="text-xs font-bold text-slate-900">{ins.curso}</h4><p className="text-[11px] text-slate-500">Costo mensual: $ {ins.costo} MXN</p></div>
                   <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
                 </div>
               ))}
@@ -273,9 +265,9 @@ export default function DetalleEstudiantePage() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Vencidos</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ 0.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 17,700.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 47,400.00</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">72.8%</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Próximos Pagos</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">$ 1,500.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ 3,000.00</h3></div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Tasa de Cobro</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">100%</h3></div>
             </div>
             <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
               <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos</h3></div>
@@ -292,7 +284,7 @@ export default function DetalleEstudiantePage() {
                         <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
                         <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
                         <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
-                        <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
+                        <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto}</td>
                         <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
                         <td className="py-4 px-6 text-right"><button onClick={() => alert('Registrar pago')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold">Registrar pago</button></td>
                       </tr>
@@ -308,7 +300,7 @@ export default function DetalleEstudiantePage() {
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
             <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-              <div><span className="text-3xl font-extrabold text-emerald-600">100%</span><p className="text-xs text-slate-500 mt-1">22 de 22 clases asistidas correctamente</p></div>
+              <div><span className="text-3xl font-extrabold text-emerald-600">100%</span><p className="text-xs text-slate-500 mt-1">Clases asistidas correctamente</p></div>
               <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Racha perfecta 🔥</span>
             </div>
           </div>
@@ -331,79 +323,32 @@ export default function DetalleEstudiantePage() {
 
       </main>
 
-      {/* MODAL DE EDICIÓN */}
+      {/* MODAL DE CONTRASEÑA LMS */}
       {modalEditar && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Editar Datos y Contraseña LMS</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Modifica la información del alumno o establece su contraseña de acceso.</p>
+              <h3 className="text-base font-bold text-slate-900">Actualizar Contraseña de Acceso LMS</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Establezca la contraseña con la que el alumno iniciará sesión en su portal.</p>
             </div>
 
             <form onSubmit={guardarEdicion} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formEdicion.nombre}
-                  onChange={(e) => setFormEdicion({ ...formEdicion, nombre: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono</label>
-                  <input 
-                    type="text" 
-                    value={formEdicion.telefono}
-                    onChange={(e) => setFormEdicion({ ...formEdicion, telefono: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
-                  <input 
-                    type="email" 
-                    value={formEdicion.correo}
-                    onChange={(e) => setFormEdicion({ ...formEdicion, correo: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña de Acceso LMS</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Nueva Contraseña LMS</label>
                 <input 
                   type="text" 
                   required
                   value={formEdicion.password}
                   onChange={(e) => setFormEdicion({ ...formEdicion, password: e.target.value })}
-                  placeholder="Contraseña para el portal del alumno"
-                  className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                  placeholder="Ej. EAC2026*"
+                  className="w-full p-3.5 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
                 />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Estado</label>
-                  <input type="text" value={formEdicion.estado} onChange={(e) => setFormEdicion({ ...formEdicion, estado: e.target.value })} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">C.P.</label>
-                  <input type="text" value={formEdicion.cp} onChange={(e) => setFormEdicion({ ...formEdicion, cp: e.target.value })} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">País</label>
-                  <input type="text" value={formEdicion.pais} onChange={(e) => setFormEdicion({ ...formEdicion, pais: e.target.value })} className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
-                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalEditar(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
                 <button type="submit" disabled={guardandoEdicion} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardandoEdicion ? 'Guardando...' : 'Guardar Cambios'}
+                  {guardandoEdicion ? 'Actualizando...' : 'Guardar Contraseña'}
                 </button>
               </div>
             </form>
@@ -411,19 +356,36 @@ export default function DetalleEstudiantePage() {
         </div>
       )}
 
-      {/* MODAL INSCRIBIR */}
+      {/* MODAL INSCRIBIR (CARGA CURSOS REALES DE SUPABASE) */}
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
             <h3 className="text-base font-bold text-slate-900">Inscribir a {nombreAlumno}</h3>
-            <select value={cursoSeleccionado} onChange={(e) => setCursoSeleccionado(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none">
-              <option value="">Seleccione un curso...</option>
-              <option value="Sala de 2 · Matutino">Sala de 2 · Matutino ($13,500)</option>
-              <option value="Canto y Espiritualidad">Canto y Espiritualidad Avanzada</option>
+            <select 
+              value={cursoSeleccionado} 
+              onChange={(e) => setCursoSeleccionado(e.target.value)} 
+              className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+            >
+              <option value="">Seleccione un curso de la academia...</option>
+              {cursosDisponibles.map((c) => (
+                <option key={c.id} value={c.nombre || c.titulo || c.curso}>
+                  {c.nombre || c.titulo || c.curso} {c.costo ? `($${c.costo})` : ''}
+                </option>
+              ))}
             </select>
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-              <button onClick={() => { if(!cursoSeleccionado) return alert('Seleccione un curso'); setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 13500, estado: 'Activa' }]); setModalInscribir(false); alert('Inscrito exitosamente'); }} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold">Confirmar</button>
+              <button 
+                onClick={() => {
+                  if(!cursoSeleccionado) return alert('Seleccione un curso válido');
+                  setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 1500, estado: 'Activa' }]);
+                  setModalInscribir(false);
+                  alert('¡Estudiante inscrito exitosamente!');
+                }} 
+                className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold"
+              >
+                Confirmar
+              </button>
             </div>
           </div>
         </div>
