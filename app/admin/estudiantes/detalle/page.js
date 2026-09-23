@@ -66,7 +66,7 @@ export default function DetalleEstudiantePage() {
   }
 
   const cargarInscripcionesYPagos = async (alumnoId) => {
-    // Cargar inscripciones reales
+    // 1. Cargar inscripciones con carga independiente y desduplicación por grupo_id
     const { data: resIns } = await supabase
       .from('inscripciones')
       .select('*')
@@ -76,7 +76,10 @@ export default function DetalleEstudiantePage() {
     const { data: resGrupos } = await supabase.from('grupos').select('*')
 
     if (resIns && resCursos && resGrupos) {
-      const insMapeadas = resIns.map(ins => {
+      // Filtrar duplicados para que cada grupo aparezca una sola vez
+      const unicas = Array.from(new Map(resIns.map(item => [item.grupo_id, item])).values())
+
+      const insMapeadas = unicas.map(ins => {
         const gr = resGrupos.find(g => Number(g.id) === Number(ins.grupo_id))
         const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (ins.curso_id ? resCursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
         return {
@@ -90,28 +93,25 @@ export default function DetalleEstudiantePage() {
       setInscripciones(insMapeadas)
     }
 
-    // Cargar pagos reales
-    const { data, error } = await supabase
+    // 2. Cargar pagos reales con consulta independiente
+    const { data: resPagos, error } = await supabase
       .from('pagos')
-      .select(`
-        id,
-        monto,
-        fecha_vencimiento,
-        fecha_pago,
-        estatus,
-        grupos (nombre_grupo, cursos (Nombre_curso, nombre_curso))
-      `)
+      .select('*')
       .eq('alumno_id', alumnoId)
       .order('fecha_vencimiento', { ascending: false })
 
-    if (!error && data) {
-      const pagosMapeados = data.map(p => ({
-        id: p.id,
-        descripcion: p.grupos?.cursos?.Nombre_curso || p.grupos?.cursos?.nombre_curso || p.grupos?.nombre_grupo || 'Cuota de la Academia',
-        vencimiento: p.fecha_vencimiento || p.fecha_pago || 'Sin fecha',
-        monto: Number(p.monto) || 0,
-        estado: p.estatus || 'Pendiente'
-      }))
+    if (!error && resPagos && resCursos && resGrupos) {
+      const pagosMapeados = resPagos.map(p => {
+        const gr = resGrupos.find(g => Number(g.id) === Number(p.grupo_id))
+        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (p.curso_id ? resCursos.find(c => Number(c.id) === Number(p.curso_id)) : null)
+        return {
+          id: p.id,
+          descripcion: cur?.Nombre_curso || cur?.nombre_curso || gr?.nombre_grupo || 'Cuota de la Academia',
+          vencimiento: p.fecha_vencimiento || p.fecha_pago || 'Sin fecha',
+          monto: Number(p.monto) || 0,
+          estado: p.estatus || 'Pendiente'
+        }
+      })
       setPagos(pagosMapeados)
     }
   }
@@ -161,7 +161,18 @@ export default function DetalleEstudiantePage() {
     const grupoObj = gruposDisponibles.find(g => Number(g.id) === Number(grupoSeleccionadoId))
     if (!grupoObj) return alert('Grupo no encontrado.')
 
-    // 1. Insertar inscripción con alumno_id, grupo_id y curso_id
+    // Validar si ya está inscrito en este grupo
+    const { data: existente } = await supabase
+      .from('inscripciones')
+      .select('*')
+      .eq('alumno_id', alumno.id)
+      .eq('grupo_id', grupoObj.id)
+
+    if (existente && existente.length > 0) {
+      return alert('Este estudiante ya está inscrito en este grupo.')
+    }
+
+    // 1. Insertar inscripción única
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumno.id,
@@ -175,10 +186,10 @@ export default function DetalleEstudiantePage() {
       return alert('Error al inscribir: ' + errIns.message)
     }
 
-    // 2. Generar cuotas automáticas según frecuencia del grupo
+    // 2. Generar cuotas automáticas con división exacta
     const costoTotal = Number(grupoObj.costo_total) || 0
     const numPagos = Number(grupoObj.num_pagos) || 1
-    const montoPorPago = costoTotal / numPagos
+    const montoPorPago = Number((costoTotal / numPagos).toFixed(2))
     const frecuencia = grupoObj.frecuencia || 'mensual'
 
     const fechaInicioBase = grupoObj.fecha_inicio ? new Date(grupoObj.fecha_inicio) : new Date()
