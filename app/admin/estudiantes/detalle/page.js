@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../../lib/supabase'
 
 export default function DetalleEstudiantePage() {
-  const [alumnoId, setAlumnoId] = useState(null)
   const [alumno, setAlumno] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tabActiva, setTabActiva] = useState('resumen')
@@ -26,26 +25,27 @@ export default function DetalleEstudiantePage() {
     const idParam = params.get('id')
     
     if (idParam) {
-      setAlumnoId(idParam)
       cargarDatosAlumno(idParam)
     } else {
       setLoading(false)
     }
   }, [])
 
+  // Búsqueda blindada que compara ID y matrícula sin errores de tipo
   const cargarDatosAlumno = async (valor) => {
     setLoading(true)
-    // Limpiamos el valor por si viene con 'EAC-' para buscar por ID o Matrícula con seguridad
-    const valorLimpio = valor.replace('EAC-', '')
-
-    const { data, error } = await supabase
+    
+    const { data: todos, error } = await supabase
       .from('alumnos')
       .select('*')
-      .or(`id.eq.${valorLimpio},matricula.eq.${valor},matricula.eq.${valorLimpio}`)
-      .maybeSingle()
 
-    if (!error && data) {
-      setAlumno(data)
+    if (!error && todos) {
+      const encontrado = todos.find(
+        (a) => String(a.id) === String(valor) || String(a.matricula) === String(valor)
+      )
+      if (encontrado) {
+        setAlumno(encontrado)
+      }
     }
     setLoading(false)
   }
@@ -76,7 +76,8 @@ export default function DetalleEstudiantePage() {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado en la base de datos.</div>
   }
 
-  const iniciales = alumno.nombre ? alumno.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'AL'
+  const nombreAlumno = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
+  const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
@@ -94,7 +95,7 @@ export default function DetalleEstudiantePage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-extrabold text-slate-900">{alumno.nombre}</h1>
+                <h1 className="text-lg font-extrabold text-slate-900">{nombreAlumno}</h1>
                 <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || `EAC-${alumno.id}`}</span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">Matriculado en la academia</p>
@@ -106,7 +107,7 @@ export default function DetalleEstudiantePage() {
               onClick={() => setModalInscribir(true)}
               className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
             >
-              <span>+</span> Inscribir a {alumno.nombre.split(' ')[0]}
+              <span>+</span> Inscribir a {nombreAlumno.split(' ')[0]}
             </button>
           </div>
         </div>
@@ -190,9 +191,9 @@ export default function DetalleEstudiantePage() {
               <button onClick={() => alert('Modo edición')} className="text-xs font-semibold text-indigo-600 hover:underline">Editar Datos</button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{alumno.nombre}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || 'Sin correo'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || 'Sin teléfono'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{nombreAlumno}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || alumno.Correo || 'Sin correo'}</p></div>
+              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || alumno.Telefono || 'Sin teléfono'}</p></div>
               <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Fecha de Nacimiento</span><p className="text-slate-900 font-semibold mt-1">{alumno.fecha_nacimiento || 'No especificada'}</p></div>
               <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Ubicación</span><p className="text-slate-900 font-semibold mt-1">{alumno.estado ? `${alumno.estado} (CP: ${alumno.cp})` : 'No especificada'}</p></div>
               <div><span className="text-slate-400 block font-bold uppercase text-[10px]">País</span><p className="text-slate-900 font-semibold mt-1">{alumno.pais || 'México'}</p></div>
@@ -282,14 +283,14 @@ export default function DetalleEstudiantePage() {
       {modalInscribir && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Inscribir a {alumno.nombre}</h3>
+            <h3 className="text-base font-bold text-slate-900">Inscribir a {nombreAlumno}</h3>
             <select value={cursoSeleccionado} onChange={(e) => setCursoSeleccionado(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none">
               <option value="">Seleccione un curso...</option>
               <option value="Sala de 2 · Matutino">Sala de 2 · Matutino ($13,500)</option>
               <option value="Canto y Espiritualidad">Canto y Espiritualidad Avanzada</option>
             </select>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+              <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar}</div>
               <button onClick={() => { if(!cursoSeleccionado) return alert('Seleccione un curso'); setInscripciones([...inscripciones, { curso: cursoSeleccionado, costo: 13500, estado: 'Activa' }]); setModalInscribir(false); alert('Inscrito exitosamente'); }} className="bg-indigo-600 text-white px-5 py-2 rounded-xl text-xs font-semibold">Confirmar</button>
             </div>
           </div>
