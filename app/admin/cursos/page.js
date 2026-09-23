@@ -32,8 +32,17 @@ export default function CursosAdminPage() {
 
   const cargarDatos = async () => {
     setLoading(true)
-    const { data: resCursos } = await supabase.from('cursos').select('*').order('id', { ascending: false })
-    const { data: resGrupos } = await supabase.from('grupos').select('*, cursos(Nombre_curso, nombre_curso)')
+    
+    // 1. Cargar cursos
+    const { data: resCursos } = await supabase
+      .from('cursos')
+      .select('*')
+      .order('id', { ascending: false })
+
+    // 2. Cargar grupos directamente sin join para evitar errores de relación
+    const { data: resGrupos } = await supabase
+      .from('grupos')
+      .select('*')
 
     if (resCursos) setCursos(resCursos)
     if (resGrupos) setGrupos(resGrupos)
@@ -79,6 +88,29 @@ export default function CursosAdminPage() {
     } else {
       alert('¡Curso actualizado exitosamente!')
       setModalDetalle(false)
+      cargarDatos()
+    }
+    setGuardando(false)
+  }
+
+  const eliminarCurso = async () => {
+    if (!cursoSeleccionado) return
+
+    const confirmar = confirm(`¿Estás seguro de eliminar el curso "${cursoSeleccionado.Nombre_curso || cursoSeleccionado.nombre_curso}"? Se eliminarán también sus grupos e inscripciones asociadas. Esta acción es irreversible.`)
+    if (!confirmar) return
+
+    setGuardando(true)
+    const { error } = await supabase
+      .from('cursos')
+      .delete()
+      .eq('id', cursoSeleccionado.id)
+
+    if (error) {
+      alert('Error al eliminar el curso: ' + error.message)
+    } else {
+      alert('Curso eliminado exitosamente.')
+      setModalDetalle(false)
+      setCursoSeleccionado(null)
       cargarDatos()
     }
     setGuardando(false)
@@ -159,7 +191,7 @@ export default function CursosAdminPage() {
 
           {/* LISTADO DE CURSOS */}
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos (Haz clic para ver y editar)</h3>
+            <h3 className="text-base font-bold text-slate-900">Catálogo de Cursos (Haz clic para ver, editar o eliminar)</h3>
             {loading ? (
               <div className="text-center py-12 text-xs text-slate-400">Cargando cursos...</div>
             ) : cursos.length === 0 ? (
@@ -170,7 +202,7 @@ export default function CursosAdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {cursos.map((c) => {
                   const nombreCurso = c.Nombre_curso || c.nombre_curso || 'Curso sin nombre'
-                  const gruposDelCurso = grupos.filter(g => g.curso_id === c.id)
+                  const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(c.id))
 
                   return (
                     <div 
@@ -188,9 +220,20 @@ export default function CursosAdminPage() {
                         <p className="text-xs text-slate-500 line-clamp-2">{c.descripcion || 'Sin descripción detallada.'}</p>
                       </div>
 
-                      <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs text-indigo-600 font-semibold">
-                        <span>Gestionar información →</span>
-                        <span className="text-slate-400 text-[10px]">ID: #{c.id}</span>
+                      <div className="pt-4 border-t border-slate-100 space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Grupos asociados:</span>
+                        {gruposDelCurso.length === 0 ? (
+                          <p className="text-[11px] text-slate-400 italic">Sin grupos configurados.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {gruposDelCurso.map(g => (
+                              <div key={g.id} className="text-xs bg-slate-50 p-2 rounded-xl flex justify-between items-center border border-slate-100">
+                                <span className="font-semibold text-slate-700">{g.nombre_grupo}</span>
+                                <span className="font-mono text-indigo-600 font-bold">${g.costo_total} ({g.num_pagos} pagos)</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )
@@ -243,13 +286,23 @@ export default function CursosAdminPage() {
         </div>
       )}
 
-      {/* MODAL DETALLE / EDITAR CURSO */}
+      {/* MODAL DETALLE / EDITAR / ELIMINAR CURSO */}
       {modalDetalle && cursoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Detalles y Edición de Curso</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Modifica la información general de este programa académico.</p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Detalles y Edición de Curso</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Modifica la información o elimina este programa académico.</p>
+              </div>
+              <button 
+                type="button" 
+                onClick={eliminarCurso}
+                disabled={guardando}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-2 rounded-xl text-xs font-semibold transition border border-rose-200"
+              >
+                🗑️ Eliminar Curso
+              </button>
             </div>
             
             <form onSubmit={guardarEdicionCurso} className="space-y-4">
