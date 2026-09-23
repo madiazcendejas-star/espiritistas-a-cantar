@@ -9,10 +9,18 @@ export default function PortalAlumnoPage() {
   const [alumno, setAlumno] = useState(null)
   const [inscripciones, setInscripciones] = useState([])
   const [pagos, setPagos] = useState([])
+  const [recursos, setRecursos] = useState([])
   const [loading, setLoading] = useState(false)
   const [errorLogin, setErrorLogin] = useState('')
 
-  // Intentar recuperar sesión guardada en localStorage al cargar
+  // Modal para cambiar contraseña
+  const [modalPassword, setModalPassword] = useState(false)
+  const [nuevaPassword, setNuevaPassword] = useState('')
+  const [guardandoPass, setGuardandoPass] = useState(false)
+
+  // Curso seleccionado para ver sus contenidos
+  const [cursoActivo, setCursoActivo] = useState(null)
+
   useEffect(() => {
     const alumnoGuardado = localStorage.getItem('eac_alumno_sesion')
     if (alumnoGuardado) {
@@ -27,9 +35,7 @@ export default function PortalAlumnoPage() {
     setLoading(true)
     setErrorLogin('')
 
-    const { data: alumnos, error } = await supabase
-      .from('alumnos')
-      .select('*')
+    const { data: alumnos, error } = await supabase.from('alumnos').select('*')
 
     if (error) {
       setErrorLogin('Error de conexión con la base de datos.')
@@ -49,10 +55,10 @@ export default function PortalAlumnoPage() {
         localStorage.setItem('eac_alumno_sesion', JSON.stringify(encontrado))
         cargarDatosLMS(encontrado.id)
       } else {
-        setErrorLogin('Contraseña incorrecta. Verifica tus datos.')
+        setErrorLogin('Contraseña incorrecta.')
       }
     } else {
-      setErrorLogin('No se encontró ningún estudiante con esa matrícula o correo.')
+      setErrorLogin('Estudiante no encontrado.')
     }
     setLoading(false)
   }
@@ -60,17 +66,17 @@ export default function PortalAlumnoPage() {
   const cargarDatosLMS = async (alumnoId) => {
     setLoading(true)
 
-    // 1. Cargar inscripciones y sus relaciones
+    // 1. Cargar inscripciones activas del alumno
     const { data: resIns } = await supabase
       .from('inscripciones')
       .select(`
         id,
         estatus,
+        grupo_id,
         grupos (
           id,
           nombre_grupo,
           costo_total,
-          fecha_inicio,
           cursos (
             id,
             Nombre_curso,
@@ -80,6 +86,7 @@ export default function PortalAlumnoPage() {
         )
       `)
       .eq('alumno_id', alumnoId)
+      .eq('estatus', 'activa')
 
     if (resIns) setInscripciones(resIns)
 
@@ -91,7 +98,37 @@ export default function PortalAlumnoPage() {
 
     if (resPagos) setPagos(resPagos)
 
+    // 3. Cargar todos los recursos multimedia disponibles
+    const { data: resRecursos } = await supabase
+      .from('recursos')
+      .select('*')
+
+    if (resRecursos) setRecursos(resRecursos)
+
     setLoading(false)
+  }
+
+  const cambiarPasswordAlumno = async (e) => {
+    e.preventDefault()
+    if (!nuevaPassword.trim()) return
+    setGuardandoPass(true)
+
+    const { error } = await supabase
+      .from('alumnos')
+      .update({ password: nuevaPassword.trim() })
+      .eq('id', alumno.id)
+
+    if (error) {
+      alert('Error al actualizar contraseña: ' + error.message)
+    } else {
+      alert('¡Contraseña actualizada exitosamente!')
+      const alumnoActualizado = { ...alumno, password: nuevaPassword.trim() }
+      setAlumno(alumnoActualizado)
+      localStorage.setItem('eac_alumno_sesion', JSON.stringify(alumnoActualizado))
+      setModalPassword(false)
+      setNuevaPassword('')
+    }
+    setGuardandoPass(false)
   }
 
   const cerrarSesion = () => {
@@ -99,11 +136,10 @@ export default function PortalAlumnoPage() {
     setAlumno(null)
     setInscripciones([])
     setPagos([])
-    setMatriculaIngresada('')
-    setPasswordIngresada('')
+    setCursoActivo(null)
   }
 
-  // VISTA 1: LOGIN DEL ESTUDIANTE
+  // VISTA 1: LOGIN
   if (!alumno) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0a0f1d] font-sans px-4">
@@ -111,22 +147,21 @@ export default function PortalAlumnoPage() {
           <div className="text-center space-y-2">
             <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-extrabold mx-auto text-base shadow-md">EC</div>
             <h1 className="text-lg font-extrabold text-slate-900">Portal de Estudiantes</h1>
-            <p className="text-xs text-slate-500">Espiritistas a Cantar — Ingresa a tu academia</p>
+            <p className="text-xs text-slate-500">Espiritistas a Cantar — Inicia sesión</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula o Correo Electrónico</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula o Correo</label>
               <input 
                 type="text" 
                 required
                 value={matriculaIngresada}
                 onChange={(e) => setMatriculaIngresada(e.target.value)}
-                placeholder="Ej. EAC-1024 o correo@ejemplo.com"
+                placeholder="Ej. EAC-1024"
                 className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
               />
             </div>
-
             <div>
               <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña LMS</label>
               <input 
@@ -138,164 +173,188 @@ export default function PortalAlumnoPage() {
                 className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-mono"
               />
             </div>
-
-            {errorLogin && (
-              <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-semibold text-center">
-                {errorLogin}
-              </div>
-            )}
-
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-50"
-            >
-              {loading ? 'Verificando acceso...' : 'Iniciar Sesión en el Portal'}
+            {errorLogin && <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-semibold text-center">{errorLogin}</div>}
+            <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-xs font-bold transition shadow-sm">
+              {loading ? 'Verificando...' : 'Iniciar Sesión'}
             </button>
           </form>
-
-          <div className="text-center pt-2">
-            <span className="text-[11px] text-slate-400">¿Problemas con tu acceso? Contacta a administración.</span>
-          </div>
         </div>
       </div>
     )
   }
 
-  // VISTA 2: DASHBOARD / AULA VIRTUAL DEL ESTUDIANTE
   const nombreEstudiante = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
   const matriculaEstudiante = alumno.matricula || `EAC-${alumno.id}`
-
-  const pagosPendientes = pagos.filter(p => p.estatus !== 'Pagado')
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* HEADER DEL ALUMNO */}
+      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-30 shadow-xs flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-extrabold text-xs">EC</div>
           <div>
-            <h1 className="text-sm font-bold text-slate-900">Aula Virtual — Espiritistas a Cantar</h1>
-            <p className="text-[11px] text-slate-400">Bienvenido(a), <span className="font-semibold text-slate-700">{nombreEstudiante}</span> (#{matriculaEstudiante})</p>
+            <h1 className="text-sm font-bold text-slate-900">Aula Virtual</h1>
+            <p className="text-[11px] text-slate-400">Bienvenido, <strong className="text-slate-800">{nombreEstudiante}</strong> (#{matriculaEstudiante})</p>
           </div>
         </div>
 
-        <button 
-          onClick={cerrarSesion}
-          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
-        >
-          Cerrar Sesión
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setModalPassword(true)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition">
+            🔑 Cambiar Contraseña
+          </button>
+          <button onClick={cerrarSesion} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition">
+            Cerrar Sesión
+          </button>
+        </div>
       </header>
 
-      {/* CONTENIDO PRINCIPAL DEL LMS */}
+      {/* CONTENIDO LMS */}
       <main className="flex-1 max-w-[1400px] mx-auto w-full p-8 space-y-8">
         
-        {/* AVISO DE PAGOS SI EXISTEN */}
-        {pagosPendientes.length > 0 && (
-          <div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <h4 className="text-xs font-bold text-amber-900">Tienes cuotas pendientes de pago</h4>
-                <p className="text-[11px] text-amber-700">Regulariza tus pagos para evitar restricciones de acceso en tus clases en vivo o materiales.</p>
-              </div>
+        {cursoActivo ? (
+          /* VISTA DETALLE DEL CURSO Y SUS RECURSOS */
+          <div className="space-y-6">
+            <button onClick={() => setCursoActivo(null)} className="text-xs font-bold text-indigo-600 hover:underline">
+              ← Volver a mis cursos
+            </button>
+
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+              <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase">
+                {cursoActivo.grupoNombre}
+              </span>
+              <h2 className="text-xl font-extrabold text-slate-900">{cursoActivo.nombreCurso}</h2>
+              <p className="text-xs text-slate-600 leading-relaxed">{cursoActivo.descripcion}</p>
             </div>
-            <span className="text-xs font-extrabold text-amber-800 bg-amber-100 px-3 py-1.5 rounded-xl">
-              {pagosPendientes.length} pendiente(s)
-            </span>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Materiales y Clases Grabadas</h3>
+              
+              {cursoActivo.recursosCurso.length === 0 ? (
+                <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
+                  El profesor aún no ha publicado recursos multimedia para este curso.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {cursoActivo.recursosCurso.map((rec, i) => (
+                    <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center">
+                      <div className="space-y-1">
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded uppercase font-bold">{rec.tipo}</span>
+                        <h4 className="text-xs font-bold text-slate-900">{rec.titulo}</h4>
+                      </div>
+                      <a 
+                        href={rec.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition"
+                      >
+                        Abrir material →
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* VISTA LISTADO DE MIS CURSOS INSCRITOS */
+          <div className="space-y-6">
+            <h3 className="text-base font-bold text-slate-900">Mis Cursos Inscritos</h3>
+
+            {loading ? (
+              <div className="text-center py-12 text-xs text-slate-400">Cargando tus programas...</div>
+            ) : inscripciones.length === 0 ? (
+              <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
+                No estás inscrito en ningún grupo actualmente.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {inscripciones.map((ins, idx) => {
+                  const grupo = ins.grupos
+                  const curso = grupo?.cursos
+                  if (!curso) return null
+
+                  const nombreCurso = curso.Nombre_curso || curso.nombre_curso || 'Curso'
+                  const descripcionCurso = curso.descripcion || 'Sin descripción.'
+                  const nombreGrupo = grupo.nombre_grupo || 'Grupo'
+
+                  // Validar pagos pendientes para este grupo
+                  const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(grupo.id))
+                  const tienePagosPendientes = pagosDelGrupo.some(p => p.estatus !== 'Pagado')
+
+                  const recursosCurso = recursos.filter(r => Number(r.curso_id) === Number(curso.id))
+
+                  return (
+                    <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5 flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-start">
+                          <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">
+                            {nombreGrupo}
+                          </span>
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${tienePagosPendientes ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {tienePagosPendientes ? '⚠️ Pago pendiente' : '✅ Al corriente'}
+                          </span>
+                        </div>
+
+                        <h4 className="text-base font-extrabold text-slate-900">{nombreCurso}</h4>
+                        <p className="text-xs text-slate-500 line-clamp-3">{descripcionCurso}</p>
+                      </div>
+
+                      <div className="pt-4 border-t border-slate-100">
+                        {tienePagosPendientes ? (
+                          <div className="p-3 bg-rose-50 text-rose-700 rounded-xl text-[11px] font-medium text-center">
+                            🔒 Contenido bloqueado. Regulariza tus cuotas pendientes en administración.
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => setCursoActivo({ nombreCurso, grupoNombre: nombreGrupo, descripcion: descripcionCurso, recursosCurso, cursoId: curso.id })}
+                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                          >
+                            Entrar al Curso →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* CURSOS Y GRUPOS INSCRITOS */}
-        <div className="space-y-4">
-          <h3 className="text-base font-bold text-slate-900">Mis Cursos y Programas Activos</h3>
-          
-          {loading ? (
-            <div className="text-center py-12 text-xs text-slate-400">Cargando tus programas académicos...</div>
-          ) : inscripciones.length === 0 ? (
-            <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
-              No estás inscrito en ningún grupo actualmente. Solicita tu inscripción en administración.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {inscripciones.map((ins, idx) => {
-                const grupo = ins.grupos
-                const curso = grupo?.cursos
-                const nombreCurso = curso?.Nombre_curso || curso?.nombre_curso || 'Programa Académico'
-                const descripcionCurso = curso?.descripcion || 'Contenido exclusivo para alumnos matriculados.'
-                const nombreGrupo = grupo?.nombre_grupo || 'Grupo general'
-
-                return (
-                  <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5 flex flex-col justify-between">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">
-                          {nombreGrupo}
-                        </span>
-                        <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full">
-                          Matrícula Activa
-                        </span>
-                      </div>
-
-                      <h4 className="text-base font-extrabold text-slate-900">{nombreCurso}</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed">{descripcionCurso}</p>
-                    </div>
-
-                    <div className="pt-4 border-t border-slate-100 space-y-3">
-                      <button 
-                        onClick={() => alert(`Accediendo a las lecciones de: ${nombreCurso} (${nombreGrupo})`)}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
-                      >
-                        📺 Acceder a Clases y Materiales
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* HISTORIAL FINANCIERO DEL ALUMNO */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="text-sm font-bold text-slate-900">Mi Historial de Cuotas y Pagos</h3>
-          </div>
-          <div className="overflow-x-auto">
-            {pagos.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400">No hay registros de pagos asociados a tu cuenta.</div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                    <th className="py-3 px-6">Concepto / Cuota</th>
-                    <th className="py-3 px-6">Vencimiento</th>
-                    <th className="py-3 px-6">Monto</th>
-                    <th className="py-3 px-6 text-right">Estatus</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                  {pagos.map((p, i) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="py-4 px-6 font-medium text-slate-900">Cuota #${i + 1} (Ref: #{p.id})</td>
-                      <td className="py-4 px-6 text-slate-500">{p.fecha_vencimiento}</td>
-                      <td className="py-4 px-6 font-extrabold text-slate-900">$ {Number(p.monto).toLocaleString('es-MX')} MXN</td>
-                      <td className="py-4 px-6 text-right">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${p.estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                          {p.estatus || 'Pendiente'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
       </main>
+
+      {/* MODAL CAMBIAR CONTRASEÑA */}
+      {modalPassword && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Modificar Mi Contraseña</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Ingresa tu nueva clave de acceso personal al LMS.</p>
+            </div>
+            <form onSubmit={cambiarPasswordAlumno} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva Contraseña</label>
+                <input 
+                  type="text" 
+                  required
+                  value={nuevaPassword}
+                  onChange={(e) => setNuevaPassword(e.target.value)}
+                  placeholder="Ej. MiClave2026*"
+                  className="w-full p-3.5 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none font-mono font-bold text-indigo-700"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-3">
+                <button type="button" onClick={() => setModalPassword(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardandoPass} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">
+                  {guardandoPass ? 'Guardando...' : 'Guardar Contraseña'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
