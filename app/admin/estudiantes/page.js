@@ -194,7 +194,7 @@ export default function EstudiantesAdminPage() {
                           #{a.matricula || `EAC-${a.id}`}
                         </td>
                         <td className="py-4 px-6">
-                          <a href={`/admin/estudiantes/${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
+                          <a href={`/admin/estudiantes/detalle?id=${a.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition">
                             {a.nombre}
                           </a>
                         </td>
@@ -205,7 +205,7 @@ export default function EstudiantesAdminPage() {
                         </td>
                         <td className="py-4 px-6 text-right">
                           <a 
-                            href={`/admin/estudiantes/${a.id}`}
+                            href={`/admin/estudiantes/detalle?id=${a.id}`}
                             className="text-indigo-600 font-semibold hover:underline"
                           >
                             Ver Expediente →
