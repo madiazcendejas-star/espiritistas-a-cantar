@@ -78,7 +78,6 @@ export default function PortalAlumnoPage() {
   const cargarDatosLMS = async (alumnoId) => {
     setLoading(true)
 
-    // Cargar tablas de forma independiente para garantizar que los datos fluyan sin errores de relaciones
     const { data: resIns } = await supabase.from('inscripciones').select('*').eq('alumno_id', alumnoId)
     const { data: resGrupos } = await supabase.from('grupos').select('*')
     const { data: resCursos } = await supabase.from('cursos').select('*')
@@ -91,8 +90,10 @@ export default function PortalAlumnoPage() {
     if (resRecursos) setRecursos(resRecursos)
 
     if (resIns) {
-      // Filtrar inscripciones válidas (aceptando activa, confirmada o registros previos)
-      const activas = resIns.filter(i => {
+      // Desduplicar estrictamente por grupo_id
+      const unicas = Array.from(new Map(resIns.map(item => [item.grupo_id, item])).values())
+      
+      const activas = unicas.filter(i => {
         const est = (i.estatus || 'activa').toLowerCase()
         return est === 'activa' || est === 'confirmada' || est === 'activo'
       })
@@ -266,11 +267,15 @@ export default function PortalAlumnoPage() {
                   const descripcionCurso = curso.descripcion || 'Sin descripción.'
                   const nombreGrupo = grupo.nombre_grupo || 'Grupo'
 
-                  // Validar pagos pendientes para este grupo
+                  // Validar si tiene pagos realmente VENCIDOS y pendientes (ignorando cuotas futuras)
+                  const hoy = new Date().toISOString().split('T')[0]
                   const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(grupo.id))
-                  const tienePagosPendientes = pagosDelGrupo.some(p => {
+                  
+                  const tienePagosVencidos = pagosDelGrupo.some(p => {
                     const est = (p.estatus || 'Pendiente').toLowerCase()
-                    return est !== 'pagado'
+                    if (est === 'pagado') return false
+                    // Solo bloquea si el pago no está pagado y su fecha de vencimiento ya llegó o pasó
+                    return p.fecha_vencimiento && p.fecha_vencimiento <= hoy
                   })
 
                   const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupo.id))
@@ -282,8 +287,8 @@ export default function PortalAlumnoPage() {
                           <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">
                             {nombreGrupo}
                           </span>
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${tienePagosPendientes ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            {tienePagosPendientes ? '⚠️ Pago pendiente' : '✅ Al corriente'}
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${tienePagosVencidos ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {tienePagosVencidos ? '⚠️ Pago pendiente' : '✅ Al corriente'}
                           </span>
                         </div>
 
@@ -292,9 +297,9 @@ export default function PortalAlumnoPage() {
                       </div>
 
                       <div className="pt-4 border-t border-slate-100">
-                        {tienePagosPendientes ? (
+                        {tienePagosVencidos ? (
                           <div className="p-3 bg-rose-50 text-rose-700 rounded-xl text-[11px] font-medium text-center">
-                            🔒 Contenido bloqueado. Regulariza tus cuotas pendientes.
+                            🔒 Contenido bloqueado. Regulariza tus cuotas vencidas.
                           </div>
                         ) : (
                           <button 
