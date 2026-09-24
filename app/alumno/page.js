@@ -25,6 +25,9 @@ export default function PortalAlumnoPage() {
 
   // Grupo activo seleccionado para ver contenido
   const [grupoActivo, setGrupoActivo] = useState(null)
+  
+  // Estado para controlar qué recurso está desplegado en el acordeón
+  const [recursoExpandido, setRecursoExpandido] = useState(null)
 
   useEffect(() => {
     const alumnoGuardado = localStorage.getItem('eac_alumno_sesion')
@@ -90,7 +93,6 @@ export default function PortalAlumnoPage() {
     if (resRecursos) setRecursos(resRecursos)
 
     if (resIns) {
-      // Desduplicar estrictamente por grupo_id
       const unicas = Array.from(new Map(resIns.map(item => [item.grupo_id, item])).values())
       
       const activas = unicas.filter(i => {
@@ -134,20 +136,16 @@ export default function PortalAlumnoPage() {
     setGrupoActivo(null)
   }
 
-  // Función para convertir enlaces comunes de YouTube o Google Drive en formatos incrustables (embed)
   const obtenerUrlEmbed = (url) => {
     if (!url) return ''
-    // YouTube watch URL
     if (url.includes('youtube.com/watch?v=')) {
       const videoId = url.split('v=')[1]?.split('&')[0]
       return `https://www.youtube.com/embed/${videoId}`
     }
-    // YouTube short URL
     if (url.includes('youtu.be/')) {
       const videoId = url.split('youtu.be/')[1]?.split('?')[0]
       return `https://www.youtube.com/embed/${videoId}`
     }
-    // Google Drive share URL -> Preview URL
     if (url.includes('drive.google.com/file/d/')) {
       const fileId = url.split('/file/d/')[1]?.split('/')[0]
       return `https://drive.google.com/file/d/${fileId}/preview`
@@ -228,9 +226,9 @@ export default function PortalAlumnoPage() {
       <main className="flex-1 max-w-[1400px] mx-auto w-full p-8 space-y-8">
         
         {grupoActivo ? (
-          /* VISTA CONTENIDO DEL GRUPO */
+          /* VISTA CONTENIDO DEL GRUPO (ACORDEÓN DE CLASES) */
           <div className="space-y-6">
-            <button onClick={() => setGrupoActivo(null)} className="text-xs font-bold text-indigo-600 hover:underline">
+            <button onClick={() => { setGrupoActivo(null); setRecursoExpandido(null); }} className="text-xs font-bold text-indigo-600 hover:underline">
               ← Volver a mis cursos
             </button>
 
@@ -243,45 +241,62 @@ export default function PortalAlumnoPage() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Clases Grabadas y Materiales de este Grupo</h3>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Módulos y Clases Grabadas</h3>
               
               {grupoActivo.recursosGrupo.length === 0 ? (
                 <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center text-xs text-slate-400">
                   El profesor aún no ha publicado recursos para este grupo.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
                   {grupoActivo.recursosGrupo.map((rec, i) => {
+                    const estaAbierto = recursoExpandido === i
                     const urlEmbed = obtenerUrlEmbed(rec.url)
                     const esVideo = rec.tipo === 'video' || rec.url.includes('youtube') || rec.url.includes('youtu.be') || rec.url.includes('drive.google.com')
 
                     return (
-                      <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">{rec.tipo}</span>
-                            <a href={rec.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-indigo-600 font-semibold hover:underline">
-                              Abrir original ↗
-                            </a>
+                      <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden transition">
+                        <button 
+                          onClick={() => setRecursoExpandido(estaAbierto ? null : i)}
+                          className="w-full p-5 flex justify-between items-center bg-white hover:bg-slate-50 transition text-left"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${rec.tipo === 'video' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {rec.tipo}
+                            </span>
+                            <h4 className="text-xs font-bold text-slate-900">{rec.titulo}</h4>
                           </div>
-                          <h4 className="text-sm font-bold text-slate-900">{rec.titulo}</h4>
-                        </div>
+                          <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-3 py-1 rounded-lg">
+                            {estaAbierto ? '▲ Ocultar clase' : '▼ Ver clase'}
+                          </span>
+                        </button>
 
-                        {esVideo ? (
-                          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
-                            <iframe 
-                              src={urlEmbed} 
-                              title={rec.titulo} 
-                              className="w-full h-full border-0" 
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                              allowFullScreen 
-                            />
-                          </div>
-                        ) : (
-                          <div className="pt-2">
-                            <a href={rec.url} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-semibold transition shadow-sm">
-                              Ver / Descargar Documento →
-                            </a>
+                        {estaAbierto && (
+                          <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[11px] text-slate-500 font-medium">Reproductor oficial</span>
+                              <a href={rec.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-indigo-600 font-semibold hover:underline">
+                                Abrir enlace original ↗
+                              </a>
+                            </div>
+
+                            {esVideo ? (
+                              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
+                                <iframe 
+                                  src={urlEmbed} 
+                                  title={rec.titulo} 
+                                  className="w-full h-full border-0" 
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                  allowFullScreen 
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <a href={rec.url} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl text-xs font-semibold transition shadow-sm">
+                                  Abrir / Descargar Documento PDF →
+                                </a>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
