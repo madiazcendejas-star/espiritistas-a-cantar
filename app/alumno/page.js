@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-export default function PortalAlumnoPage() {
-  const [matriculaIngresada, setMatriculaIngresada] = useState('')
-  const [passwordIngresada, setPasswordIngresada] = useState('')
+export default function AlumnoPortalPage() {
+  const [identificador, setIdentificador] = useState('')
+  const [passwordInput, setPasswordInput] = useState('')
   const [alumno, setAlumno] = useState(null)
   
   const [inscripciones, setInscripciones] = useState([])
@@ -13,125 +13,89 @@ export default function PortalAlumnoPage() {
   const [cursos, setCursos] = useState([])
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
-
   const [loading, setLoading] = useState(false)
-  const [errorLogin, setErrorLogin] = useState('')
 
-  const [modalPassword, setModalPassword] = useState(false)
-  const [nuevaPassword, setNuevaPassword] = useState('')
-  const [guardandoPass, setGuardandoPass] = useState(false)
+  // Estado para cambiar contraseña
+  const [modalPass, setModalPass] = useState(false)
+  const [nuevaPass, setNuevaPass] = useState('')
 
-  const [grupoActivo, setGrupoActivo] = useState(null)
-  const [recursoExpandido, setRecursoExpandido] = useState(null)
+  // Estado para acordeón de recursos (guarda el ID del recurso abierto)
+  const [recursoAbierto, setRecursoAbierto] = useState(null)
 
-  useEffect(() => {
-    const alumnoGuardado = localStorage.getItem('eac_alumno_sesion')
-    if (alumnoGuardado) {
-      const datos = JSON.parse(alumnoGuardado)
-      setAlumno(datos)
-      cargarDatosLMS(datos.id)
-    }
-  }, [])
-
-  const handleLogin = async (e) => {
+  const iniciarSesion = async (e) => {
     e.preventDefault()
+    if (!identificador.trim() || !passwordInput.trim()) {
+      return alert('Ingresa tu matrícula y contraseña.')
+    }
+
     setLoading(true)
-    setErrorLogin('')
 
-    const { data: alumnos, error } = await supabase.from('alumnos').select('*')
+    // Buscar al alumno por matrícula o correo
+    const { data: alumnos, error } = await supabase
+      .from('alumnos')
+      .select('*')
+      .or(`matricula.eq.${identificador.trim()},correo.eq.${identificador.trim()}`)
 
-    if (error) {
-      setErrorLogin('Error de conexión con la base de datos.')
+    if (error || !alumnos || alumnos.length === 0) {
       setLoading(false)
-      return
+      return alert('No se encontró un alumno con esa matrícula o correo.')
     }
 
-    const inputLimpio = matriculaIngresada.trim().toLowerCase()
+    const al = alumnos.shift()
+    const passwordRegistrada = al.password || al.Password || 'EAC2026*'
 
-    const encontrado = alumnos.find(a => {
-      const mat = String(a.matricula || '').trim().toLowerCase()
-      const corr = String(a.correo || a.Correo || '').trim().toLowerCase()
-      const tel = String(a.telefono || a.Telefono || '').trim().toLowerCase()
-
-      return (mat && mat === inputLimpio) || 
-             (corr && corr === inputLimpio) || 
-             (tel && tel === inputLimpio)
-    })
-
-    if (encontrado) {
-      const passwordRegistrada = encontrado.password || 'EAC2026*'
-      if (passwordIngresada.trim() === passwordRegistrada) {
-        setAlumno(encontrado)
-        localStorage.setItem('eac_alumno_sesion', JSON.stringify(encontrado))
-        cargarDatosLMS(encontrado.id)
-      } else {
-        setErrorLogin('Contraseña incorrecta. Verifica tus datos.')
-      }
-    } else {
-      setErrorLogin('No se encontró ningún estudiante con esa matrícula, correo o teléfono.')
+    if (passwordInput.trim() !== passwordRegistrada) {
+      setLoading(false)
+      return alert('Contraseña incorrecta.')
     }
+
+    setAlumno(al)
+    await cargarDatosPortal(al.id)
     setLoading(false)
   }
 
-  const cargarDatosLMS = async (alumnoId) => {
-    setLoading(true)
+  const cargarDatosPortal = async (alumnoId) => {
+    // 1. Inscripciones
+    const { data: ins } = await supabase.from('inscripciones').select('*').eq('alumno_id', alumnoId)
+    setInscripciones(ins || [])
 
-    const { data: resIns } = await supabase.from('inscripciones').select('*').eq('alumno_id', alumnoId)
-    const { data: resGrupos } = await supabase.from('grupos').select('*')
-    const { data: resCursos } = await supabase.from('cursos').select('*')
-    const { data: resPagos } = await supabase.from('pagos').select('*').eq('alumno_id', alumnoId)
-    const { data: resRecursos } = await supabase.from('recursos').select('*')
+    // 2. Grupos
+    const { data: grp } = await supabase.from('grupos').select('*')
+    setGrupos(grp || [])
 
-    if (resGrupos) setGrupos(resGrupos)
-    if (resCursos) setCursos(resCursos)
-    if (resPagos) setPagos(resPagos)
-    if (resRecursos) setRecursos(resRecursos)
+    // 3. Cursos
+    const { data: crs } = await supabase.from('cursos').select('*')
+    setCursos(crs || [])
 
-    if (resIns) {
-      const unicas = Array.from(new Map(resIns.map(item => [item.grupo_id, item])).values())
-      
-      const activas = unicas.filter(i => {
-        const est = (i.estatus || 'activa').toLowerCase()
-        return est === 'activa' || est === 'confirmada' || est === 'activo'
-      })
-      setInscripciones(activas)
-    }
+    // 4. Pagos
+    const { data: pgs } = await supabase.from('pagos').select('*').eq('alumno_id', alumnoId)
+    setPagos(pgs || [])
 
-    setLoading(false)
+    // 5. Recursos
+    const { data: rcs } = await supabase.from('recursos').select('*')
+    setRecursos(rcs || [])
   }
 
-  const cambiarPasswordAlumno = async (e) => {
+  const actualizarPassword = async (e) => {
     e.preventDefault()
-    if (!nuevaPassword.trim()) return
-    setGuardandoPass(true)
+    if (!nuevaPass.trim()) return
 
     const { error } = await supabase
       .from('alumnos')
-      .update({ password: nuevaPassword.trim() })
+      .update({ password: nuevaPass.trim() })
       .eq('id', alumno.id)
 
     if (error) {
-      alert('Error al actualizar: ' + error.message)
+      alert('Error al actualizar contraseña: ' + error.message)
     } else {
       alert('¡Contraseña actualizada con éxito!')
-      const alumnoActualizado = { ...alumno, password: nuevaPassword.trim() }
-      setAlumno(alumnoActualizado)
-      localStorage.setItem('eac_alumno_sesion', JSON.stringify(alumnoActualizado))
-      setModalPassword(false)
-      setNuevaPassword('')
+      setModalPass(false)
+      setNuevaPass('')
     }
-    setGuardandoPass(false)
   }
 
-  const cerrarSesion = () => {
-    localStorage.removeItem('eac_alumno_sesion')
-    setAlumno(null)
-    setInscripciones([])
-    setPagos([])
-    setGrupoActivo(null)
-  }
-
-  const obtenerUrlEmbed = (url) => {
+  // Función para convertir URLs de YouTube o Drive en formato embebible
+  const obtenerUrlIncrustada = (url) => {
     if (!url) return ''
     if (url.includes('youtube.com/watch?v=')) {
       const videoId = url.split('v=')[1]?.split('&')[0]
@@ -141,49 +105,52 @@ export default function PortalAlumnoPage() {
       const videoId = url.split('youtu.be/')[1]?.split('?')[0]
       return `https://www.youtube.com/embed/${videoId}`
     }
-    if (url.includes('drive.google.com/file/d/')) {
-      const fileId = url.split('/file/d/')[1]?.split('/')[0]
-      return `https://drive.google.com/file/d/${fileId}/preview`
+    if (url.includes('drive.google.com')) {
+      return url.replace('/view', '/preview').replace('/edit', '/preview')
     }
     return url
   }
 
+  // PANTALLA DE LOGIN DEL ALUMNO
   if (!alumno) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0f1d] font-sans px-4">
-        <div className="bg-white rounded-3xl max-w-lg w-full p-10 shadow-2xl border border-slate-800 space-y-8">
-          <div className="text-center space-y-3">
-            <div className="w-16 h-16 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-extrabold mx-auto text-xl shadow-lg">EC</div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Portal de Estudiantes</h1>
-            <p className="text-sm text-slate-500">Espiritistas a Cantar — Inicia sesión</p>
+      <div className="min-h-screen bg-[#0a0f1d] flex items-center justify-center p-4 font-sans">
+        <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl mx-auto flex items-center justify-center font-bold text-sm shadow-md">EC</div>
+            <h1 className="text-xl font-extrabold text-slate-900">Portal del Alumno</h1>
+            <p className="text-xs text-slate-500">Espiritistas a Cantar · Aula Virtual</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={iniciarSesion} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Matrícula, Correo o Teléfono</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula o Correo</label>
               <input 
                 type="text" 
-                required 
-                value={matriculaIngresada} 
-                onChange={(e) => setMatriculaIngresada(e.target.value)} 
-                placeholder="Ej. EAC-1024 o correo@ejemplo.com" 
-                className="w-full p-4 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 focus:bg-white transition" 
+                required
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
+                placeholder="Ej. EAC001 o correo"
+                className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Contraseña LMS</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña LMS</label>
               <input 
                 type="password" 
-                required 
-                value={passwordIngresada} 
-                onChange={(e) => setPasswordIngresada(e.target.value)} 
-                placeholder="••••••••" 
-                className="w-full p-4 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 focus:bg-white transition font-mono" 
+                required
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="••••••••"
+                className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
               />
             </div>
-            {errorLogin && <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-sm font-semibold text-center">{errorLogin}</div>}
-            <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl text-sm font-bold transition shadow-md">
-              {loading ? 'Verificando...' : 'Iniciar Sesión'}
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-xl text-xs font-semibold shadow-md transition"
+            >
+              {loading ? 'Verificando acceso...' : 'Ingresar al Portal'}
             </button>
           </form>
         </div>
@@ -191,207 +158,188 @@ export default function PortalAlumnoPage() {
     )
   }
 
-  const nombreEstudiante = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
-  const matriculaEstudiante = alumno.matricula || `EAC-${alumno.id}`
+  // DASHBOARD DEL ALUMNO INSCRITO
+  const nombreAlumno = alumno.nombre || alumno.Nombre || 'Estudiante'
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
       
       {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 px-10 py-5 sticky top-0 z-30 shadow-xs flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-extrabold text-sm shadow-md">EC</div>
-          <div>
-            <h1 className="text-base font-extrabold tracking-tight text-slate-900">Aula Virtual</h1>
-            <p className="text-xs text-slate-500">Bienvenido, <strong className="text-slate-800">{nombreEstudiante}</strong> (#{matriculaEstudiante})</p>
-          </div>
+      <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs">EC</div>
+          <span className="text-xs font-bold text-slate-800">Espiritistas a Cantar · Aula Virtual</span>
         </div>
-
         <div className="flex items-center gap-4">
-          <button onClick={() => setModalPassword(true)} className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-5 py-2.5 rounded-2xl text-xs font-bold transition">
+          <span className="text-xs font-semibold text-slate-600">¡Bienvenido, {nombreAlumno}!</span>
+          <button 
+            onClick={() => setModalPass(true)} 
+            className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-1.5 rounded-xl font-semibold transition"
+          >
             🔑 Cambiar Contraseña
           </button>
-          <button onClick={cerrarSesion} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-2xl text-xs font-bold transition">
+          <button 
+            onClick={() => setAlumno(null)} 
+            className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-3 py-1.5 rounded-xl font-semibold transition"
+          >
             Cerrar Sesión
           </button>
         </div>
       </header>
 
-      {/* CONTENIDO LMS */}
-      <main className="flex-1 max-w-[1400px] mx-auto w-full p-10 space-y-10">
-        
-        {grupoActivo ? (
-          /* VISTA CONTENIDO DEL GRUPO (ACORDEÓN DE CLASES) */
-          <div className="space-y-8">
-            <button onClick={() => { setGrupoActivo(null); setRecursoExpandido(null); }} className="text-sm font-bold text-indigo-600 hover:underline flex items-center gap-2">
-              ← Volver a mis cursos
-            </button>
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="flex-1 p-8 max-w-[1400px] mx-auto w-full space-y-8">
+        <div>
+          <h1 className="text-xl font-extrabold text-slate-900">Mis Cursos y Contenidos</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Accede a tus clases grabadas, materiales y revisa el estatus de tus grupos.</p>
+        </div>
 
-            <div className="bg-white p-10 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
-              <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider">
-                {grupoActivo.nombreGrupo}
-              </span>
-              <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{grupoActivo.nombreCurso}</h2>
-              <p className="text-sm text-slate-600 leading-relaxed">{grupoActivo.descripcion}</p>
-            </div>
-
-            <div className="space-y-6">
-              <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-widest">Módulos y Clases Grabadas</h3>
-              
-              {grupoActivo.recursosGrupo.length === 0 ? (
-                <div className="bg-white p-16 rounded-3xl border border-slate-200 text-center text-sm text-slate-400">
-                  El profesor aún no ha publicado recursos para este grupo.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {grupoActivo.recursosGrupo.map((rec, i) => {
-                    const estaAbierto = recursoExpandido === i
-                    const urlEmbed = obtenerUrlEmbed(rec.url)
-                    const esVideo = rec.tipo === 'video' || rec.url.includes('youtube') || rec.url.includes('youtu.be') || rec.url.includes('drive.google.com')
-
-                    return (
-                      <div key={i} className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden transition">
-                        <button 
-                          onClick={() => setRecursoExpandido(estaAbierto ? null : i)}
-                          className="w-full p-6 flex justify-between items-center bg-white hover:bg-slate-50/80 transition text-left"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className={`text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider ${rec.tipo === 'video' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'}`}>
-                              {rec.tipo}
-                            </span>
-                            <h4 className="text-sm font-bold text-slate-900">{rec.titulo}</h4>
-                          </div>
-                          <span className="text-xs text-indigo-600 font-bold bg-indigo-50 px-4 py-2 rounded-xl">
-                            {estaAbierto ? '▲ Ocultar clase' : '▼ Ver clase'}
-                          </span>
-                        </button>
-
-                        {estaAbierto && (
-                          <div className="p-8 border-t border-slate-100 bg-slate-50/50 space-y-6">
-                            <div className="flex justify-between items-center">
-                              <span className="text-xs text-slate-500 font-semibold">Reproductor oficial</span>
-                              <a href={rec.url} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 font-bold hover:underline">
-                                Abrir enlace original ↗
-                              </a>
-                            </div>
-
-                            {esVideo ? (
-                              <div className="relative w-full aspect-video rounded-3xl overflow-hidden bg-slate-900 shadow-lg">
-                                <iframe 
-                                  src={urlEmbed} 
-                                  title={rec.titulo} 
-                                  className="w-full h-full border-0" 
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                  allowFullScreen 
-                                />
-                              </div>
-                            ) : (
-                              <div>
-                                <a href={rec.url} target="_blank" rel="noopener noreferrer" className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl text-sm font-bold transition shadow-md">
-                                  Abrir / Descargar Documento PDF →
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+        {inscripciones.length === 0 ? (
+          <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+            <span className="text-3xl">📚</span>
+            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones activas</h3>
+            <p className="text-xs text-slate-400">Comunícate con administración para que te inscriba a tu siguiente curso o taller.</p>
           </div>
         ) : (
-          /* VISTA MIS CURSOS */
-          <div className="space-y-8">
-            <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Mis Programas e Inscripciones Activas</h3>
+          <div className="space-y-6">
+            {inscripciones.map((ins) => {
+              const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+              const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
+              const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
+              const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
 
-            {loading ? (
-              <div className="text-center py-16 text-sm text-slate-400">Cargando tus programas...</div>
-            ) : inscripciones.length === 0 ? (
-              <div className="bg-white p-16 rounded-3xl border border-slate-200 text-center text-sm text-slate-400">
-                No estás inscrito en ningún grupo actualmente.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {inscripciones.map((ins, idx) => {
-                  const grupo = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
-                  const curso = grupo ? cursos.find(c => Number(c.id) === Number(grupo.curso_id)) : (ins.curso_id ? cursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
-                  if (!grupo || !curso) return null
+              // Verificar si el alumno tiene pagos vencidos en este grupo específico
+              const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
+              const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
 
-                  const nombreCurso = curso.Nombre_curso || curso.nombre_curso || 'Curso'
-                  const descripcionCurso = curso.descripcion || 'Sin descripción.'
-                  const nombreGrupo = grupo.nombre_grupo || 'Grupo'
+              // Recursos de este grupo
+              const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
 
-                  const hoy = new Date().toISOString().split('T')[0]
-                  const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(grupo.id))
-                  
-                  const tienePagosVencidos = pagosDelGrupo.some(p => {
-                    const est = (p.estatus || 'Pendiente').toLowerCase()
-                    if (est === 'pagado') return false
-                    return p.fecha_vencimiento && p.fecha_vencimiento <= hoy
-                  })
-
-                  const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupo.id))
-
-                  return (
-                    <div key={idx} className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6 flex flex-col justify-between hover:shadow-md transition">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                          <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3 py-1.5 rounded-full uppercase tracking-wider">
-                            {nombreGrupo}
-                          </span>
-                          <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${tienePagosVencidos ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            {tienePagosVencidos ? '⚠️ Pago pendiente' : '✅ Al corriente'}
-                          </span>
-                        </div>
-
-                        <h4 className="text-lg font-extrabold tracking-tight text-slate-900">{nombreCurso}</h4>
-                        <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed">{descripcionCurso}</p>
-                      </div>
-
-                      <div className="pt-6 border-t border-slate-100">
-                        {tienePagosVencidos ? (
-                          <div className="p-4 bg-rose-50 text-rose-700 rounded-2xl text-xs font-semibold text-center">
-                            🔒 Contenido bloqueado. Regulariza tus cuotas vencidas.
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={() => setGrupoActivo({ nombreCurso, nombreGrupo, descripcion: descripcionCurso, recursosGrupo, grupoId: grupo.id })}
-                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl text-xs font-bold transition shadow-sm"
-                          >
-                            Entrar al Grupo →
-                          </button>
-                        )}
-                      </div>
+              return (
+                <div key={ins.id} className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs space-y-6">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+                        {nombreGrupo}
+                      </span>
+                      <h3 className="text-lg font-extrabold text-slate-900 mt-1">{nombreCurso}</h3>
                     </div>
-                  )
-                })}
-              </div>
-            )}
+                    {tienePagoVencido ? (
+                      <span className="bg-rose-50 text-rose-600 px-4 py-2 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2">
+                        ⚠️ Acceso pausado por pago pendiente en este grupo
+                      </span>
+                    ) : (
+                      <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100 flex items-center gap-2">
+                        ✅ Al corriente · Acceso habilitado
+                      </span>
+                    )}
+                  </div>
+
+                  {tienePagoVencido ? (
+                    <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 text-center space-y-2">
+                      <p className="text-xs font-bold text-rose-900">Tienes cuotas pendientes o vencidas en este grupo.</p>
+                      <p className="text-[11px] text-rose-700">Por favor regulariza tu pago con administración para desbloquear los videos y materiales de clase.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales del Grupo</h4>
+                      
+                      {recursosGrupo.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-4">Próximamente se subirán las grabaciones y PDFs de este grupo.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {recursosGrupo.map((rec) => {
+                            const estaAbierto = recursoAbierto === rec.id
+                            const urlEmbebida = obtenerUrlIncrustada(rec.url)
+
+                            return (
+                              <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
+                                {/* Cabecera del acordeón */}
+                                <div 
+                                  onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
+                                  className="p-4 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <span className="w-8 h-8 rounded-xl bg-white text-indigo-600 flex items-center justify-center font-bold text-xs shadow-xs border border-slate-100">
+                                      {rec.tipo === 'video' ? '▶️' : '📄'}
+                                    </span>
+                                    <div>
+                                      <h5 className="text-xs font-bold text-slate-900">{rec.titulo}</h5>
+                                      <span className="text-[10px] text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-400">
+                                    {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
+                                  </span>
+                                </div>
+
+                                {/* Contenido desplegable (Acordeón) */}
+                                {estaAbierto && (
+                                  <div className="p-4 bg-white border-t border-slate-200 space-y-3">
+                                    {rec.tipo === 'video' ? (
+                                      <div className="aspect-video w-full bg-slate-950 rounded-xl overflow-hidden shadow-md">
+                                        <iframe 
+                                          src={urlEmbebida} 
+                                          title={rec.titulo}
+                                          className="w-full h-full border-0"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                        <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
+                                        <a 
+                                          href={rec.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition shadow-sm"
+                                        >
+                                          Abrir / Descargar PDF ↗
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
-
       </main>
 
       {/* MODAL CAMBIAR CONTRASEÑA */}
-      {modalPassword && (
+      {modalPass && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-6">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
-              <h3 className="text-lg font-extrabold tracking-tight text-slate-900">Modificar Mi Contraseña</h3>
-              <p className="text-xs text-slate-500 mt-1">Ingresa tu nueva clave de acceso personal al LMS.</p>
+              <h3 className="text-base font-bold text-slate-900">Modificar mi Contraseña</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Ingresa tu nueva clave de acceso personal para el portal.</p>
             </div>
-            <form onSubmit={cambiarPasswordAlumno} className="space-y-5">
+
+            <form onSubmit={actualizarPassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Nueva Contraseña</label>
-                <input type="text" required value={nuevaPassword} onChange={(e) => setNuevaPassword(e.target.value)} placeholder="Ej. MiClave2026*" className="w-full p-4 border border-indigo-200 rounded-2xl text-sm bg-indigo-50/50 outline-none font-mono font-bold text-indigo-700" />
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva Contraseña</label>
+                <input 
+                  type="text" 
+                  required
+                  value={nuevaPass}
+                  onChange={(e) => setNuevaPass(e.target.value)}
+                  placeholder="Ej. MiClave2026*"
+                  className="w-full p-3.5 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                />
               </div>
-              <div className="flex justify-end gap-3 pt-3">
-                <button type="button" onClick={() => setModalPassword(false)} className="px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Cancelar</button>
-                <button type="submit" disabled={guardandoPass} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-sm">
-                  {guardandoPass ? 'Guardando...' : 'Guardar'}
-                </button>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModalPass(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Guardar Cambios</button>
               </div>
             </form>
           </div>
