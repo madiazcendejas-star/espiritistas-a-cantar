@@ -21,38 +21,37 @@ export default function AdminDashboardPage() {
   const cargarMetricasReales = async () => {
     setLoading(true)
 
+    // 1. Contar estudiantes
     const { count: countAlumnos } = await supabase
       .from('alumnos')
       .select('*', { count: 'exact', head: true })
 
+    // 2. Contar grupos
     const { count: countGrupos } = await supabase
       .from('grupos')
       .select('*', { count: 'exact', head: true })
 
+    // 3. Contar cursos
     const { count: countCursos } = await supabase
       .from('cursos')
       .select('*', { count: 'exact', head: true })
 
-    const { data: dataPagos } = await supabase
+    // 4. Cargar pagos de forma robusta sin fallar por relaciones
+    const { data: dataPagos, error: errPagos } = await supabase
       .from('pagos')
-      .select(`
-        id,
-        monto,
-        fecha_vencimiento,
-        estatus,
-        alumnos (nombre, matricula),
-        grupos (nombre_grupo, cursos (Nombre_curso, nombre_curso))
-      `)
+      .select('*')
       .order('fecha_vencimiento', { ascending: true })
 
     let cobrado = 0
     let pendiente = 0
     let pendientesLista = []
 
-    if (dataPagos) {
+    if (!errPagos && dataPagos) {
       dataPagos.forEach(p => {
-        const monto = Number(p.monto) || 0
-        if (p.estatus === 'Pagado') {
+        const monto = Number(p.monto || p.Monto || 0)
+        const estatus = p.estatus || p.Estatus || p.estado || p.Estado || 'Pendiente'
+
+        if (estatus === 'Pagado') {
           cobrado += monto
         } else {
           pendiente += monto
@@ -101,7 +100,6 @@ export default function AdminDashboardPage() {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-500">Panel General de la Academia</span>
@@ -111,6 +109,7 @@ export default function AdminDashboardPage() {
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
+          {/* TARJETAS DE MÉTRICAS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
@@ -147,9 +146,9 @@ export default function AdminDashboardPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
+            {/* ACCESOS RÁPIDOS */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-1">
               <h3 className="text-sm font-bold text-slate-900">Acciones Rápidas</h3>
-              
               <div className="space-y-3">
                 <a href="/admin/estudiantes" className="p-3.5 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded-2xl border border-slate-100 flex items-center justify-between transition group">
                   <div className="flex items-center gap-3">
@@ -193,6 +192,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
+            {/* TABLA DE PAGOS PENDIENTES */}
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-2">
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold text-slate-900">Cuotas Pendientes y Vencidas en Supabase</h3>
@@ -206,24 +206,22 @@ export default function AdminDashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {pagosPendientes.map((p, idx) => {
-                    const nombreEstudiante = p.alumnos?.nombre || 'Estudiante'
-                    const matricula = p.alumnos?.matricula || 'EAC'
-                    const cursoNombre = p.grupos?.cursos?.Nombre_curso || p.grupos?.cursos?.nombre_curso || 'Curso'
-                    const grupoNombre = p.grupos?.nombre_grupo || 'Grupo'
+                    const montoCuota = Number(p.monto || p.Monto || 0)
+                    const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
 
                     return (
                       <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-900">{nombreEstudiante}</span>
-                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">#{matricula}</span>
+                            <span className="text-xs font-bold text-slate-900">Cuota #{p.id}</span>
+                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">Alumno ID: {p.alumno_id || p.Alumno_id}</span>
                           </div>
-                          <p className="text-[11px] text-slate-500">{cursoNombre} — {grupoNombre} (Vence: {p.fecha_vencimiento})</p>
+                          <p className="text-[11px] text-slate-500">Vence: {fechaVence}</p>
                         </div>
                         <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                          <span className="text-xs font-extrabold text-rose-600">$ {Number(p.monto).toLocaleString('es-MX')} MXN</span>
+                          <span className="text-xs font-extrabold text-rose-600">$ {montoCuota.toLocaleString('es-MX')} MXN</span>
                           <a 
-                            href={`/admin/estudiantes/detalle?id=${p.alumnos?.matricula || ''}`}
+                            href={`/admin/estudiantes/detalle?id=${p.alumno_id || p.Alumno_id || ''}`}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-[10px] font-semibold transition"
                           >
                             Revisar
