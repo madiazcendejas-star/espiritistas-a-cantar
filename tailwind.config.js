@@ -6,7 +6,14 @@ module.exports = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ['var(--font-inter)', 'sans-serif'],
+      },
+      colors: {
+        background: '#F8FAFC', // Fondo gris muy sutil para alejar el blanco ciego económico
+      },
+    },
   },
   plugins: [],
 }
