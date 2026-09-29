@@ -28,39 +28,34 @@ export default function AlumnoPortalPage() {
     const passwordLimpia = passwordInput.trim()
 
     if (!valorLimpio || !passwordLimpia) {
-      return alert('Ingresa tu matrícula y contraseña.')
+      return alert('Ingresa tu matrícula o teléfono y contraseña.')
     }
 
     setLoading(true)
 
-    // Consulta directa y robusta dividida en dos pasos lógicos para evitar fallos de tipos en Supabase
-    let al = null
-
-    // 1. Intentar buscar por Matrícula (probando tanto en mayúscula como en minúscula)
-    let { data: resMatricula } = await supabase
+    // Traemos todos los alumnos para validar de forma local y segura contra matrícula, teléfono o correo
+    const { data: todosLosAlumnos, error } = await supabase
       .from('alumnos')
       .select('*')
-      .or(`Matricula.eq.${valorLimpio},matricula.eq.${valorLimpio}`)
-      .limit(1)
 
-    if (resMatricula && resMatricula.length > 0) {
-      al = resMatricula[0]
-    } else {
-      // 2. Si no cayó en matrícula, intentamos buscar por correo electrónico
-      let { data: resCorreo } = await supabase
-        .from('alumnos')
-        .select('*')
-        .ilike('correo', valorLimpio)
-        .limit(1)
-
-      if (resCorreo && resCorreo.length > 0) {
-        al = resCorreo[0]
-      }
+    if (error || !todosLosAlumnos) {
+      setLoading(false)
+      return alert('Error de conexión con la base de datos: ' + (error?.message || 'Desconocido'))
     }
+
+    // Buscamos haciendo coincidir la matrícula, el teléfono o el correo real
+    const al = todosLosAlumnos.find(item => {
+      const mat = item.matricula ? String(item.matricula).trim().toLowerCase() : ''
+      const tel = item.telefono ? String(item.telefono).trim().toLowerCase() : ''
+      const mail = item.correo && item.correo !== 'EMPTY' ? String(item.correo).trim().toLowerCase() : ''
+      const busqueda = valorLimpio.toLowerCase()
+
+      return (mat && mat === busqueda) || (tel && tel === busqueda) || (mail && mail === busqueda)
+    })
 
     if (!al) {
       setLoading(false)
-      return alert('No se encontró un alumno con esa matrícula o correo.')
+      return alert('No se encontró un alumno con esa matrícula, teléfono o correo.')
     }
 
     const passwordRegistrada = al.password || al.Password || 'EAC2026*'
@@ -145,13 +140,13 @@ export default function AlumnoPortalPage() {
 
           <form onSubmit={iniciarSesion} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula o Correo</label>
+              <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula, Teléfono o Correo</label>
               <input 
                 type="text" 
                 required
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
-                placeholder="Ej. EAC-5376 o correo"
+                placeholder="Ej. EAC-3159 o tu teléfono"
                 className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
               />
             </div>
