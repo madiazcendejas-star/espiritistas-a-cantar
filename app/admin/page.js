@@ -12,7 +12,6 @@ export default function AdminDashboardPage() {
     totalPendiente: 0
   })
   const [pagosPendientes, setPagosPendientes] = useState([])
-  const [tandasActivas, setTandasActivas] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -38,17 +37,10 @@ export default function AdminDashboardPage() {
         .from('cursos')
         .select('*', { count: 'exact', head: true })
 
-      // 4. Cargar pagos de los cursos
+      // 4. Cargar pagos de los cursos de forma segura
       const { data: dataPagos, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
-        .order('fecha_vencimiento', { ascending: true })
-
-      // 5. Cargar tandas activas de forma segura (sin joins complejos que fallen)
-      const { data: dataTandas } = await supabase
-        .from('alumno_tandas')
-        .select('*')
-        .eq('estado', 'activa')
 
       let cobrado = 0
       let pendiente = 0
@@ -77,7 +69,6 @@ export default function AdminDashboardPage() {
       })
 
       setPagosPendientes(pendientesLista.slice(0, 5))
-      setTandasActivas(dataTandas || [])
     } catch (error) {
       console.error("Error al cargar métricas:", error)
     } finally {
@@ -206,6 +197,7 @@ export default function AdminDashboardPage() {
                   <span className="text-slate-400 group-hover:text-indigo-600">→</span>
                 </a>
 
+                {/* ACCESO A TANDAS */}
                 <a href="/admin/tandas" className="p-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-100 flex items-center justify-between transition group">
                   <div className="flex items-center gap-3">
                     <span className="p-2 bg-white rounded-xl shadow-xs text-indigo-600">📍</span>
@@ -216,79 +208,46 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* SECCIÓN DERECHA */}
-            <div className="space-y-6 lg:col-span-2">
-              
-              {/* RESUMEN DE TANDAS ACTIVAS */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-900">📍 Tandas y Misas de Investigación Activas</h3>
-                  <a href="/admin/tandas" className="text-xs font-semibold text-indigo-600 hover:underline">Ir al módulo completo →</a>
-                </div>
-
-                {tandasActivas.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-2">No hay alumnos inscritos en tandas actualmente.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {tandasActivas.map((tanda) => {
-                      const fechaMisa = tanda.fecha_misa ? new Date(tanda.fecha_misa).toLocaleDateString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : 'Sin fecha'
-
-                      return (
-                        <div key={tanda.id} className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex justify-between items-center text-xs">
-                          <div>
-                            <span className="font-bold text-slate-900">Inscripción ID: {tanda.id} (Alumno: {tanda.alumno_id})</span>
-                            <p className="text-[11px] text-slate-500">Misa programada: {fechaMisa}</p>
-                          </div>
-                          <a href="/admin/tandas" className="bg-indigo-600 text-white px-3.5 py-1.5 rounded-xl font-semibold shadow-xs">Gestionar</a>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+            {/* TABLA DE CUOTAS PENDIENTES */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4 lg:col-span-2">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-bold text-slate-900">Cuotas Pendientes y Vencidas en Supabase</h3>
+                <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-3 py-1 rounded-full">En tiempo real</span>
               </div>
 
-              {/* TABLA DE CUOTAS PENDIENTES */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-900">Cuotas Pendientes y Vencidas en Supabase</h3>
-                  <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-3 py-1 rounded-full">En tiempo real</span>
-                </div>
+              {loading ? (
+                <div className="text-center py-12 text-xs text-slate-400">Sincronizando datos de pagos...</div>
+              ) : pagosPendientes.length === 0 ? (
+                <div className="text-center py-12 text-xs text-slate-400">🎉 ¡Excelente! No hay pagos pendientes en este momento.</div>
+              ) : (
+                <div className="space-y-3">
+                  {pagosPendientes.map((p, idx) => {
+                    const montoCuota = Number(p.monto || p.Monto || 0)
+                    const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
 
-                {loading ? (
-                  <div className="text-center py-12 text-xs text-slate-400">Sincronizando datos de pagos...</div>
-                ) : pagosPendientes.length === 0 ? (
-                  <div className="text-center py-12 text-xs text-slate-400">🎉 ¡Excelente! No hay pagos pendientes en este momento.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {pagosPendientes.map((p, idx) => {
-                      const montoCuota = Number(p.monto || p.Monto || 0)
-                      const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
-
-                      return (
-                        <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-900">Cuota #{p.id}</span>
-                              <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">Alumno ID: {p.alumno_id || p.Alumno_id}</span>
-                            </div>
-                            <p className="text-[11px] text-slate-500">Vence: {fechaVence}</p>
+                    return (
+                      <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900">Cuota #{p.id}</span>
+                            <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded font-mono">Alumno ID: {p.alumno_id || p.Alumno_id}</span>
                           </div>
-                          <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                            <span className="text-xs font-extrabold text-rose-600">$ {montoCuota.toLocaleString('es-MX')} MXN</span>
-                            <a 
-                              href={`/admin/estudiantes/detalle?id=${p.alumno_id || p.Alumno_id || ''}`}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-[10px] font-semibold transition"
-                            >
-                              Revisar
-                            </a>
-                          </div>
+                          <p className="text-[11px] text-slate-500">Vence: {fechaVence}</p>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
+                        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                          <span className="text-xs font-extrabold text-rose-600">$ {montoCuota.toLocaleString('es-MX')} MXN</span>
+                          <a 
+                            href={`/admin/estudiantes/detalle?id=${p.alumno_id || p.Alumno_id || ''}`}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-[10px] font-semibold transition"
+                          >
+                            Revisar
+                          </a>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
