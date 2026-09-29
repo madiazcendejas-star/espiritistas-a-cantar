@@ -24,28 +24,48 @@ export default function AlumnoPortalPage() {
 
   const iniciarSesion = async (e) => {
     e.preventDefault()
-    if (!identificador.trim() || !passwordInput.trim()) {
+    const valorLimpio = identificador.trim()
+    const passwordLimpia = passwordInput.trim()
+
+    if (!valorLimpio || !passwordLimpia) {
       return alert('Ingresa tu matrícula y contraseña.')
     }
 
     setLoading(true)
-    const valorBusqueda = identificador.trim()
 
-    // Búsqueda robusta cubriendo variantes de nombre de columna y minúsculas en correo
-    const { data: alumnos, error } = await supabase
+    // Consulta directa y robusta dividida en dos pasos lógicos para evitar fallos de tipos en Supabase
+    let al = null
+
+    // 1. Intentar buscar por Matrícula (probando tanto en mayúscula como en minúscula)
+    let { data: resMatricula } = await supabase
       .from('alumnos')
       .select('*')
-      .or(`Matricula.eq.${valorBusqueda},matricula.eq.${valorBusqueda},correo.eq.${valorBusqueda.toLowerCase()}`)
+      .or(`Matricula.eq.${valorLimpio},matricula.eq.${valorLimpio}`)
+      .limit(1)
 
-    if (error || !alumnos || alumnos.length === 0) {
+    if (resMatricula && resMatricula.length > 0) {
+      al = resMatricula[0]
+    } else {
+      // 2. Si no cayó en matrícula, intentamos buscar por correo electrónico
+      let { data: resCorreo } = await supabase
+        .from('alumnos')
+        .select('*')
+        .ilike('correo', valorLimpio)
+        .limit(1)
+
+      if (resCorreo && resCorreo.length > 0) {
+        al = resCorreo[0]
+      }
+    }
+
+    if (!al) {
       setLoading(false)
       return alert('No se encontró un alumno con esa matrícula o correo.')
     }
 
-    const al = alumnos.shift()
     const passwordRegistrada = al.password || al.Password || 'EAC2026*'
 
-    if (passwordInput.trim() !== passwordRegistrada) {
+    if (passwordLimpia !== passwordRegistrada) {
       setLoading(false)
       return alert('Contraseña incorrecta.')
     }
