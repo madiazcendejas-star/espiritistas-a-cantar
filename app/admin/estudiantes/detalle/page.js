@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 
-export default function EstudianteDetallePage() {
+function DetalleContenido() {
   const searchParams = useSearchParams()
   const alumnoId = searchParams.get('id')
 
@@ -15,7 +15,7 @@ export default function EstudianteDetallePage() {
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
   const [loading, setLoading] = useState(true)
-  const [tabActiva, setTabActiva] = useState('resumen') // resumen, personal, inscripciones, pagos, anotaciones
+  const [tabActiva, setTabActiva] = useState('resumen')
 
   // Estado para editar información personal
   const [editandoPersonal, setEditandoPersonal] = useState(false)
@@ -30,7 +30,6 @@ export default function EstudianteDetallePage() {
   const cargarExpedienteCompleto = async () => {
     setLoading(true)
 
-    // 1. Datos del alumno
     const { data: alumnoData } = await supabase
       .from('alumnos')
       .select('*')
@@ -42,14 +41,12 @@ export default function EstudianteDetallePage() {
       setFormPersonal(alumnoData)
     }
 
-    // 2. Inscripciones
     const { data: insData } = await supabase
       .from('inscripciones')
       .select('*')
       .eq('alumno_id', alumnoId)
     setInscripciones(insData || [])
 
-    // 3. Pagos
     const { data: pgsData } = await supabase
       .from('pagos')
       .select('*')
@@ -57,14 +54,12 @@ export default function EstudianteDetallePage() {
       .order('fecha_vencimiento', { ascending: false })
     setPagos(pgsData || [])
 
-    // 4. Cursos
     const { data: crsData } = await supabase.from('cursos').select('*')
     setCursos(crsData || [])
 
     setLoading(false)
   }
 
-  // Calcular edad a partir de fecha de nacimiento
   const calcularEdad = (fechaNac) => {
     if (!fechaNac) return 'N/D'
     const hoy = new Date()
@@ -77,7 +72,6 @@ export default function EstudianteDetallePage() {
     return `${edad} años`
   }
 
-  // Actualizar datos personales
   const guardarPersonal = async (e) => {
     e.preventDefault()
     const { error } = await supabase
@@ -100,7 +94,6 @@ export default function EstudianteDetallePage() {
     }
   }
 
-  // Registrar un pago como pagado
   const registrarPago = async (pagoId) => {
     const { error } = await supabase
       .from('pagos')
@@ -115,7 +108,6 @@ export default function EstudianteDetallePage() {
     }
   }
 
-  // Eliminar alumno
   const eliminarAlumno = async () => {
     if (!confirm('¿Estás seguro de eliminar este estudiante y todo su expediente? Esta acción no se puede deshacer.')) return
     
@@ -140,7 +132,6 @@ export default function EstudianteDetallePage() {
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
   const edadStr = calcularEdad(alumno.fecha_nacimiento || alumno.Fecha_nacimiento)
 
-  // Cálculos financieros
   const pagosPendientesLista = pagos.filter(p => p.estatus !== 'Pagado')
   const totalPendienteMonto = pagosPendientesLista.reduce((acc, p) => acc + Number(p.monto || p.Monto || 0), 0)
   const pagosVencidosCount = pagos.filter(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date())).length
@@ -174,7 +165,6 @@ export default function EstudianteDetallePage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER DE NAVEGACIÓN */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-3">
             <a href="/admin/estudiantes" className="text-xs text-slate-400 hover:text-indigo-600 font-semibold transition">← Volver al listado</a>
@@ -190,10 +180,8 @@ export default function EstudianteDetallePage() {
           </button>
         </header>
 
-        {/* CONTENIDO DEL EXPEDIENTE */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
           
-          {/* CABECERA PRINCIPAL DEL ALUMNO */}
           <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-center gap-4">
@@ -207,7 +195,6 @@ export default function EstudianteDetallePage() {
               </div>
             </div>
 
-            {/* INFORMACIÓN RELEVANTE EN UN SOLO RENGLÓN (CLICKEABLE A PESTAÑAS) */}
             <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-slate-100 text-xs text-slate-600 font-medium">
               <div className="flex items-center gap-1.5">
                 <span>🎂</span>
@@ -227,7 +214,6 @@ export default function EstudianteDetallePage() {
               </div>
             </div>
 
-            {/* PESTAÑAS DE NAVEGACIÓN ESTILO CRAQUI */}
             <div className="flex gap-2 border-b border-slate-200 pt-4 text-xs font-semibold">
               <button 
                 onClick={() => setTabActiva('resumen')}
@@ -262,13 +248,8 @@ export default function EstudianteDetallePage() {
             </div>
           </div>
 
-          {/* ========================================================== */}
-          {/* CONTENIDO DE LA PESTAÑA: RESUMEN */}
-          {/* ========================================================== */}
           {tabActiva === 'resumen' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* TARJETA DE PAGOS / RESUMEN FINANCIERO */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Estado Financiero</h3>
                 
@@ -284,7 +265,6 @@ export default function EstudianteDetallePage() {
                   )}
                 </div>
 
-                {/* Barra de progreso de cuotas */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs font-bold">
                     <span className="text-slate-600">{cuotasPagadasCount} / {pagos.length} cuotas pagadas</span>
@@ -303,7 +283,6 @@ export default function EstudianteDetallePage() {
                 </div>
               </div>
 
-              {/* TARJETA DE INSCRIPCIONES ACTIVAS */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Inscripciones Activas</h3>
@@ -333,7 +312,6 @@ export default function EstudianteDetallePage() {
                 </div>
               </div>
 
-              {/* TARJETA DE CONTACTO RÁPIDO */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Contacto Rápido</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -353,13 +331,9 @@ export default function EstudianteDetallePage() {
                   </div>
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* ========================================================== */}
-          {/* CONTENIDO DE LA PESTAÑA: PERSONAL */}
-          {/* ========================================================== */}
           {tabActiva === 'personal' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -470,9 +444,6 @@ export default function EstudianteDetallePage() {
             </div>
           )}
 
-          {/* ========================================================== */}
-          {/* CONTENIDO DE LA PESTAÑA: INSCRIPCIONES */}
-          {/* ========================================================== */}
           {tabActiva === 'inscripciones' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
               <h3 className="text-sm font-bold text-slate-900">Historial de Inscripciones a Grupos y Cursos</h3>
@@ -498,9 +469,6 @@ export default function EstudianteDetallePage() {
             </div>
           )}
 
-          {/* ========================================================== */}
-          {/* CONTENIDO DE LA PESTAÑA: PAGOS */}
-          {/* ========================================================== */}
           {tabActiva === 'pagos' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
               <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -560,9 +528,6 @@ export default function EstudianteDetallePage() {
             </div>
           )}
 
-          {/* ========================================================== */}
-          {/* CONTENIDO DE LA PESTAÑA: ANOTACIONES */}
-          {/* ========================================================== */}
           {tabActiva === 'anotaciones' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
               <h3 className="text-sm font-bold text-slate-900">Anotaciones y Notas Internas del Estudiante</h3>
@@ -572,7 +537,7 @@ export default function EstudianteDetallePage() {
                   rows="3"
                   value={nuevaNota}
                   onChange={(e) => setNuevaNota(e.target.value)}
-                  placeholder="Escribe una nota interna sobre el alumno (ej. acuerdos de pago, observaciones académicas...)"
+                  placeholder="Escribe una nota interna sobre el alumno..."
                   className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 ></textarea>
                 <div className="text-right">
@@ -605,7 +570,6 @@ export default function EstudianteDetallePage() {
             </div>
           )}
 
-          {/* BOTÓN INFERIOR PARA ELIMINAR ALUMNO */}
           <div className="pt-6 border-t border-slate-200 text-right">
             <button 
               onClick={eliminarAlumno}
@@ -619,5 +583,13 @@ export default function EstudianteDetallePage() {
       </main>
 
     </div>
+  )
+}
+
+export default function EstudianteDetallePage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center bg-[#f8fafc] text-xs font-semibold text-slate-500">Cargando expediente...</div>}>
+      <DetalleContenido />
+    </Suspense>
   )
 }
