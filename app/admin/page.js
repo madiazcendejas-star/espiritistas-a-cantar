@@ -22,74 +22,73 @@ export default function AdminDashboardPage() {
   const cargarMetricasReales = async () => {
     setLoading(true)
 
-    // 1. Contar estudiantes
-    const { count: countAlumnos } = await supabase
-      .from('alumnos')
-      .select('*', { count: 'exact', head: true })
+    try {
+      // 1. Contar estudiantes
+      const { count: countAlumnos } = await supabase
+        .from('alumnos')
+        .select('*', { count: 'exact', head: true })
 
-    // 2. Contar grupos
-    const { count: countGrupos } = await supabase
-      .from('grupos')
-      .select('*', { count: 'exact', head: true })
+      // 2. Contar grupos
+      const { count: countGrupos } = await supabase
+        .from('grupos')
+        .select('*', { count: 'exact', head: true })
 
-    // 3. Contar cursos
-    const { count: countCursos } = await supabase
-      .from('cursos')
-      .select('*', { count: 'exact', head: true })
+      // 3. Contar cursos
+      const { count: countCursos } = await supabase
+        .from('cursos')
+        .select('*', { count: 'exact', head: true })
 
-    // 4. Cargar pagos de los cursos
-    const { data: dataPagos, error: errPagos } = await supabase
-      .from('pagos')
-      .select('*')
-      .order('fecha_vencimiento', { ascending: true })
+      // 4. Cargar pagos de los cursos
+      const { data: dataPagos, error: errPagos } = await supabase
+        .from('pagos')
+        .select('*')
+        .order('fecha_vencimiento', { ascending: true })
 
-    // 5. Cargar alumnos inscritos en tandas para el resumen en vivo
-    const { data: dataTandas } = await supabase
-      .from('alumno_tandas')
-      .select(`
-        id,
-        alumno_id,
-        fecha_misa,
-        tandas_config (nombre),
-        tanda_pagos (id, estado)
-      `)
-      .eq('estado', 'activa')
+      // 5. Cargar tandas activas de forma segura (sin joins complejos que fallen)
+      const { data: dataTandas } = await supabase
+        .from('alumno_tandas')
+        .select('*')
+        .eq('estado', 'activa')
 
-    let cobrado = 0
-    let pendiente = 0
-    let pendientesLista = []
+      let cobrado = 0
+      let pendiente = 0
+      let pendientesLista = []
 
-    if (!errPagos && dataPagos) {
-      dataPagos.forEach(p => {
-        const monto = Number(p.monto || p.Monto || 0)
-        const estatus = p.estatus || p.Estatus || p.estado || p.Estado || 'Pendiente'
+      if (!errPagos && dataPagos) {
+        dataPagos.forEach(p => {
+          const monto = Number(p.monto || p.Monto || 0)
+          const estatus = p.estatus || p.Estatus || p.estado || p.Estado || 'Pendiente'
 
-        if (estatus === 'Pagado') {
-          cobrado += monto
-        } else {
-          pendiente += monto
-          pendientesLista.push(p)
-        }
+          if (estatus === 'Pagado') {
+            cobrado += monto
+          } else {
+            pendiente += monto
+            pendientesLista.push(p)
+          }
+        })
+      }
+
+      setStats({
+        totalEstudiantes: countAlumnos || 0,
+        totalGrupos: countGrupos || 0,
+        totalCursos: countCursos || 0,
+        totalCobrado: cobrado,
+        totalPendiente: pendiente
       })
+
+      setPagosPendientes(pendientesLista.slice(0, 5))
+      setTandasActivas(dataTandas || [])
+    } catch (error) {
+      console.error("Error al cargar métricas:", error)
+    } finally {
+      setLoading(false)
     }
-
-    setStats({
-      totalEstudiantes: countAlumnos || 0,
-      totalGrupos: countGrupos || 0,
-      totalCursos: countCursos || 0,
-      totalCobrado: cobrado,
-      totalPendiente: pendiente
-    })
-
-    setPagosPendientes(pendientesLista.slice(0, 5))
-    setTandasActivas(dataTandas || [])
-    setLoading(false)
   }
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR ACTUALIZADO CON TANDAS Y MISAS */}
+      {/* SIDEBAR */}
       <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -110,7 +109,6 @@ export default function AdminDashboardPage() {
           <a href="/admin/inscripciones" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📋 Inscripciones</a>
           <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
           
-          {/* NUEVO ACCESO DIRECTO EN EL SIDEBAR */}
           <div className="pt-4 px-3 pb-2 text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
           <a href="/admin/tandas" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-950/80 text-indigo-200 border border-indigo-500/30 hover:bg-indigo-900 transition">📍 Tandas y Misas</a>
         </nav>
@@ -208,7 +206,6 @@ export default function AdminDashboardPage() {
                   <span className="text-slate-400 group-hover:text-indigo-600">→</span>
                 </a>
 
-                {/* ACCESO RÁPIDO A TANDAS */}
                 <a href="/admin/tandas" className="p-3.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl border border-indigo-100 flex items-center justify-between transition group">
                   <div className="flex items-center gap-3">
                     <span className="p-2 bg-white rounded-xl shadow-xs text-indigo-600">📍</span>
@@ -219,14 +216,14 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* TABLA DE PAGOS PENDIENTES + RESUMEN DE TANDAS */}
+            {/* SECCIÓN DERECHA */}
             <div className="space-y-6 lg:col-span-2">
               
-              {/* RESUMEN RÁPIDO DE TANDAS ACTIVAS */}
+              {/* RESUMEN DE TANDAS ACTIVAS */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-900">📍 Tandas y Misas de Investigación Activas</h3>
-                  <a href="/admin/tandas" className="text-xs font-semibold text-indigo-600 hover:underline">Administrar completas →</a>
+                  <a href="/admin/tandas" className="text-xs font-semibold text-indigo-600 hover:underline">Ir al módulo completo →</a>
                 </div>
 
                 {tandasActivas.length === 0 ? (
@@ -234,19 +231,15 @@ export default function AdminDashboardPage() {
                 ) : (
                   <div className="space-y-2">
                     {tandasActivas.map((tanda) => {
-                      const pagosHechos = tanda.tanda_pagos ? tanda.tanda_pagos.filter(p => p.estado === 'pagado').length : 0
                       const fechaMisa = tanda.fecha_misa ? new Date(tanda.fecha_misa).toLocaleDateString('es-MX', { dateStyle: 'medium', timeStyle: 'short' }) : 'Sin fecha'
 
                       return (
                         <div key={tanda.id} className="p-3.5 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex justify-between items-center text-xs">
                           <div>
-                            <span className="font-bold text-slate-900">Alumno ID: {tanda.alumno_id}</span>
+                            <span className="font-bold text-slate-900">Inscripción ID: {tanda.id} (Alumno: {tanda.alumno_id})</span>
                             <p className="text-[11px] text-slate-500">Misa programada: {fechaMisa}</p>
                           </div>
-                          <div className="flex items-center gap-4">
-                            <span className="font-bold text-indigo-600">Pagos: {pagosHechos} / 10</span>
-                            <a href="/admin/tandas" className="bg-indigo-600 text-white px-3 py-1.5 rounded-xl font-semibold shadow-xs">Gestionar Pago</a>
-                          </div>
+                          <a href="/admin/tandas" className="bg-indigo-600 text-white px-3.5 py-1.5 rounded-xl font-semibold shadow-xs">Gestionar</a>
                         </div>
                       )
                     })}
@@ -254,7 +247,7 @@ export default function AdminDashboardPage() {
                 )}
               </div>
 
-              {/* TABLA DE CUOTAS PENDIENTES DE CURSOS */}
+              {/* TABLA DE CUOTAS PENDIENTES */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-slate-900">Cuotas Pendientes y Vencidas en Supabase</h3>
