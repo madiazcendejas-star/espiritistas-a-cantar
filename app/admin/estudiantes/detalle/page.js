@@ -1,523 +1,622 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '../../../../lib/supabase'
 
-export default function DetalleEstudiantePage() {
+export default function EstudianteDetallePage() {
+  const searchParams = useSearchParams()
+  const alumnoId = searchParams.get('id')
+
   const [alumno, setAlumno] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [tabActiva, setTabActiva] = useState('resumen')
-  
-  const [modalInscribir, setModalInscribir] = useState(false)
-  const [gruposDisponibles, setGruposDisponibles] = useState([])
-  const [cursosDisponibles, setCursosDisponibles] = useState([])
-  const [grupoSeleccionadoId, setGrupoSeleccionadoId] = useState('')
-
-  const [modalEditar, setModalEditar] = useState(false)
-  const [guardandoEdicion, setGuardandoEdicion] = useState(false)
-
-  const [formEdicion, setFormEdicion] = useState({
-    password: ''
-  })
-
   const [inscripciones, setInscripciones] = useState([])
   const [pagos, setPagos] = useState([])
+  const [cursos, setCursos] = useState([])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [tabActiva, setTabActiva] = useState('resumen') // resumen, personal, inscripciones, pagos, anotaciones
+
+  // Estado para editar información personal
+  const [editandoPersonal, setEditandoPersonal] = useState(false)
+  const [formPersonal, setFormPersonal] = useState({})
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const idParam = params.get('id')
-    
-    if (idParam) {
-      cargarDatosAlumno(idParam)
-      cargarCatalogos()
-    } else {
-      setLoading(false)
+    if (alumnoId) {
+      cargarExpedienteCompleto()
     }
-  }, [])
+  }, [alumnoId])
 
-  const cargarDatosAlumno = async (valor) => {
+  const cargarExpedienteCompleto = async () => {
     setLoading(true)
-    const { data: todos, error } = await supabase
+
+    // 1. Datos del alumno
+    const { data: alumnoData } = await supabase
       .from('alumnos')
       .select('*')
+      .eq('id', alumnoId)
+      .single()
 
-    if (!error && todos) {
-      const encontrado = todos.find(
-        (a) => String(a.id) === String(valor) || String(a.matricula) === String(valor)
-      )
-      if (encontrado) {
-        setAlumno(encontrado)
-        setFormEdicion({
-          password: encontrado.password || 'EAC2026*'
-        })
-        cargarInscripcionesYPagos(encontrado.id)
-      }
+    if (alumnoData) {
+      setAlumno(alumnoData)
+      setFormPersonal(alumnoData)
     }
-    setLoading(false)
-  }
 
-  const cargarCatalogos = async () => {
-    const { data: resCursos } = await supabase.from('cursos').select('*')
-    const { data: resGrupos } = await supabase.from('grupos').select('*')
-    if (resCursos) setCursosDisponibles(resCursos)
-    if (resGrupos) setGruposDisponibles(resGrupos)
-  }
-
-  const cargarInscripcionesYPagos = async (alumnoId) => {
-    // 1. Cargar inscripciones con carga independiente y desduplicación por grupo_id
-    const { data: resIns } = await supabase
+    // 2. Inscripciones
+    const { data: insData } = await supabase
       .from('inscripciones')
       .select('*')
       .eq('alumno_id', alumnoId)
+    setInscripciones(insData || [])
 
-    const { data: resCursos } = await supabase.from('cursos').select('*')
-    const { data: resGrupos } = await supabase.from('grupos').select('*')
-
-    if (resIns && resCursos && resGrupos) {
-      // Filtrar duplicados para que cada grupo aparezca una sola vez
-      const unicas = Array.from(new Map(resIns.map(item => [item.grupo_id, item])).values())
-
-      const insMapeadas = unicas.map(ins => {
-        const gr = resGrupos.find(g => Number(g.id) === Number(ins.grupo_id))
-        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (ins.curso_id ? resCursos.find(c => Number(c.id) === Number(ins.curso_id)) : null)
-        return {
-          id: ins.id,
-          curso: cur?.Nombre_curso || cur?.nombre_curso || 'Curso',
-          grupo: gr?.nombre_grupo || 'Grupo general',
-          costo: gr?.costo_total || 0,
-          estado: ins.estatus || 'activa'
-        }
-      })
-      setInscripciones(insMapeadas)
-    }
-
-    // 2. Cargar pagos reales con consulta independiente
-    const { data: resPagos, error } = await supabase
+    // 3. Pagos
+    const { data: pgsData } = await supabase
       .from('pagos')
       .select('*')
       .eq('alumno_id', alumnoId)
       .order('fecha_vencimiento', { ascending: false })
+    setPagos(pgsData || [])
 
-    if (!error && resPagos && resCursos && resGrupos) {
-      const pagosMapeados = resPagos.map(p => {
-        const gr = resGrupos.find(g => Number(g.id) === Number(p.grupo_id))
-        const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (p.curso_id ? resCursos.find(c => Number(c.id) === Number(p.curso_id)) : null)
-        return {
-          id: p.id,
-          descripcion: cur?.Nombre_curso || cur?.nombre_curso || gr?.nombre_grupo || 'Cuota de la Academia',
-          vencimiento: p.fecha_vencimiento || p.fecha_pago || 'Sin fecha',
-          monto: Number(p.monto) || 0,
-          estado: p.estatus || 'Pendiente'
-        }
-      })
-      setPagos(pagosMapeados)
-    }
+    // 4. Cursos
+    const { data: crsData } = await supabase.from('cursos').select('*')
+    setCursos(crsData || [])
+
+    setLoading(false)
   }
 
-  const guardarEdicion = async (e) => {
-    e.preventDefault()
-    setGuardandoEdicion(true)
+  // Calcular edad a partir de fecha de nacimiento
+  const calcularEdad = (fechaNac) => {
+    if (!fechaNac) return 'N/D'
+    const hoy = new Date()
+    const nacimiento = new Date(fechaNac)
+    let edad = hoy.getFullYear() - nacimiento.getFullYear()
+    const m = hoy.getMonth() - nacimiento.getMonth()
+    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+      edad--
+    }
+    return `${edad} años`
+  }
 
+  // Actualizar datos personales
+  const guardarPersonal = async (e) => {
+    e.preventDefault()
     const { error } = await supabase
       .from('alumnos')
       .update({
-        password: formEdicion.password.trim()
+        nombre: formPersonal.nombre,
+        correo: formPersonal.correo,
+        telefono: formPersonal.telefono,
+        fecha_nacimiento: formPersonal.fecha_nacimiento,
+        direccion: formPersonal.direccion
       })
-      .eq('id', alumno.id)
+      .eq('id', alumnoId)
 
     if (error) {
-      alert('Error al actualizar la contraseña LMS: ' + error.message)
+      alert('Error al actualizar: ' + error.message)
     } else {
-      alert('¡Contraseña de acceso LMS actualizada exitosamente!')
-      setModalEditar(false)
-      cargarDatosAlumno(alumno.id)
-    }
-    setGuardandoEdicion(false)
-  }
-
-  const eliminarEstudiante = async () => {
-    if (confirm('¿Estás seguro de eliminar este estudiante de la academia? Esta acción es irreversible.')) {
-      const { error } = await supabase.from('alumnos').delete().eq('id', alumno.id)
-      if (!error) {
-        window.location.href = '/admin/estudiantes'
-      } else {
-        alert('Error al eliminar: ' + error.message)
-      }
+      alert('¡Información personal actualizada con éxito!')
+      setEditandoPersonal(false)
+      cargarExpedienteCompleto()
     }
   }
 
-  const agregarNota = (e) => {
-    e.preventDefault()
-    if (!nuevaNota.trim()) return
-    setAnotaciones([...anotaciones, { texto: nuevaNota, fecha: new Date().toLocaleDateString() }])
-    setNuevaNota('')
-  }
+  // Registrar un pago como pagado
+  const registrarPago = async (pagoId) => {
+    const { error } = await supabase
+      .from('pagos')
+      .update({ estatus: 'Pagado' })
+      .eq('id', pagoId)
 
-  const confirmarInscripcionDesdeExpediente = async () => {
-    if (!grupoSeleccionadoId) return alert('Seleccione un grupo y horario válido.')
-
-    const grupoObj = gruposDisponibles.find(g => Number(g.id) === Number(grupoSeleccionadoId))
-    if (!grupoObj) return alert('Grupo no encontrado.')
-
-    // Validar si ya está inscrito en este grupo
-    const { data: existente } = await supabase
-      .from('inscripciones')
-      .select('*')
-      .eq('alumno_id', alumno.id)
-      .eq('grupo_id', grupoObj.id)
-
-    if (existente && existente.length > 0) {
-      return alert('Este estudiante ya está inscrito en este grupo.')
-    }
-
-    // 1. Insertar inscripción única
-    const { error: errIns } = await supabase.from('inscripciones').insert([
-      {
-        alumno_id: alumno.id,
-        grupo_id: grupoObj.id,
-        curso_id: grupoObj.curso_id,
-        estatus: 'activa'
-      }
-    ])
-
-    if (errIns) {
-      return alert('Error al inscribir: ' + errIns.message)
-    }
-
-    // 2. Generar cuotas automáticas con división exacta
-    const costoTotal = Number(grupoObj.costo_total) || 0
-    const numPagos = Number(grupoObj.num_pagos) || 1
-    const montoPorPago = Number((costoTotal / numPagos).toFixed(2))
-    const frecuencia = grupoObj.frecuencia || 'mensual'
-
-    const fechaInicioBase = grupoObj.fecha_inicio ? new Date(grupoObj.fecha_inicio) : new Date()
-    const cuotasARegistrar = []
-
-    for (let i = 0; i < numPagos; i++) {
-      let fechaVenc = new Date(fechaInicioBase)
-      if (frecuencia === 'diaria') fechaVenc.setDate(fechaVenc.getDate() + i)
-      else if (frecuencia === 'semanal') fechaVenc.setDate(fechaVenc.getDate() + (i * 7))
-      else if (frecuencia === 'quincenal') fechaVenc.setDate(fechaVenc.getDate() + (i * 15))
-      else fechaVenc.setMonth(fechaVenc.getMonth() + i)
-
-      cuotasARegistrar.push({
-        alumno_id: alumno.id,
-        grupo_id: grupoObj.id,
-        curso_id: grupoObj.curso_id,
-        monto: montoPorPago,
-        fecha_vencimiento: fechaVenc.toISOString().split('T')[0],
-        estatus: 'Pendiente'
-      })
-    }
-
-    const { error: errPagos } = await supabase.from('pagos').insert(cuotasARegistrar)
-
-    if (errPagos) {
-      alert('Inscripción creada, pero hubo un error al generar las cuotas: ' + errPagos.message)
+    if (error) {
+      alert('Error al registrar pago: ' + error.message)
     } else {
-      alert('¡Inscripción y plan de pagos generado con éxito!')
-      setModalInscribir(false)
-      setGrupoSeleccionadoId('')
-      cargarInscripcionesYPagos(alumno.id)
+      alert('¡Pago registrado como Pagado exitosamente!')
+      cargarExpedienteCompleto()
+    }
+  }
+
+  // Eliminar alumno
+  const eliminarAlumno = async () => {
+    if (!confirm('¿Estás seguro de eliminar este estudiante y todo su expediente? Esta acción no se puede deshacer.')) return
+    
+    const { error } = await supabase.from('alumnos').delete().eq('id', alumnoId)
+    if (error) {
+      alert('Error al eliminar: ' + error.message)
+    } else {
+      alert('Estudiante eliminado correctamente.')
+      window.location.href = '/admin/estudiantes'
     }
   }
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Cargando expediente del estudiante...</div>
+    return <div className="h-screen flex items-center justify-center bg-[#f8fafc] text-xs font-semibold text-slate-500">Cargando expediente universitario...</div>
   }
 
   if (!alumno) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-xs text-slate-500 font-sans">Estudiante no encontrado en la base de datos.</div>
+    return <div className="h-screen flex items-center justify-center bg-[#f8fafc] text-xs text-rose-600">No se encontró el expediente del estudiante.</div>
   }
 
-  const nombreAlumno = alumno.nombre || alumno.Nombre || alumno.nombre_completo || 'Estudiante'
+  const nombreAlumno = alumno.nombre || alumno.Nombre || 'Estudiante'
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
+  const edadStr = calcularEdad(alumno.fecha_nacimiento || alumno.Fecha_nacimiento)
 
-  const totalCobrado = pagos.filter(p => p.estado === 'Pagado').reduce((acc, p) => acc + p.monto, 0)
-  const totalPendiente = pagos.filter(p => p.estado !== 'Pagado').reduce((acc, p) => acc + p.monto, 0)
+  // Cálculos financieros
+  const pagosPendientesLista = pagos.filter(p => p.estatus !== 'Pagado')
+  const totalPendienteMonto = pagosPendientesLista.reduce((acc, p) => acc + Number(p.monto || p.Monto || 0), 0)
+  const pagosVencidosCount = pagos.filter(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date())).length
+  const cuotasPagadasCount = pagos.filter(p => p.estatus === 'Pagado').length
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8fafc] font-sans text-slate-900">
+    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-30 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center gap-4">
-            <a href="/admin/estudiantes" className="w-9 h-9 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-600 transition text-sm font-bold">
-              ←
-            </a>
-            <div className="w-12 h-12 bg-indigo-100 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold text-sm shadow-xs">
-              {iniciales}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-extrabold text-slate-900">{nombreAlumno}</h1>
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">#{alumno.matricula || `EAC-${alumno.id}`}</span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">Matriculado en la academia</p>
-            </div>
-          </div>
-
+      {/* SIDEBAR */}
+      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
+        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setModalInscribir(true)}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
-            >
-              <span>+</span> Inscribir a {nombreAlumno.split(' ')[0]}
-            </button>
+            <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
+            <div className="flex flex-col">
+              <span className="font-bold text-white text-xs leading-tight">Espiritistas a Cantar</span>
+              <span className="text-[10px] text-indigo-400 font-medium">Panel Administrativo</span>
+            </div>
           </div>
         </div>
 
-        {/* PESTAÑAS */}
-        <div className="flex items-center gap-2 overflow-x-auto pt-2 border-t border-slate-100 text-xs font-semibold">
-          <button onClick={() => setTabActiva('resumen')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'resumen' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📊 Resumen</button>
-          <button onClick={() => setTabActiva('personal')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'personal' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>👤 Personal</button>
-          <button onClick={() => setTabActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'inscripciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📚 Inscripciones</button>
-          <button onClick={() => setTabActiva('pagos')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'pagos' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>💳 Pagos</button>
-          <button onClick={() => setTabActiva('asistencia')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'asistencia' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>✅ Asistencia</button>
-          <button onClick={() => setTabActiva('anotaciones')} className={`px-4 py-2 rounded-xl transition ${tabActiva === 'anotaciones' ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>📝 Anotaciones</button>
-        </div>
-      </header>
+        <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto text-xs font-medium">
+          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
+          <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
+          <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
+          <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
+          <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
+        </nav>
+      </aside>
 
-      {/* CONTENIDO */}
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-8 space-y-6">
+      {/* CONTENIDO PRINCIPAL */}
+      <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {tabActiva === 'resumen' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Pagos</h3>
-                  <button onClick={() => setTabActiva('pagos')} className="text-xs font-semibold text-indigo-600 hover:underline">Ver todos los pagos →</button>
+        {/* HEADER DE NAVEGACIÓN */}
+        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
+          <div className="flex items-center gap-3">
+            <a href="/admin/estudiantes" className="text-xs text-slate-400 hover:text-indigo-600 font-semibold transition">← Volver al listado</a>
+            <span className="text-slate-300">/</span>
+            <span className="text-xs font-bold text-slate-700">Expediente Universitario</span>
+          </div>
+          
+          <button 
+            onClick={() => alert(`Inscribiendo a ${nombreAlumno}... Redirigiendo a asignación de grupo.`)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
+          >
+            Inscribir a {nombreAlumno.split(' ')[0]}
+          </button>
+        </header>
+
+        {/* CONTENIDO DEL EXPEDIENTE */}
+        <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
+          
+          {/* CABECERA PRINCIPAL DEL ALUMNO */}
+          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-indigo-50 text-indigo-700 rounded-2xl flex items-center justify-center font-extrabold text-lg border border-indigo-100 shadow-sm">
+                  {iniciales}
                 </div>
                 <div>
-                  <h4 className="text-2xl font-extrabold text-slate-900">$ {totalPendiente.toLocaleString('es-MX')} <span className="text-xs font-normal text-slate-400">pendiente</span></h4>
-                  <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden my-3">
-                    <div className="bg-emerald-500 h-full w-full"></div>
-                  </div>
-                  <p className="text-xs text-slate-500">Historial sincronizado desde Supabase</p>
+                  <h1 className="text-2xl font-black text-slate-900">{nombreAlumno}</h1>
+                  <p className="text-xs font-mono text-indigo-600 mt-0.5">Matrícula: #{alumno.matricula || alumnoId}</p>
                 </div>
               </div>
+            </div>
 
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Inscripciones Activas</h3>
-                  <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-2 py-0.5 rounded-full">{inscripciones.length}</span>
-                </div>
-                <div className="space-y-3">
-                  {inscripciones.length === 0 ? (
-                    <p className="text-xs text-slate-400 py-2">Sin inscripciones registradas.</p>
-                  ) : (
-                    inscripciones.map((ins, i) => (
-                      <div key={i} className="p-3 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                        <div><p className="text-xs font-bold text-slate-900">{ins.curso} ({ins.grupo})</p><span className="text-[10px] text-slate-400">$ {ins.costo} MXN</span></div>
-                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
-                      </div>
-                    ))
+            {/* INFORMACIÓN RELEVANTE EN UN SOLO RENGLÓN (CLICKEABLE A PESTAÑAS) */}
+            <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-slate-100 text-xs text-slate-600 font-medium">
+              <div className="flex items-center gap-1.5">
+                <span>🎂</span>
+                <span>{edadStr}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>📚</span>
+                <button onClick={() => setTabActiva('inscripciones')} className="text-indigo-600 font-bold hover:underline">
+                  {inscripciones.length} inscripciones activas
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>⚠️</span>
+                <button onClick={() => setTabActiva('pagos')} className={`font-bold hover:underline ${pagosPendientesLista.length > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                  {pagosPendientesLista.length} pagos pendientes
+                </button>
+              </div>
+            </div>
+
+            {/* PESTAÑAS DE NAVEGACIÓN ESTILO CRAQUI */}
+            <div className="flex gap-2 border-b border-slate-200 pt-4 text-xs font-semibold">
+              <button 
+                onClick={() => setTabActiva('resumen')}
+                className={`pb-3 px-4 border-b-2 transition ${tabActiva === 'resumen' ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                Resumen
+              </button>
+              <button 
+                onClick={() => setTabActiva('personal')}
+                className={`pb-3 px-4 border-b-2 transition ${tabActiva === 'personal' ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                Personal
+              </button>
+              <button 
+                onClick={() => setTabActiva('inscripciones')}
+                className={`pb-3 px-4 border-b-2 transition ${tabActiva === 'inscripciones' ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                Inscripciones ({inscripciones.length})
+              </button>
+              <button 
+                onClick={() => setTabActiva('pagos')}
+                className={`pb-3 px-4 border-b-2 transition ${tabActiva === 'pagos' ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                Pagos
+              </button>
+              <button 
+                onClick={() => setTabActiva('anotaciones')}
+                className={`pb-3 px-4 border-b-2 transition ${tabActiva === 'anotaciones' ? 'border-indigo-600 text-indigo-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              >
+                Anotaciones
+              </button>
+            </div>
+          </div>
+
+          {/* ========================================================== */}
+          {/* CONTENIDO DE LA PESTAÑA: RESUMEN */}
+          {/* ========================================================== */}
+          {tabActiva === 'resumen' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* TARJETA DE PAGOS / RESUMEN FINANCIERO */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Estado Financiero</h3>
+                
+                <div className="space-y-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-black text-slate-900">$ {totalPendienteMonto.toLocaleString('es-MX')}</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase">pendiente</span>
+                  </div>
+                  {pagosVencidosCount > 0 && (
+                    <span className="inline-block bg-rose-50 text-rose-600 text-[10px] font-bold px-2.5 py-1 rounded-full border border-rose-100">
+                      ⚠️ {pagosVencidosCount} vencida(s)
+                    </span>
                   )}
                 </div>
-              </div>
-            </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-rose-100 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h4 className="text-sm font-bold text-rose-600">Zona de peligro</h4>
-                <p className="text-xs text-slate-400">Eliminar este estudiante de la academia es una acción irreversible.</p>
-              </div>
-              <button onClick={eliminarEstudiante} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2.5 rounded-xl text-xs font-semibold transition border border-rose-200">
-                Eliminar Estudiante
-              </button>
-            </div>
-          </div>
-        )}
-
-        {tabActiva === 'personal' && (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Información Personal y Acceso LMS</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Credenciales y datos generales registrados en el sistema.</p>
-              </div>
-              <button 
-                onClick={() => setModalEditar(true)} 
-                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition"
-              >
-                🔑 Administrar Contraseña LMS
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-xs">
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Nombre Completo</span><p className="text-slate-900 font-semibold mt-1">{nombreAlumno}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Correo Electrónico</span><p className="text-slate-900 font-semibold mt-1">{alumno.correo || alumno.Correo || 'Sin correo'}</p></div>
-              <div><span className="text-slate-400 block font-bold uppercase text-[10px]">Teléfono</span><p className="text-slate-900 font-semibold mt-1">{alumno.telefono || alumno.Telefono || 'Sin teléfono'}</p></div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[10px]">Contraseña de Acceso LMS</span>
-                <p className="text-indigo-600 font-mono font-bold mt-1 bg-indigo-50 px-2.5 py-1 rounded-lg inline-block">
-                  {alumno.password || 'EAC2026*'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tabActiva === 'inscripciones' && (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="text-base font-bold text-slate-900">Inscripciones a Grupos y Cursos</h3>
-              <button onClick={() => setModalInscribir(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Inscribir a Curso</button>
-            </div>
-            <div className="space-y-3">
-              {inscripciones.length === 0 ? (
-                <p className="text-xs text-slate-400 text-center py-6">Este estudiante no cuenta con inscripciones activas.</p>
-              ) : (
-                inscripciones.map((ins, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                    <div><h4 className="text-xs font-bold text-slate-900">{ins.curso} — {ins.grupo}</h4><p className="text-[11px] text-slate-500">Costo total: $ {ins.costo} MXN</p></div>
-                    <span className="px-3 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                {/* Barra de progreso de cuotas */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-slate-600">{cuotasPagadasCount} / {pagos.length} cuotas pagadas</span>
+                    {pagosVencidosCount > 0 && <span className="text-rose-600">{pagosVencidosCount} vencida</span>}
                   </div>
-                ))
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div className="bg-indigo-600 h-full" style={{ width: `${pagos.length ? (cuotasPagadasCount / pagos.length) * 100 : 0}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
+                  <span className="text-slate-400">Contraseña LMS: <strong className="font-mono text-indigo-600">{alumno.password || 'EAC2026*'}</strong></span>
+                  <button onClick={() => setTabActiva('pagos')} className="text-indigo-600 font-bold hover:underline">
+                    Ver todos los pagos →
+                  </button>
+                </div>
+              </div>
+
+              {/* TARJETA DE INSCRIPCIONES ACTIVAS */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Inscripciones Activas</h3>
+                  <span className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">{inscripciones.length}</span>
+                </div>
+
+                {inscripciones.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic py-6 text-center">El alumno no tiene inscripciones activas actualmente.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {inscripciones.map((ins, idx) => (
+                      <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                        <div>
+                          <h4 className="text-xs font-bold text-slate-900">Grupo ID #{ins.grupo_id}</h4>
+                          <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">Activa</span>
+                        </div>
+                        <span className="text-xs font-bold text-slate-700">Inscrito</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-slate-100 text-right">
+                  <button onClick={() => setTabActiva('inscripciones')} className="text-xs text-indigo-600 font-bold hover:underline">
+                    Ver todas las inscripciones →
+                  </button>
+                </div>
+              </div>
+
+              {/* TARJETA DE CONTACTO RÁPIDO */}
+              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Contacto Rápido</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
+                    <span className="text-lg">📧</span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Correo Electrónico</span>
+                      <span className="font-semibold text-slate-800">{alumno.correo || alumno.Correo || 'No registrado'}</span>
+                    </div>
+                  </div>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
+                    <span className="text-lg">📞</span>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Teléfono de Contacto</span>
+                      <span className="font-semibold text-slate-800">{alumno.telefono || alumno.Telefono || 'No registrado'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================== */}
+          {/* CONTENIDO DE LA PESTAÑA: PERSONAL */}
+          {/* ========================================================== */}
+          {tabActiva === 'personal' && (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Información Personal y Datos Generales</h3>
+                  <p className="text-xs text-slate-400">La matrícula numérica no puede ser modificada.</p>
+                </div>
+                <button 
+                  onClick={() => setEditandoPersonal(!editandoPersonal)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  {editandoPersonal ? 'Cancelar Edición' : '✏️ Editar Información'}
+                </button>
+              </div>
+
+              {editandoPersonal ? (
+                <form onSubmit={guardarPersonal} className="space-y-4 max-w-2xl">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo</label>
+                    <input 
+                      type="text"
+                      value={formPersonal.nombre || ''}
+                      onChange={(e) => setFormPersonal({ ...formPersonal, nombre: e.target.value })}
+                      className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
+                      <input 
+                        type="email"
+                        value={formPersonal.correo || ''}
+                        onChange={(e) => setFormPersonal({ ...formPersonal, correo: e.target.value })}
+                        className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono</label>
+                      <input 
+                        type="text"
+                        value={formPersonal.telefono || ''}
+                        onChange={(e) => setFormPersonal({ ...formPersonal, telefono: e.target.value })}
+                        className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Nacimiento</label>
+                      <input 
+                        type="date"
+                        value={formPersonal.fecha_nacimiento || ''}
+                        onChange={(e) => setFormPersonal({ ...formPersonal, fecha_nacimiento: e.target.value })}
+                        className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Matrícula (Solo lectura)</label>
+                      <input 
+                        type="text"
+                        disabled
+                        value={formPersonal.matricula || ''}
+                        className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-200 text-slate-500 cursor-not-allowed font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Dirección</label>
+                    <input 
+                      type="text"
+                      value={formPersonal.direccion || ''}
+                      onChange={(e) => setFormPersonal({ ...formPersonal, direccion: e.target.value })}
+                      className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    />
+                  </div>
+                  <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">
+                    Guardar Cambios
+                  </button>
+                </form>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Nombre Completo</span>
+                    <p className="font-semibold text-slate-800">{alumno.nombre || 'No registrado'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Correo Electrónico</span>
+                    <p className="font-semibold text-slate-800">{alumno.correo || 'No registrado'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Teléfono</span>
+                    <p className="font-semibold text-slate-800">{alumno.telefono || 'No registrado'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Fecha de Nacimiento</span>
+                    <p className="font-semibold text-slate-800">{alumno.fecha_nacimiento || 'No registrada'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Matrícula Universitaria</span>
+                    <p className="font-mono font-bold text-indigo-600">#{alumno.matricula || 'N/D'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Dirección</span>
+                    <p className="font-semibold text-slate-800">{alumno.direccion || 'No registrada'}</p>
+                  </div>
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {tabActiva === 'pagos' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Pagos Pendientes</span><h3 className="text-xl font-extrabold text-rose-600 mt-1">$ {totalPendiente.toLocaleString('es-MX')}</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Total Cobrado</span><h3 className="text-xl font-extrabold text-emerald-600 mt-1">$ {totalCobrado.toLocaleString('es-MX')}</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Registros de Pago</span><h3 className="text-xl font-extrabold text-slate-900 mt-1">{pagos.length}</h3></div>
-              <div className="bg-white p-5 rounded-2xl border border-slate-200"><span className="text-[10px] font-bold text-slate-400 uppercase">Estado General</span><h3 className="text-xl font-extrabold text-indigo-600 mt-1">Al día</h3></div>
+          {/* ========================================================== */}
+          {/* CONTENIDO DE LA PESTAÑA: INSCRIPCIONES */}
+          {/* ========================================================== */}
+          {tabActiva === 'inscripciones' && (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+              <h3 className="text-sm font-bold text-slate-900">Historial de Inscripciones a Grupos y Cursos</h3>
+
+              {inscripciones.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-8 text-center">Este estudiante no cuenta con inscripciones registradas.</p>
+              ) : (
+                <div className="space-y-4">
+                  {inscripciones.map((ins, idx) => (
+                    <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                      <div className="space-y-1">
+                        <span className="bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full text-[10px]">Inscripción ID #{ins.id}</span>
+                        <h4 className="font-bold text-slate-900 text-sm mt-1">Grupo ID #{ins.grupo_id}</h4>
+                        <p className="text-[11px] text-slate-500">Estatus oficial en sistema</p>
+                      </div>
+                      <span className="bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs">
+                        ● Activa
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-              <div className="p-6 border-b border-slate-100"><h3 className="text-sm font-bold text-slate-900">Historial y Desglose de Pagos en Supabase</h3></div>
-              <div className="overflow-x-auto">
-                {pagos.length === 0 ? (
-                  <div className="text-center py-12 text-xs text-slate-400">No hay registros de pagos en la base de datos para este alumno.</div>
-                ) : (
-                  <table className="w-full text-left border-collapse">
+          )}
+
+          {/* ========================================================== */}
+          {/* CONTENIDO DE LA PESTAÑA: PAGOS */}
+          {/* ========================================================== */}
+          {tabActiva === 'pagos' && (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                <h3 className="text-sm font-bold text-slate-900">Historial de Pagos y Cuotas</h3>
+                <span className="text-xs font-semibold text-slate-500">Total registros: {pagos.length}</span>
+              </div>
+
+              {pagos.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-8 text-center">No hay registros de pagos para este estudiante.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                        <th className="py-3 px-6">ID Pago</th><th className="py-3 px-6">Curso / Concepto</th><th className="py-3 px-6">Vencimiento</th><th className="py-3 px-6">Monto</th><th className="py-3 px-6">Estatus</th><th className="py-3 px-6 text-right">Acción</th>
+                      <tr className="bg-slate-100 text-slate-500 uppercase text-[10px] font-bold">
+                        <th className="py-3 px-4">Concepto / ID Cuota</th>
+                        <th className="py-3 px-4">Vencimiento</th>
+                        <th className="py-3 px-4">Monto</th>
+                        <th className="py-3 px-4">Estado</th>
+                        <th className="py-3 px-4 text-right">Acción de Pago</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
-                      {pagos.map((p, i) => (
-                        <tr key={i} className="hover:bg-slate-50">
-                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{p.id}</td>
-                          <td className="py-4 px-6 font-medium text-slate-900">{p.descripcion}</td>
-                          <td className="py-4 px-6 text-slate-500">{p.vencimiento}</td>
-                          <td className="py-4 px-6 font-extrabold text-slate-900">$ {p.monto.toLocaleString('es-MX')}</td>
-                          <td className="py-4 px-6"><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${p.estado === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{p.estado}</span></td>
-                          <td className="py-4 px-6 text-right"><span className="text-[10px] text-slate-400">Gestionado</span></td>
-                        </tr>
-                      ))}
+                    <tbody className="divide-y divide-slate-100">
+                      {pagos.map((p) => {
+                        const monto = Number(p.monto || p.Monto || 0)
+                        const estatus = p.estatus || p.Estatus || p.estado || 'Pendiente'
+                        const vencimiento = p.fecha_vencimiento || p.Fecha_vencimiento || 'N/D'
+
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50 transition">
+                            <td className="py-4 px-4 font-bold text-slate-900">Cuota #{p.id}</td>
+                            <td className="py-4 px-4 text-slate-600">{vencimiento}</td>
+                            <td className="py-4 px-4 font-black text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</td>
+                            <td className="py-4 px-4">
+                              <span className={`px-3 py-1 rounded-full font-bold text-[10px] ${estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                {estatus}
+                              </span>
+                            </td>
+                            <td className="py-4 px-4 text-right">
+                              {estatus !== 'Pagado' ? (
+                                <button 
+                                  onClick={() => registrarPago(p.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl font-semibold shadow-xs transition"
+                                >
+                                  Registrar pago
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 italic">Completado</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========================================================== */}
+          {/* CONTENIDO DE LA PESTAÑA: ANOTACIONES */}
+          {/* ========================================================== */}
+          {tabActiva === 'anotaciones' && (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+              <h3 className="text-sm font-bold text-slate-900">Anotaciones y Notas Internas del Estudiante</h3>
+              
+              <div className="space-y-3">
+                <textarea 
+                  rows="3"
+                  value={nuevaNota}
+                  onChange={(e) => setNuevaNota(e.target.value)}
+                  placeholder="Escribe una nota interna sobre el alumno (ej. acuerdos de pago, observaciones académicas...)"
+                  className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                ></textarea>
+                <div className="text-right">
+                  <button 
+                    onClick={() => {
+                      if (!nuevaNota.trim()) return
+                      setAnotaciones([nuevaNota, ...anotaciones])
+                      setNuevaNota('')
+                      alert('Nota agregada correctamente.')
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition"
+                  >
+                    Agregar Nota
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-4 border-t border-slate-100">
+                {anotaciones.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic">No hay notas registradas para este alumno.</p>
+                ) : (
+                  anotaciones.map((nota, i) => (
+                    <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-700">
+                      <p>{nota}</p>
+                      <span className="text-[10px] text-slate-400 mt-1 block">Registrada hoy</span>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {tabActiva === 'asistencia' && (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Control de Asistencia</h3>
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
-              <div><span className="text-3xl font-extrabold text-emerald-600">100%</span><p className="text-xs text-slate-500 mt-1">Clases asistidas correctamente</p></div>
-              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Racha perfecta 🔥</span>
-            </div>
-          </div>
-        )}
-
-        {tabActiva === 'anotaciones' && (
-          <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-            <h3 className="text-base font-bold text-slate-900">Notas y Observaciones</h3>
-            <form onSubmit={agregarNota} className="space-y-3">
-              <textarea rows="3" value={nuevaNota} onChange={(e) => setNuevaNota(e.target.value)} placeholder="Escriba una nota interna sobre el estudiante..." className="w-full p-3 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-600 bg-slate-50 resize-none" />
-              <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">+ Nueva Anotación</button>
-            </form>
-            <div className="space-y-3 pt-4">
-              {anotaciones.length === 0 ? <p className="text-xs text-slate-400 text-center py-6">No hay notas para este estudiante aún.</p> : anotaciones.map((n, i) => (
-                <div key={i} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1"><span className="text-[10px] text-slate-400">{n.fecha}</span><p className="text-xs text-slate-700">{n.texto}</p></div>
-              ))}
-            </div>
-          </div>
-        )}
-
-      </main>
-
-      {/* MODAL DE CONTRASEÑA LMS */}
-      {modalEditar && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Actualizar Contraseña de Acceso LMS</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Establezca la contraseña con la que el alumno iniciará sesión en su portal.</p>
-            </div>
-
-            <form onSubmit={guardarEdicion} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Nueva Contraseña LMS</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formEdicion.password}
-                  onChange={(e) => setFormEdicion({ ...formEdicion, password: e.target.value })}
-                  placeholder="Ej. EAC2026*"
-                  className="w-full p-3.5 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setModalEditar(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardandoEdicion} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardandoEdicion ? 'Actualizando...' : 'Guardar Contraseña'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL INSCRIBIR DESDE EXPEDIENTE */}
-      {modalInscribir && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Inscribir a {nombreAlumno}</h3>
-            <p className="text-xs text-slate-400">Selecciona el grupo y horario al que deseas matricular al estudiante:</p>
-            
-            <select 
-              value={grupoSeleccionadoId} 
-              onChange={(e) => setGrupoSeleccionadoId(e.target.value)} 
-              className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+          {/* BOTÓN INFERIOR PARA ELIMINAR ALUMNO */}
+          <div className="pt-6 border-t border-slate-200 text-right">
+            <button 
+              onClick={eliminarAlumno}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-2.5 rounded-xl text-xs font-semibold transition border border-rose-200"
             >
-              <option value="">Seleccione un grupo o horario...</option>
-              {gruposDisponibles.map((g) => {
-                const cursoAsoc = cursosDisponibles.find(c => Number(c.id) === Number(g.curso_id))
-                const nombreCur = cursoAsoc?.Nombre_curso || cursoAsoc?.nombre_curso || 'Curso'
-                return (
-                  <option key={g.id} value={g.id}>
-                    {nombreCur} — {g.nombre_grupo} (${g.costo_total} MXN, {g.num_pagos} pagos {g.frecuencia})
-                  </option>
-                )
-              })}
-            </select>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setModalInscribir(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-              <button 
-                onClick={confirmarInscripcionDesdeExpediente} 
-                className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm"
-              >
-                Confirmar Inscripción
-              </button>
-            </div>
+              🗑️ Eliminar Estudiante del Sistema
+            </button>
           </div>
+
         </div>
-      )}
+      </main>
 
     </div>
   )
