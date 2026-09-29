@@ -30,11 +30,11 @@ export default function AlumnoPortalPage() {
 
     setLoading(true)
 
-    // Buscar al alumno por matrícula o correo
+    // Buscar al alumno por Matrícula (con M mayúscula) o correo
     const { data: alumnos, error } = await supabase
       .from('alumnos')
       .select('*')
-      .or(`matricula.eq.${identificador.trim()},correo.eq.${identificador.trim()}`)
+      .or(`Matricula.eq.${identificador.trim()},correo.eq.${identificador.trim()}`)
 
     if (error || !alumnos || alumnos.length === 0) {
       setLoading(false)
@@ -130,7 +130,7 @@ export default function AlumnoPortalPage() {
                 required
                 value={identificador}
                 onChange={(e) => setIdentificador(e.target.value)}
-                placeholder="Ej. EAC001 o correo"
+                placeholder="Ej. EAC-5376 o correo"
                 className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
               />
             </div>
@@ -261,7 +261,7 @@ export default function AlumnoPortalPage() {
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="w-8 h-8 rounded-xl bg-white text-indigo-600 flex items-center justify-center font-bold text-xs shadow-xs border border-slate-100">
-                                      {rec.tipo === 'video' ? '▶️' : '📄'}
+                                      {rec.tipo === 'video' ? '▶️️' : '📄'}
                                     </span>
                                     <div>
                                       <h5 className="text-xs font-bold text-slate-900">{rec.titulo}</h5>
