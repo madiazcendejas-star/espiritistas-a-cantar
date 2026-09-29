@@ -10,11 +10,14 @@ export default function EstudiantesAdminPage() {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
+  // Formulario de nuevo estudiante con todos los campos solicitados
   const [formNuevo, setFormNuevo] = useState({
     nombre: '',
+    apellidos: '',
     correo: '',
     telefono: '',
-    matricula: '',
+    fecha_nacimiento: '',
+    direccion: '',
     password: 'EAC2026*'
   })
 
@@ -27,7 +30,7 @@ export default function EstudiantesAdminPage() {
     const { data, error } = await supabase
       .from('alumnos')
       .select('*')
-      .order('id', { ascending: false })
+      .order('nombre', { ascending: true }) // Orden alfabético estricto
 
     if (!error && data) {
       setAlumnos(data)
@@ -39,13 +42,16 @@ export default function EstudiantesAdminPage() {
     e.preventDefault()
     setGuardando(true)
 
-    const matriculaGenerada = formNuevo.matricula.trim() || `EAC-${Math.floor(1000 + Math.random() * 9000)}`
+    const nombreCompleto = `${formNuevo.nombre.trim()} ${formNuevo.apellidos.trim()}`
+    const matriculaGenerada = `EAC-${Math.floor(1000 + Math.random() * 9000)}`
 
     const { error } = await supabase.from('alumnos').insert([
       {
-        nombre: formNuevo.nombre.trim(),
+        nombre: nombreCompleto,
         correo: formNuevo.correo.trim(),
         telefono: formNuevo.telefono.trim(),
+        fecha_nacimiento: formNuevo.fecha_nacimiento || null,
+        direccion: formNuevo.direccion.trim(),
         matricula: matriculaGenerada,
         password: formNuevo.password.trim()
       }
@@ -55,25 +61,31 @@ export default function EstudiantesAdminPage() {
       alert('Error al registrar estudiante: ' + error.message)
     } else {
       setModalNuevo(false)
-      setFormNuevo({ nombre: '', correo: '', telefono: '', matricula: '', password: 'EAC2026*' })
+      setFormNuevo({ nombre: '', apellidos: '', correo: '', telefono: '', fecha_nacimiento: '', direccion: '', password: 'EAC2026*' })
       cargarAlumnos()
       alert('¡Estudiante registrado exitosamente!')
     }
     setGuardando(false)
   }
 
+  // Filtrado dinámico por nombre, correo, teléfono o matrícula
   const alumnosFiltrados = alumnos.filter(a => {
-    const nombre = a.nombre || a.Nombre || a.nombre_completo || ''
+    const nombre = a.nombre || a.Nombre || ''
     const correo = a.correo || a.Correo || ''
+    const telefono = a.telefono || a.Telefono || ''
     const matricula = a.matricula || ''
     const termino = busqueda.toLowerCase()
-    return nombre.toLowerCase().includes(termino) || correo.toLowerCase().includes(termino) || matricula.toLowerCase().includes(termino)
+    
+    return nombre.toLowerCase().includes(termino) || 
+           correo.toLowerCase().includes(termino) || 
+           telefono.toLowerCase().includes(termino) ||
+           matricula.toLowerCase().includes(termino)
   })
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR ADMINISTRATIVO */}
       <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -91,34 +103,41 @@ export default function EstudiantesAdminPage() {
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
+          
+          <div className="pt-4 px-3 pb-2 text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
+          <a href="/admin/tandas" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📍 Tandas y Misas</a>
         </nav>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER */}
+        {/* HEADER SUPERIOR */}
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <h2 className="text-sm font-bold text-slate-800">Directorio de Estudiantes</h2>
+          <div>
+            <h1 className="text-sm font-bold text-slate-900">Estudiantes</h1>
+            <p className="text-[11px] text-slate-400">Gestiona la información y expedientes de tus estudiantes</p>
+          </div>
           <button 
             onClick={() => setModalNuevo(true)}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
           >
-            <span>+</span> Registrar Estudiante
+            <span>+</span> Nuevo estudiante
           </button>
         </header>
 
         {/* VISTA GENERAL */}
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
           
-          {/* BARRA DE BÚSQUEDA */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+          {/* BARRA DE BÚSQUEDA DINÁMICA */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
             <span className="text-slate-400 text-sm pl-2">🔍</span>
             <input 
               type="text" 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar estudiante por nombre, correo o matrícula..." 
+              placeholder="Buscar por matrícula, nombre, teléfono o correo electrónico..." 
               className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
             />
           </div>
@@ -126,8 +145,9 @@ export default function EstudiantesAdminPage() {
           {/* TABLA DE ESTUDIANTES */}
           <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-900">Listado de Alumnos ({alumnosFiltrados.length})</h3>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Listado General ({alumnosFiltrados.length} estudiantes)</h3>
             </div>
+            
             <div className="overflow-x-auto">
               {loading ? (
                 <div className="text-center py-16 text-xs text-slate-400">Cargando directorio de estudiantes...</div>
@@ -136,46 +156,49 @@ export default function EstudiantesAdminPage() {
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="py-3 px-6">Matrícula</th>
-                      <th className="py-3 px-6">Estudiante</th>
-                      <th className="py-3 px-6">Contacto</th>
-                      <th className="py-3 px-6">Contraseña LMS</th>
-                      <th className="py-3 px-6 text-right">Acción</th>
+                    <tr className="bg-[#1e293b] text-white text-[10px] font-bold uppercase tracking-wider">
+                      <th className="py-3.5 px-6">Nombre</th>
+                      <th className="py-3.5 px-6">Email</th>
+                      <th className="py-3.5 px-6">Teléfono</th>
+                      <th className="py-3.5 px-6">Matrícula</th>
+                      <th className="py-3.5 px-6">Contraseña</th>
+                      <th className="py-3.5 px-6 text-right">Responsabilidad de Pago</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {alumnosFiltrados.map((a) => {
-                      const nombre = a.nombre || a.Nombre || a.nombre_completo || 'Sin nombre'
+                      const nombre = a.nombre || a.Nombre || 'Sin nombre'
                       const correo = a.correo || a.Correo || 'Sin correo'
                       const telefono = a.telefono || a.Telefono || 'Sin teléfono'
                       const matricula = a.matricula || `EAC-${a.id}`
                       const password = a.password || 'EAC2026*'
+                      
+                      // Iniciales para el espacio de foto
                       const iniciales = nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
                       return (
-                        <tr key={a.id} className="hover:bg-slate-50 transition">
-                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{matricula}</td>
-                          <td className="py-4 px-6 font-semibold text-slate-900 flex items-center gap-3">
-                            <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-xl flex items-center justify-center font-extrabold text-[11px]">
+                        <tr 
+                          key={a.id} 
+                          onClick={() => window.location.href = `/admin/estudiantes/detalle?id=${a.id}`}
+                          className="hover:bg-slate-50 transition cursor-pointer group"
+                        >
+                          <td className="py-4 px-4 font-semibold text-slate-900 flex items-center gap-3">
+                            <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition">
                               {iniciales}
                             </div>
-                            <span>{nombre}</span>
+                            <div>
+                              <span className="block group-hover:text-indigo-600 transition">{nombre}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">Ver expediente</span>
+                            </div>
                           </td>
-                          <td className="py-4 px-6 text-slate-500">
-                            <div>{correo}</div>
-                            <div className="text-[11px] text-slate-400">{telefono}</div>
-                          </td>
-                          <td className="py-4 px-6 font-mono font-bold text-indigo-600">
-                            {password}
-                          </td>
+                          <td className="py-4 px-6 text-slate-600">{correo}</td>
+                          <td className="py-4 px-6 text-slate-600">{telefono}</td>
+                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{matricula}</td>
+                          <td className="py-4 px-6 font-mono text-slate-500">{password}</td>
                           <td className="py-4 px-6 text-right">
-                            <a 
-                              href={`/admin/estudiantes/detalle?id=${a.id}`} 
-                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl text-xs font-semibold transition inline-block"
-                            >
-                              Ver expediente →
-                            </a>
+                            <span className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full text-[11px] font-medium border border-slate-200">
+                              Paga por sí mismo
+                            </span>
                           </td>
                         </tr>
                       )
@@ -192,30 +215,44 @@ export default function EstudiantesAdminPage() {
       {/* MODAL NUEVO ESTUDIANTE */}
       {modalNuevo && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
               <h3 className="text-base font-bold text-slate-900">Registrar Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Ingresa los datos generales y su contraseña inicial de acceso al LMS.</p>
+              <p className="text-xs text-slate-400 mt-0.5">Ingresa toda la información requerida para el expediente universitario.</p>
             </div>
 
             <form onSubmit={crearAlumno} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre Completo *</label>
-                <input 
-                  type="text" 
-                  required
-                  value={formNuevo.nombre}
-                  onChange={(e) => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
-                  placeholder="Ej. María Elena Rivas"
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formNuevo.nombre}
+                    onChange={(e) => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
+                    placeholder="Ej. Alma"
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Apellidos *</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formNuevo.apellidos}
+                    onChange={(e) => setFormNuevo({ ...formNuevo, apellidos: e.target.value })}
+                    placeholder="Ej. Aldabalde"
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico *</label>
                   <input 
                     type="email" 
+                    required
                     value={formNuevo.correo}
                     onChange={(e) => setFormNuevo({ ...formNuevo, correo: e.target.value })}
                     placeholder="correo@ejemplo.com"
@@ -223,33 +260,55 @@ export default function EstudiantesAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono *</label>
                   <input 
                     type="text" 
+                    required
                     value={formNuevo.telefono}
                     onChange={(e) => setFormNuevo({ ...formNuevo, telefono: e.target.value })}
-                    placeholder="5512345678"
+                    placeholder="91004691"
                     className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                   />
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Nacimiento</label>
+                  <input 
+                    type="date" 
+                    value={formNuevo.fecha_nacimiento}
+                    onChange={(e) => setFormNuevo({ ...formNuevo, fecha_nacimiento: e.target.value })}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña LMS (Automática)</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={formNuevo.password}
+                    onChange={(e) => setFormNuevo({ ...formNuevo, password: e.target.value })}
+                    className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña Inicial LMS</label>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Dirección</label>
                 <input 
                   type="text" 
-                  required
-                  value={formNuevo.password}
-                  onChange={(e) => setFormNuevo({ ...formNuevo, password: e.target.value })}
-                  placeholder="EAC2026*"
-                  className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                  value={formNuevo.direccion}
+                  onChange={(e) => setFormNuevo({ ...formNuevo, direccion: e.target.value })}
+                  placeholder="Calle, Colonia, Ciudad..."
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 />
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalNuevo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
                 <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardando ? 'Guardando...' : 'Registrar Estudiante'}
+                  {guardando ? 'Guardando...' : 'Crear Estudiante'}
                 </button>
               </div>
             </form>
