@@ -1,19 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
-// Ajusta la ruta de importación de tu cliente de supabase según lo tengas en tu proyecto (ej: '@/lib/supabase' o similar)
-import { createClient } from '@supabase/supabase-js'; 
-// O si ya tienes una instancia global importada, úsala directamente.
+import { supabase } from '@/lib/supabase'; // Asegúrate de que esta ruta apunte a tu cliente global de Supabase
 
 export default function AdminTandasPage() {
     const [alumnoId, setAlumnoId] = useState('');
     const [fechaMisa, setFechaMisa] = useState('');
     const [inscritos, setInscritos] = useState([]);
-    const [cargando, setCargando] = useState(true);
-
-    // Inicializa tu cliente de Supabase (o impórtalo de tu archivo de configuración)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const [cargando,setCargando] = useState(true);
 
     // Cargar lista de inscritos al montar la página
     useEffect(() => {
