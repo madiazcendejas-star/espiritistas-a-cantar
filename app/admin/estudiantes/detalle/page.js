@@ -11,6 +11,7 @@ function DetalleContenido() {
   const [alumno, setAlumno] = useState(null)
   const [inscripciones, setInscripciones] = useState([])
   const [pagos, setPagos] = useState([])
+  const [grupos, setGrupos] = useState([])
   const [cursos, setCursos] = useState([])
   const [anotaciones, setAnotaciones] = useState([])
   const [nuevaNota, setNuevaNota] = useState('')
@@ -30,6 +31,7 @@ function DetalleContenido() {
   const cargarExpedienteCompleto = async () => {
     setLoading(true)
 
+    // 1. Datos del alumno
     const { data: alumnoData } = await supabase
       .from('alumnos')
       .select('*')
@@ -41,21 +43,28 @@ function DetalleContenido() {
       setFormPersonal(alumnoData)
     }
 
+    // 2. Inscripciones
     const { data: insData } = await supabase
       .from('inscripciones')
       .select('*')
       .eq('alumno_id', alumnoId)
     setInscripciones(insData || [])
 
+    // 3. Grupos
+    const { data: grpData } = await supabase.from('grupos').select('*')
+    setGrupos(grpData || [])
+
+    // 4. Cursos
+    const { data: crsData } = await supabase.from('cursos').select('*')
+    setCursos(crsData || [])
+
+    // 5. Pagos
     const { data: pgsData } = await supabase
       .from('pagos')
       .select('*')
       .eq('alumno_id', alumnoId)
       .order('fecha_vencimiento', { ascending: false })
     setPagos(pgsData || [])
-
-    const { data: crsData } = await supabase.from('cursos').select('*')
-    setCursos(crsData || [])
 
     setLoading(false)
   }
@@ -121,7 +130,7 @@ function DetalleContenido() {
   }
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center bg-[#f8fafc] text-xs font-semibold text-slate-500">Cargando expediente universitario...</div>
+    return <div className="h-screen flex items-center justify-center bg-[#f8fafc] text-xs font-semibold text-slate-500">Cargando expediente...</div>
   }
 
   if (!alumno) {
@@ -169,11 +178,11 @@ function DetalleContenido() {
           <div className="flex items-center gap-3">
             <a href="/admin/estudiantes" className="text-xs text-slate-400 hover:text-indigo-600 font-semibold transition">← Volver al listado</a>
             <span className="text-slate-300">/</span>
-            <span className="text-xs font-bold text-slate-700">Expediente Universitario</span>
+            <span className="text-xs font-bold text-slate-700">Expediente del Estudiante</span>
           </div>
           
           <button 
-            onClick={() => alert(`Inscribiendo a ${nombreAlumno}... Redirigiendo a asignación de grupo.`)}
+            onClick={() => alert(`Inscribiendo a ${nombreAlumno}...`)}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
           >
             Inscribir a {nombreAlumno.split(' ')[0]}
@@ -293,15 +302,22 @@ function DetalleContenido() {
                   <p className="text-xs text-slate-400 italic py-6 text-center">El alumno no tiene inscripciones activas actualmente.</p>
                 ) : (
                   <div className="space-y-3">
-                    {inscripciones.map((ins, idx) => (
-                      <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
-                        <div>
-                          <h4 className="text-xs font-bold text-slate-900">Grupo ID #{ins.grupo_id}</h4>
-                          <span className="text-[10px] text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">Activa</span>
+                    {inscripciones.map((ins, idx) => {
+                      const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+                      const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
+                      const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
+                      const nombreGrupo = grupoObj?.nombre_grupo || `Grupo #${ins.grupo_id}`
+
+                      return (
+                        <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900">{nombreCurso}</h4>
+                            <span className="text-[10px] text-indigo-600 font-semibold">{nombreGrupo}</span>
+                          </div>
+                          <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full text-[10px] font-bold">Activa</span>
                         </div>
-                        <span className="text-xs font-bold text-slate-700">Inscrito</span>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
 
@@ -432,7 +448,7 @@ function DetalleContenido() {
                     <p className="font-semibold text-slate-800">{alumno.fecha_nacimiento || 'No registrada'}</p>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Matrícula Universitaria</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400">Matrícula</span>
                     <p className="font-mono font-bold text-indigo-600">#{alumno.matricula || 'N/D'}</p>
                   </div>
                   <div className="space-y-1">
@@ -446,24 +462,31 @@ function DetalleContenido() {
 
           {tabActiva === 'inscripciones' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-              <h3 className="text-sm font-bold text-slate-900">Historial de Inscripciones a Grupos y Cursos</h3>
+              <h3 className="text-sm font-bold text-slate-900">Historial de Inscripciones a Cursos y Grupos</h3>
 
               {inscripciones.length === 0 ? (
                 <p className="text-xs text-slate-400 italic py-8 text-center">Este estudiante no cuenta con inscripciones registradas.</p>
               ) : (
                 <div className="space-y-4">
-                  {inscripciones.map((ins, idx) => (
-                    <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
-                      <div className="space-y-1">
-                        <span className="bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full text-[10px]">Inscripción ID #{ins.id}</span>
-                        <h4 className="font-bold text-slate-900 text-sm mt-1">Grupo ID #{ins.grupo_id}</h4>
-                        <p className="text-[11px] text-slate-500">Estatus oficial en sistema</p>
+                  {inscripciones.map((ins, idx) => {
+                    const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+                    const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
+                    const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
+                    const nombreGrupo = grupoObj?.nombre_grupo || `Grupo #${ins.grupo_id}`
+
+                    return (
+                      <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
+                        <div className="space-y-1">
+                          <span className="bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full text-[10px]">Inscripción ID #{ins.id}</span>
+                          <h4 className="font-extrabold text-slate-900 text-sm mt-1">{nombreCurso}</h4>
+                          <p className="text-[11px] text-slate-500 font-medium">Horario / Grupo: {nombreGrupo}</p>
+                        </div>
+                        <span className="bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs">
+                          ● Activa
+                        </span>
                       </div>
-                      <span className="bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs">
-                        ● Activa
-                      </span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
