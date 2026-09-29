@@ -10,7 +10,17 @@ export default function EstudiantesAdminPage() {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario de nuevo estudiante con todos los campos solicitados
+  // Función para generar contraseña aleatoria segura y única
+  const generarPasswordAleatoria = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789*#$'
+    let pass = ''
+    for (let i = 0; i < 8; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return pass
+  }
+
+  // Formulario de nuevo estudiante con generación automática
   const [formNuevo, setFormNuevo] = useState({
     nombre: '',
     apellidos: '',
@@ -18,7 +28,7 @@ export default function EstudiantesAdminPage() {
     telefono: '',
     fecha_nacimiento: '',
     direccion: '',
-    password: 'EAC2026*'
+    password: generarPasswordAleatoria()
   })
 
   useEffect(() => {
@@ -38,12 +48,27 @@ export default function EstudiantesAdminPage() {
     setLoading(false)
   }
 
+  // Abrir modal y asegurar nueva contraseña única cada vez
+  const abrirModalNuevo = () => {
+    setFormNuevo({
+      nombre: '',
+      apellidos: '',
+      correo: '',
+      telefono: '',
+      fecha_nacimiento: '',
+      direccion: '',
+      password: generarPasswordAleatoria()
+    })
+    setModalNuevo(true)
+  }
+
   const crearAlumno = async (e) => {
     e.preventDefault()
     setGuardando(true)
 
     const nombreCompleto = `${formNuevo.nombre.trim()} ${formNuevo.apellidos.trim()}`
-    const matriculaGenerada = `EAC-${Math.floor(1000 + Math.random() * 9000)}`
+    // Matrícula numérica automática de 4 dígitos (ej. 2415)
+    const matriculaNumerica = Math.floor(1000 + Math.random() * 9000).toString()
 
     const { error } = await supabase.from('alumnos').insert([
       {
@@ -52,7 +77,7 @@ export default function EstudiantesAdminPage() {
         telefono: formNuevo.telefono.trim(),
         fecha_nacimiento: formNuevo.fecha_nacimiento || null,
         direccion: formNuevo.direccion.trim(),
-        matricula: matriculaGenerada,
+        matricula: matriculaNumerica,
         password: formNuevo.password.trim()
       }
     ])
@@ -61,9 +86,8 @@ export default function EstudiantesAdminPage() {
       alert('Error al registrar estudiante: ' + error.message)
     } else {
       setModalNuevo(false)
-      setFormNuevo({ nombre: '', apellidos: '', correo: '', telefono: '', fecha_nacimiento: '', direccion: '', password: 'EAC2026*' })
       cargarAlumnos()
-      alert('¡Estudiante registrado exitosamente!')
+      alert('¡Estudiante registrado exitosamente con matrícula #' + matriculaNumerica + '!')
     }
     setGuardando(false)
   }
@@ -120,7 +144,7 @@ export default function EstudiantesAdminPage() {
             <p className="text-[11px] text-slate-400">Gestiona la información y expedientes de tus estudiantes</p>
           </div>
           <button 
-            onClick={() => setModalNuevo(true)}
+            onClick={abrirModalNuevo}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
           >
             <span>+</span> Nuevo estudiante
@@ -161,8 +185,7 @@ export default function EstudiantesAdminPage() {
                       <th className="py-3.5 px-6">Email</th>
                       <th className="py-3.5 px-6">Teléfono</th>
                       <th className="py-3.5 px-6">Matrícula</th>
-                      <th className="py-3.5 px-6">Contraseña</th>
-                      <th className="py-3.5 px-6 text-right">Responsabilidad de Pago</th>
+                      <th className="py-3.5 px-6 text-right">Contraseña LMS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -170,7 +193,7 @@ export default function EstudiantesAdminPage() {
                       const nombre = a.nombre || a.Nombre || 'Sin nombre'
                       const correo = a.correo || a.Correo || 'Sin correo'
                       const telefono = a.telefono || a.Telefono || 'Sin teléfono'
-                      const matricula = a.matricula || `EAC-${a.id}`
+                      const matricula = a.matricula || `${a.id}`
                       const password = a.password || 'EAC2026*'
                       
                       // Iniciales para el espacio de foto
@@ -194,12 +217,7 @@ export default function EstudiantesAdminPage() {
                           <td className="py-4 px-6 text-slate-600">{correo}</td>
                           <td className="py-4 px-6 text-slate-600">{telefono}</td>
                           <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{matricula}</td>
-                          <td className="py-4 px-6 font-mono text-slate-500">{password}</td>
-                          <td className="py-4 px-6 text-right">
-                            <span className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-full text-[11px] font-medium border border-slate-200">
-                              Paga por sí mismo
-                            </span>
-                          </td>
+                          <td className="py-4 px-6 font-mono text-slate-500 text-right">{password}</td>
                         </tr>
                       )
                     })}
@@ -218,7 +236,7 @@ export default function EstudiantesAdminPage() {
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
               <h3 className="text-base font-bold text-slate-900">Registrar Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Ingresa toda la información requerida para el expediente universitario.</p>
+              <p className="text-xs text-slate-400 mt-0.5">La matrícula numérica y la contraseña se generan automáticamente.</p>
             </div>
 
             <form onSubmit={crearAlumno} className="space-y-4">
@@ -283,7 +301,7 @@ export default function EstudiantesAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña LMS (Automática)</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña Generada</label>
                   <input 
                     type="text" 
                     required
