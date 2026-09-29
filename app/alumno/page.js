@@ -13,6 +13,11 @@ export default function AlumnoPortalPage() {
   const [cursos, setCursos] = useState([])
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
+  
+  // NUEVOS ESTADOS PARA TANDAS Y SESIONES PRESENCIALES
+  const [tandaAlumno, setTandaAlumno] = useState(null)
+  const [pagosTanda, setPagosTanda] = useState([])
+
   const [loading, setLoading] = useState(false)
 
   // Estado para cambiar contraseña
@@ -90,6 +95,35 @@ export default function AlumnoPortalPage() {
     // 5. Recursos
     const { data: rcs } = await supabase.from('recursos').select('*')
     setRecursos(rcs || [])
+
+    // 6. NUEVO: Consultar si tiene Tanda Activa y sus pagos de tanda
+    const { data: tandaData } = await supabase
+      .from('alumno_tandas')
+      .select(`
+        id,
+        fecha_misa,
+        estado,
+        tandas_config (
+          nombre,
+          total_pagos,
+          monto_por_pago
+        )
+      `)
+      .eq('alumno_id', alumnoId)
+      .eq('estado', 'activa')
+      .maybeSingle()
+
+    if (tandaData) {
+      setTandaAlumno(tandaData)
+      const { data: pgsTanda } = await supabase
+        .from('tanda_pagos')
+        .select('*')
+        .eq('alumno_tanda_id', tandaData.id)
+      setPagosTanda(pgsTanda || [])
+    } else {
+      setTandaAlumno(null)
+      setPagosTanda([])
+    }
   }
 
   const actualizarPassword = async (e) => {
@@ -177,6 +211,15 @@ export default function AlumnoPortalPage() {
   // DASHBOARD DEL ALUMNO INSCRITO
   const nombreAlumno = alumno.nombre || alumno.Nombre || 'Estudiante'
 
+  // Cálculos para la tanda (si está inscrito)
+  const pagosHechosTanda = pagosTanda.filter(p => p.estado === 'pagado').length
+  const totalPagosTanda = tandaAlumno?.tandas_config?.total_pagos || 10
+  const montoPorPagoTanda = tandaAlumno?.tandas_config?.monto_por_pago || 0
+  const saldoPendienteTanda = (totalPagosTanda - pagosHechosTanda) * montoPorPagoTanda
+  const fechaMisaFormateada = tandaAlumno?.fecha_misa 
+    ? new Date(tandaAlumno.fecha_misa).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })
+    : 'Por definir'
+
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 flex flex-col">
       
@@ -210,10 +253,53 @@ export default function AlumnoPortalPage() {
           <p className="text-xs text-slate-500 mt-0.5">Accede a tus clases grabadas, materiales y revisa el estatus de tus grupos.</p>
         </div>
 
+        {/* ---------------------------------------------------- */}
+        {/* MODULO CONDICIONAL DE TANDAS Y SESIONES PRESENCIALES  */}
+        {/* (Solo aparece si el alumno está inscrito en una tanda)  */}
+        {/* ---------------------------------------------------- */}
+        {tandaAlumno && (
+          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-lg border border-indigo-500/30 space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-indigo-700/50 pb-4">
+              <div>
+                <span className="bg-indigo-500/30 text-indigo-200 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-indigo-400/20">
+                  📍 Sesión Presencial y Compromiso
+                </span>
+                <h3 className="text-lg font-extrabold text-white mt-1.5">{tandaAlumno.tandas_config.nombre}</h3>
+              </div>
+              <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 text-xs">
+                📅 <strong>Fecha de tu Misa:</strong> <span className="text-indigo-200">{fechaMisaFormateada}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] uppercase font-bold text-indigo-300 block mb-1">Pagos Registrados</span>
+                <span className="text-xl font-extrabold text-white">{pagosHechosTanda} / {totalPagosTanda}</span>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                <span className="text-[10px] uppercase font-bold text-indigo-300 block mb-1">Saldo Pendiente</span>
+                <span className={`text-xl font-extrabold ${saldoPendienteTanda === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  ${saldoPendienteTanda.toFixed(2)}
+                </span>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col justify-center">
+                <span className="text-[10px] uppercase font-bold text-indigo-300 block mb-1.5">Progreso de Tu Compromiso</span>
+                <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-indigo-400 h-full transition-all duration-500" 
+                    style={{ width: `${(pagosHechosTanda / totalPagosTanda) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* ---------------------------------------------------- */}
+
         {inscripciones.length === 0 ? (
           <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
             <span className="text-3xl">📚</span>
-            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones activas</h3>
+            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones activas a cursos</h3>
             <p className="text-xs text-slate-400">Comunícate con administración para que te inscriba a tu siguiente curso o taller.</p>
           </div>
         ) : (
