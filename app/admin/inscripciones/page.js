@@ -19,6 +19,13 @@ export default function InscripcionesAdminPage() {
   const [busquedaAlumno, setBusquedaAlumno] = useState('')
   const [guardando, setGuardando] = useState(false)
 
+  // Modal Gestión de Baja / Becas
+  const [modalGestion, setModalGestion] = useState(false)
+  const [inscripcionSeleccionada, setInscripcionSeleccionada] = useState(null)
+  const [motivoBaja, setMotivoBaja] = useState('')
+  const [tipoAjuste, setTipoAjuste] = useState('baja') // 'baja' o 'beca'
+  const [porcentajeBeca, setPorcentajeBeca] = useState('')
+
   useEffect(() => {
     cargarDatos()
   }, [])
@@ -45,10 +52,12 @@ export default function InscripcionesAdminPage() {
           id: ins.id,
           estatus: ins.estatus || 'activa',
           fecha: ins.fecha_inscripcion || 'Reciente',
+          motivo_baja: ins.motivo_baja || '',
           alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
           alumnoMatricula: al?.matricula || `EAC-${al?.id}`,
           alumnoCorreo: al?.correo || al?.Correo || 'Sin mail',
           alumnoId: al?.id,
+          grupoId: gr?.id || ins.grupo_id,
           grupoNombre: gr?.nombre_grupo || 'Grupo',
           cursoNombre: cur?.Nombre_curso || cur?.nombre_curso || 'Curso',
           costoTotal: gr?.costo_total || 0,
@@ -68,19 +77,18 @@ export default function InscripcionesAdminPage() {
 
     setGuardando(true)
 
-    // Validar si ya existe una inscripción activa para evitar duplicados
     const { data: existente } = await supabase
       .from('inscripciones')
       .select('*')
       .eq('alumno_id', alumnoSeleccionado.id)
       .eq('grupo_id', grupoSeleccionado.id)
+      .eq('estatus', 'activa')
 
     if (existente && existente.length > 0) {
       setGuardando(false)
-      return alert('Este estudiante ya está inscrito en este grupo.')
+      return alert('Este estudiante ya tiene una inscripción activa en este grupo.')
     }
 
-    // A. Insertar UNA sola inscripción
     const { error: errIns } = await supabase.from('inscripciones').insert([
       {
         alumno_id: alumnoSeleccionado.id,
@@ -95,7 +103,6 @@ export default function InscripcionesAdminPage() {
       return alert('Error al inscribir: ' + errIns.message)
     }
 
-    // B. Generar cuotas automáticas (dividiendo correctamente el total entre el número de pagos)
     const costoTotal = Number(grupoSeleccionado.costo_total) || 0
     const numPagos = Number(grupoSeleccionado.num_pagos) || 1
     const montoPorPago = Number((costoTotal / numPagos).toFixed(2))
@@ -134,6 +141,85 @@ export default function InscripcionesAdminPage() {
       cargarDatos()
     }
     setGuardando(false)
+  }
+
+  // EJECUTAR BAJA Y CONVERTIR PAGOS PENDIENTES A 0 / CANCELADOS
+  const procesarBajaInscripcion = async () => {
+    if (!inscripcionSeleccionada) return
+    setGuardando(true)
+
+    // 1. Actualizar estatus de inscripción a 'baja'
+    const { error: errUpd } = await supabase
+      .from('inscripciones')
+      .update({ 
+        estatus: 'baja',
+        motivo_baja: motivoBaja || 'Sin motivo especificado'
+      })
+      .eq('id', inscripcionSeleccionada.id)
+
+    if (errUpd) {
+      setGuardando(false)
+      return alert('Error al actualizar la inscripción: ' + errUpd.message)
+    }
+
+    // 2. Buscar pagos pendientes de este alumno en este grupo y cancelarlos (ponerlos en 0 o estatus Cancelado)
+    const { error: errPagos } = await supabase
+      .from('pagos')
+      .update({ estatus: 'Cancelado', monto: 0 })
+      .eq('alumno_id', inscripcionSeleccionada.alumnoId)
+      .eq('grupo_id', inscripcionSeleccionada.grupoId)
+      .eq('estatus', 'Pendiente')
+
+    if (errPagos) {
+      alert('Inscripción dada de baja, pero hubo un detalle al ajustar los pagos pendientes: ' + errPagos.message)
+    } else {
+      alert('Estudiante dado de baja correctamente. Los pagos pendientes se han ajustado a $0.')
+      setModalGestion(false)
+      setInscripcionSeleccionada(null)
+      setMotivoBaja('')
+      cargarDatos()
+    }
+    setGuardando(false)
+  }
+
+  // APLICAR BECA O DESCUENTO A PAGOS PENDIENTES
+  const procesarBecaInscripcion = async () => {
+    if (!inscripcionSeleccionada || !porcentajeBeca) return alert('Ingrese un porcentaje de descuento válido.')
+    setGuardando(true)
+
+    const descuento = Number(porcentajeBeca) / 100
+    if (descorutve <= 0 || descuento > 1) {
+      setGuardando(false)
+      return alert('Porcentaje inválido.')
+    }
+
+    // Traer pagos pendientes del alumno para este grupo
+    const { data: pagosPendientes } = await supabase
+      .from('pagos')
+      .select('*')
+      .eq('alumno_id', inscripcionSeleccionada.alumnoId)
+      .eq('grupo_id', inscripcionSeleccionada.grupoId)
+      .eq('estatus', 'Pendiente')
+
+    if (!pagosPendientes || pagosPendientes.length === 0) {
+      setGuardando(false)
+      return alert('No hay pagos pendientes por ajustar para este alumno en este grupo.')
+    }
+
+    for (let pago of pagosPendientes) {
+      const nuevoMonto = Number((pago.monto * (1 - descuento)).toFixed(2))
+      await supabase
+        .from('pagos')
+        .update({ monto: nuevoMonto })
+        .eq('id', pago.id)
+    }
+
+    alert(`¡Beca del ${porcentajeBeca}% aplicada con éxito a los pagos pendientes!`)
+    setModalGestion(false)
+    setInscripcionSeleccionada(null)
+    setPorcentajeBeca('')
+    setGuardando(false)
+    cargarDatos()
   }
 
   const alumnosFiltradosModal = alumnos.filter(a => {
@@ -181,7 +267,7 @@ export default function InscripcionesAdminPage() {
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
-          <h2 className="text-sm font-bold text-slate-800">Inscripciones</h2>
+          <h2 className="text-sm font-bold text-slate-800">Inscripciones y Bajas</h2>
           <button 
             onClick={() => setModalNuevaInscripcion(true)}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
@@ -219,8 +305,8 @@ export default function InscripcionesAdminPage() {
                       <th className="py-3 px-6">Estudiante</th>
                       <th className="py-3 px-6">Curso / Grupo</th>
                       <th className="py-3 px-6">Estado</th>
-                      <th className="py-3 px-6">Fecha</th>
                       <th className="py-3 px-6 text-right">Precio / Cuotas</th>
+                      <th className="py-3 px-6 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -235,16 +321,26 @@ export default function InscripcionesAdminPage() {
                           <span className="text-[11px] text-indigo-600 font-semibold">{ins.grupoNombre}</span>
                         </td>
                         <td className="py-4 px-6">
-                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">
-                            Confirmada
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-slate-500">
-                          Registrada
+                          {ins.estatus === 'activa' ? (
+                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full">Activa</span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-rose-50 text-rose-600 text-[10px] font-bold rounded-full" title={ins.motivo_baja}>Baja</span>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-right font-mono">
                           <div className="font-bold text-slate-900">$ {Number(ins.costoTotal).toLocaleString('es-MX')} MXN</div>
-                          <span className="text-[10px] text-slate-400">{ins.numPagos} pago(s) programados</span>
+                          <span className="text-[10px] text-slate-400">{ins.numPagos} pago(s)</span>
+                        </td>
+                        <td className="py-4 px-6 text-center">
+                          <button 
+                            onClick={() => {
+                              setInscripcionSeleccionada(ins)
+                              setModalGestion(true)
+                            }}
+                            className="bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold px-3 py-1.5 rounded-xl transition text-[11px]"
+                          >
+                            ⚙️ Gestionar
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -371,6 +467,94 @@ export default function InscripcionesAdminPage() {
                 {guardando ? 'Inscribiendo...' : 'Confirmar e Inscribir Estudiante'}
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL GESTIÓN: BAJA O BECAS */}
+      {modalGestion && inscripcionSeleccionada && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-6">
+            
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Gestionar Estudiante</h3>
+                <p className="text-xs text-slate-400">{inscripcionSeleccionada.alumnoNombre} — {inscripcionSeleccionada.cursoNombre}</p>
+              </div>
+              <button onClick={() => setModalGestion(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold">✕</button>
+            </div>
+
+            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+              <button 
+                onClick={() => setTipoAjuste('baja')} 
+                className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'baja' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'}`}
+              >
+                🔴 Dar de Baja
+              </button>
+              <button 
+                onClick={() => setTipoAjuste('beca')} 
+                className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'beca' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500'}`}
+              >
+                🎓 Aplicar Beca / Descuento
+              </button>
+            </div>
+
+            {tipoAjuste === 'baja' ? (
+              <div className="space-y-4 text-xs">
+                <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 space-y-1">
+                  <span className="font-bold block">Aviso importante:</span>
+                  <p>Al dar de baja al alumno, sus cuotas pendientes se anularán (pasarás sus montos a $0 y estatus cancelado) para que su saldo quede en 0, pero su historial de pagos previos se conservará.</p>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-500 uppercase mb-1">Motivo de la baja (Opcional)</label>
+                  <input 
+                    type="text"
+                    value={motivoBaja}
+                    onChange={(e) => setMotivoBaja(e.target.value)}
+                    placeholder="Ej. Motivos personales, cambio de horario..."
+                    className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-rose-500"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setModalGestion(false)} className="px-4 py-2 font-semibold text-slate-500">Cancelar</button>
+                  <button 
+                    disabled={guardando}
+                    onClick={procesarBajaInscripcion}
+                    className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl font-semibold transition"
+                  >
+                    {guardando ? 'Procesando...' : 'Confirmar Baja'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs">
+                <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-800 space-y-1">
+                  <span className="font-bold block">Aplicar Descuento / Beca:</span>
+                  <p>El porcentaje que ingreses se aplicará automáticamente reduciendo el costo de todas las cuotas que aún se encuentren con estatus <strong>Pendiente</strong>.</p>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-500 uppercase mb-1">Porcentaje de Descuento (%)</label>
+                  <input 
+                    type="number"
+                    value={porcentajeBeca}
+                    onChange={(e) => setPorcentajeBeca(e.target.value)}
+                    placeholder="Ej. 20 (para 20%)"
+                    className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-600"
+                  />
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setModalGestion(false)} className="px-4 py-2 font-semibold text-slate-500">Cancelar</button>
+                  <button 
+                    disabled={guardando || !porcentajeBeca}
+                    onClick={procesarBecaInscripcion}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-semibold transition"
+                  >
+                    {guardando ? 'Aplicando...' : 'Aplicar Beca'}
+                  </button>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
