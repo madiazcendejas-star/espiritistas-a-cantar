@@ -211,6 +211,9 @@ export default function AlumnoPortalPage() {
   // DASHBOARD DEL ALUMNO INSCRITO
   const nombreAlumno = alumno.nombre || alumno.Nombre || 'Estudiante'
 
+  // Filtrar solo inscripciones verdaderamente activas
+  const inscripcionesActivas = inscripciones.filter(i => (i.estatus || 'activa') === 'activa')
+
   // Cálculos para la tanda (si está inscrito)
   const pagosHechosTanda = pagosTanda.filter(p => p.estado === 'pagado').length
   const totalPagosTanda = tandaAlumno?.tandas_config?.total_pagos || 10
@@ -250,12 +253,11 @@ export default function AlumnoPortalPage() {
       <main className="flex-1 p-8 max-w-[1400px] mx-auto w-full space-y-8">
         <div>
           <h1 className="text-xl font-extrabold text-slate-900">Mis Cursos y Contenidos</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Accede a tus clases grabadas, materiales y revisa el estatus de tus grupos.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Accede à tus clases grabadas, materiales y revisa el estatus de tus grupos.</p>
         </div>
 
         {/* ---------------------------------------------------- */}
         {/* MODULO CONDICIONAL DE TANDAS Y SESIONES PRESENCIALES  */}
-        {/* (Solo aparece si el alumno está inscrito en una tanda)  */}
         {/* ---------------------------------------------------- */}
         {tandaAlumno && (
           <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-lg border border-indigo-500/30 space-y-6">
@@ -299,8 +301,8 @@ export default function AlumnoPortalPage() {
         {inscripciones.length === 0 ? (
           <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
             <span className="text-3xl">📚</span>
-            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones activas a cursos</h3>
-            <p className="text-xs text-slate-400">Comunícate con administración para que te inscriba a tu siguiente curso o taller.</p>
+            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones registradas</h3>
+            <p className="text-xs text-slate-400">Comunícate con administración para que te inscriba a tu curso o taller.</p>
           </div>
         ) : (
           <div className="space-y-6">
@@ -309,6 +311,10 @@ export default function AlumnoPortalPage() {
               const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
               const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
               const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
+              const estatusIns = ins.estatus || 'activa'
+
+              // Verificar si la inscripción está dada de baja
+              const estaEnBaja = estatusIns === 'baja'
 
               // Verificar si el alumno tiene pagos vencidos en este grupo específico
               const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
@@ -326,7 +332,11 @@ export default function AlumnoPortalPage() {
                       </span>
                       <h3 className="text-lg font-extrabold text-slate-900 mt-1">{nombreCurso}</h3>
                     </div>
-                    {tienePagoVencido ? (
+                    {estaEnBaja ? (
+                      <span className="bg-rose-50 text-rose-600 px-4 py-2 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2">
+                        🔴 Curso dado de baja · Acceso suspendido
+                      </span>
+                    ) : tienePagoVencido ? (
                       <span className="bg-rose-50 text-rose-600 px-4 py-2 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2">
                         ⚠️ Acceso pausado por pago pendiente en este grupo
                       </span>
@@ -337,7 +347,12 @@ export default function AlumnoPortalPage() {
                     )}
                   </div>
 
-                  {tienePagoVencido ? (
+                  {estaEnBaja ? (
+                    <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 text-center space-y-2">
+                      <p className="text-xs font-bold text-rose-900">Actualmente estás dado de baja de este curso.</p>
+                      <p className="text-[11px] text-rose-700">Tu historial y pagos previos están seguros. Si deseas reincorporarte y continuar con tus clases, comunícate con administración.</p>
+                    </div>
+                  ) : tienePagoVencido ? (
                     <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 text-center space-y-2">
                       <p className="text-xs font-bold text-rose-900">Tienes cuotas pendientes o vencidas en este grupo.</p>
                       <p className="text-[11px] text-rose-700">Por favor regulariza tu pago con administración para desbloquear los videos y materiales de clase.</p>
