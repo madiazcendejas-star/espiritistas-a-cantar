@@ -141,6 +141,9 @@ function DetalleContenido() {
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
   const edadStr = calcularEdad(alumno.fecha_nacimiento || alumno.Fecha_nacimiento)
 
+  // Filtrar solo las inscripciones verdaderamente activas para los accesos y estatus
+  const inscripcionesActivas = inscripciones.filter(i => (i.estatus || 'activa') === 'activa')
+  
   const pagosPendientesLista = pagos.filter(p => p.estatus !== 'Pagado')
   const totalPendienteMonto = pagosPendientesLista.reduce((acc, p) => acc + Number(p.monto || p.Monto || 0), 0)
   const pagosVencidosCount = pagos.filter(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date())).length
@@ -212,7 +215,7 @@ function DetalleContenido() {
               <div className="flex items-center gap-1.5">
                 <span>📚</span>
                 <button onClick={() => setTabActiva('inscripciones')} className="text-indigo-600 font-bold hover:underline">
-                  {inscripciones.length} inscripciones activas
+                  {inscripcionesActivas.length} inscripciones activas (de {inscripciones.length} total)
                 </button>
               </div>
               <div className="flex items-center gap-1.5">
@@ -285,7 +288,7 @@ function DetalleContenido() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
-                  <span className="text-slate-400">Contraseña LMS: <strong className="font-mono text-indigo-600">{alumno.password || 'EAC2026*'}</strong></span>
+                  <span className="text-slate-400">Acceso LMS: <strong className="font-mono text-indigo-600">{inscripcionesActivas.length > 0 ? 'Habilitado' : 'Suspendido por Baja'}</strong></span>
                   <button onClick={() => setTabActiva('pagos')} className="text-indigo-600 font-bold hover:underline">
                     Ver todos los pagos →
                   </button>
@@ -294,12 +297,12 @@ function DetalleContenido() {
 
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-5">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Inscripciones Activas</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Inscripciones (Historial)</h3>
                   <span className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">{inscripciones.length}</span>
                 </div>
 
                 {inscripciones.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-6 text-center">El alumno no tiene inscripciones activas actualmente.</p>
+                  <p className="text-xs text-slate-400 italic py-6 text-center">El alumno no tiene inscripciones registradas.</p>
                 ) : (
                   <div className="space-y-3">
                     {inscripciones.map((ins, idx) => {
@@ -307,6 +310,7 @@ function DetalleContenido() {
                       const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
                       const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
                       const nombreGrupo = grupoObj?.nombre_grupo || `Grupo #${ins.grupo_id}`
+                      const estatusIns = ins.estatus || 'activa'
 
                       return (
                         <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
@@ -314,7 +318,11 @@ function DetalleContenido() {
                             <h4 className="text-xs font-bold text-slate-900">{nombreCurso}</h4>
                             <span className="text-[10px] text-indigo-600 font-semibold">{nombreGrupo}</span>
                           </div>
-                          <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full text-[10px] font-bold">Activa</span>
+                          {estatusIns === 'activa' ? (
+                            <span className="bg-emerald-50 text-emerald-600 px-2.5 py-1 rounded-full text-[10px] font-bold">Activa</span>
+                          ) : (
+                            <span className="bg-rose-50 text-rose-600 px-2.5 py-1 rounded-full text-[10px] font-bold" title={ins.motivo_baja}>Baja</span>
+                          )}
                         </div>
                       )
                     })}
@@ -473,6 +481,7 @@ function DetalleContenido() {
                     const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
                     const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
                     const nombreGrupo = grupoObj?.nombre_grupo || `Grupo #${ins.grupo_id}`
+                    const estatusIns = ins.estatus || 'activa'
 
                     return (
                       <div key={idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 flex justify-between items-center text-xs">
@@ -480,10 +489,19 @@ function DetalleContenido() {
                           <span className="bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full text-[10px]">Inscripción ID #{ins.id}</span>
                           <h4 className="font-extrabold text-slate-900 text-sm mt-1">{nombreCurso}</h4>
                           <p className="text-[11px] text-slate-500 font-medium">Horario / Grupo: {nombreGrupo}</p>
+                          {estatusIns === 'baja' && ins.motivo_baja && (
+                            <p className="text-[10px] text-rose-500 italic">Motivo de baja: {ins.motivo_baja}</p>
+                          )}
                         </div>
-                        <span className="bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs">
-                          ● Activa
-                        </span>
+                        {estatusIns === 'activa' ? (
+                          <span className="bg-emerald-100 text-emerald-800 px-3 py-1.5 rounded-full font-bold text-xs">
+                            ● Activa
+                          </span>
+                        ) : (
+                          <span className="bg-rose-100 text-rose-800 px-3 py-1.5 rounded-full font-bold text-xs">
+                            ● Baja
+                          </span>
+                        )}
                       </div>
                     )
                   })}
@@ -525,12 +543,12 @@ function DetalleContenido() {
                             <td className="py-4 px-4 text-slate-600">{vencimiento}</td>
                             <td className="py-4 px-4 font-black text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</td>
                             <td className="py-4 px-4">
-                              <span className={`px-3 py-1 rounded-full font-bold text-[10px] ${estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                              <span className={`px-3 py-1 rounded-full font-bold text-[10px] ${estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : estatus === 'Cancelado' ? 'bg-slate-100 text-slate-500' : 'bg-rose-50 text-rose-600'}`}>
                                 {estatus}
                               </span>
                             </td>
                             <td className="py-4 px-4 text-right">
-                              {estatus !== 'Pagado' ? (
+                              {estatus !== 'Pagado' && estatus !== 'Cancelado' ? (
                                 <button 
                                   onClick={() => registrarPago(p.id)}
                                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl font-semibold shadow-xs transition"
@@ -538,7 +556,7 @@ function DetalleContenido() {
                                   Registrar pago
                                 </button>
                               ) : (
-                                <span className="text-slate-400 italic">Completado</span>
+                                <span className="text-slate-400 italic">{estatus === 'Cancelado' ? 'Anulado por baja' : 'Completado'}</span>
                               )}
                             </td>
                           </tr>
@@ -582,12 +600,14 @@ function DetalleContenido() {
                 {anotaciones.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">No hay notas registradas para este alumno.</p>
                 ) : (
-                  anotaciones.map((nota, i) => (
-                    <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-700">
-                      <p>{nota}</p>
-                      <span className="text-[10px] text-slate-400 mt-1 block">Registrada hoy</span>
-                    </div>
-                  ))
+                  <div className="space-y-2">
+                    {anotaciones.map((nota, i) => (
+                      <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs text-slate-700">
+                        <p>{nota}</p>
+                        <span className="text-[10px] text-slate-400 mt-1 block">Registrada hoy</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>
