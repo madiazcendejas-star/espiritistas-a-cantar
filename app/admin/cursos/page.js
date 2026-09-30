@@ -14,7 +14,7 @@ export default function CursosAdminPage() {
   const [busqueda, setBusqueda] = useState('')
   const [modalCurso, setModalCurso] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  const [formCurso, setFormCurso] = useState({ Nombre_curso: '', descripcion: '', precio: '', foto_url: '' })
+  const [formCurso, setFormCurso] = useState({ Nombre_curso: '', descripcion: '', precio: '' })
 
   useEffect(() => {
     cargarDatos()
@@ -39,15 +39,14 @@ export default function CursosAdminPage() {
     const { data, error } = await supabase.from('cursos').insert([{
       Nombre_curso: formCurso.Nombre_curso.trim(),
       descripcion: formCurso.descripcion.trim(),
-      precio: Number(formCurso.precio) || 0,
-      foto_url: formCurso.foto_url.trim() || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
+      precio: Number(formCurso.precio) || 0
     }]).select()
 
     if (error) {
       alert('Error al crear curso: ' + error.message)
     } else {
       setModalCurso(false)
-      setFormCurso({ Nombre_curso: '', descripcion: '', precio: '', foto_url: '' })
+      setFormCurso({ Nombre_curso: '', descripcion: '', precio: '' })
       if (data && data[0]) {
         router.push(`/admin/cursos/${data[0].id}`)
       } else {
@@ -104,7 +103,7 @@ export default function CursosAdminPage() {
             onClick={() => setModalCurso(true)} 
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20 transition transform active:scale-95"
           >
-            + Nuevo curso
+            Nuevo curso +
           </button>
         </header>
 
@@ -137,7 +136,7 @@ export default function CursosAdminPage() {
               <span className="absolute inset-y-0 left-4 flex items-center text-slate-400 text-sm">🔍</span>
               <input 
                 type="text"
-                placeholder="Buscar cursos por nombre..."
+                placeholder="Buscar cursos..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-11 pr-4 py-3.5 text-sm font-medium outline-none focus:border-indigo-500 focus:bg-white transition"
@@ -174,14 +173,14 @@ export default function CursosAdminPage() {
                       >
                         <td className="py-4 px-8 flex items-center gap-4">
                           <img 
-                            src={c.foto_url || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'} 
+                            src={c.foto_url || c.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'} 
                             alt={nombreCurso} 
                             className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs group-hover:scale-105 transition"
                           />
                           <span className="font-bold text-slate-900 text-base">{nombreCurso}</span>
                         </td>
                         <td className="py-4 px-6 text-slate-600 font-semibold">
-                          👥 {gruposDelCurso.length} grupos
+                          👥 {gruposDelCurso.length}
                         </td>
                         <td className="py-4 px-6">
                           <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-bold">
@@ -189,7 +188,7 @@ export default function CursosAdminPage() {
                           </span>
                         </td>
                         <td className="py-4 px-8 font-extrabold text-slate-900 text-base">
-                          ${c.precio || '0,00'} UYU
+                          ${c.precio ? Number(c.precio).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'} MXN
                         </td>
                       </tr>
                     )
@@ -233,16 +232,6 @@ export default function CursosAdminPage() {
                   type="number"
                   value={formCurso.precio}
                   onChange={(e) => setFormCurso({ ...formCurso, precio: e.target.value })}
-                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">URL de la Foto</label>
-                <input 
-                  type="url"
-                  value={formCurso.foto_url}
-                  onChange={(e) => setFormCurso({ ...formCurso, foto_url: e.target.value })}
-                  placeholder="https://..."
                   className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
                 />
               </div>
