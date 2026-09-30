@@ -14,7 +14,7 @@ export default function DetalleCursoPage() {
   const [loading, setLoading] = useState(true)
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
 
-  const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '', precio: '', foto_url: '', visible_web: true })
+  const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '', precio: '', visible_web: true })
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
@@ -32,7 +32,6 @@ export default function DetalleCursoPage() {
         Nombre_curso: resCurso.Nombre_curso || resCurso.nombre_curso || '',
         descripcion: resCurso.descripcion || '',
         precio: resCurso.precio || '',
-        foto_url: resCurso.foto_url || '',
         visible_web: resCurso.visible_web ?? true
       })
     }
@@ -44,13 +43,13 @@ export default function DetalleCursoPage() {
     e.preventDefault()
     setGuardando(true)
 
+    // Se eliminó 'foto_url' del objeto para evitar el error de esquema si tu tabla no la tiene
     const { error } = await supabase
       .from('cursos')
       .update({
         Nombre_curso: formEdicion.Nombre_curso.trim(),
         descripcion: formEdicion.descripcion.trim(),
         precio: Number(formEdicion.precio) || 0,
-        foto_url: formEdicion.foto_url.trim(),
         visible_web: formEdicion.visible_web
       })
       .eq('id', cursoId)
@@ -198,30 +197,18 @@ export default function DetalleCursoPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Precio (Desde)</label>
-                      <input 
-                        type="number"
-                        value={formEdicion.precio}
-                        onChange={(e) => setFormEdicion({ ...formEdicion, precio: e.target.value })}
-                        className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">URL de la Miniatura / Foto</label>
-                      <input 
-                        type="url"
-                        value={formEdicion.foto_url}
-                        onChange={(e) => setFormEdicion({ ...formEdicion, foto_url: e.target.value })}
-                        className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Precio (Desde)</label>
+                    <input 
+                      type="number"
+                      value={formEdicion.precio}
+                      onChange={(e) => setFormEdicion({ ...formEdicion, precio: e.target.value })}
+                      className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 pt-2 text-xs text-slate-400 font-medium">
                     <div>Fecha de Creación: <span className="text-slate-700 font-bold">{new Date(curso.created_at || Date.now()).toLocaleString()}</span></div>
-                    <div>Última Modificación: <span className="text-slate-700 font-bold">{new Date().toLocaleString()}</span></div>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100">
@@ -291,7 +278,9 @@ export default function DetalleCursoPage() {
                           <td className="py-4 px-6 text-slate-600">{g.horario || 'Por definir'}</td>
                           <td className="py-4 px-6 text-slate-600">{g.ocupacion || '0/10'}</td>
                           <td className="py-4 px-6 text-slate-600">{g.progreso || '0%'}</td>
-                          <td className="py-4 px-6 font-bold text-slate-900">${g.costo || '0,00'}</td>
+                          <td className="py-4 px-6 font-bold text-slate-900">
+                            ${g.costo ? Number(g.costo).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'} MXN
+                          </td>
                           <td className="py-4 px-6">
                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
                               {g.estado || 'Activo'}
@@ -316,13 +305,7 @@ export default function DetalleCursoPage() {
           {pestanaActiva === 'imagenes' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs">
               <h3 className="text-base font-extrabold text-slate-900">Gestión de Imágenes y Miniaturas</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="border-2 border-dashed border-slate-200 rounded-3xl p-6 text-center space-y-3">
-                  <span className="text-2xl">🖼️</span>
-                  <div className="text-xs font-bold text-slate-700">Thumbnail (1200x800)</div>
-                  <input type="url" placeholder="URL de la imagen..." value={formEdicion.foto_url} onChange={(e) => setFormEdicion({ ...formEdicion, foto_url: e.target.value })} className="w-full p-3 border rounded-xl text-xs bg-slate-50" />
-                </div>
-              </div>
+              <p className="text-xs text-slate-500">Sube o configura los archivos multimedia para las landings públicas.</p>
             </div>
           )}
 
