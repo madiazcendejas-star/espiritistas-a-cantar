@@ -19,11 +19,11 @@ export default function InscripcionesAdminPage() {
   const [busquedaAlumno, setBusquedaAlumno] = useState('')
   const [guardando, setGuardando] = useState(false)
 
-  // Modal Gestión de Baja / Becas
+  // Modal Gestión de Baja / Becas / Reactivación
   const [modalGestion, setModalGestion] = useState(false)
   const [inscripcionSeleccionada, setInscripcionSeleccionada] = useState(null)
   const [motivoBaja, setMotivoBaja] = useState('')
-  const [tipoAjuste, setTipoAjuste] = useState('baja') // 'baja' o 'beca'
+  const [tipoAjuste, setTipoAjuste] = useState('baja') // 'baja', 'beca', 'reactivar'
   const [porcentajeBeca, setPorcentajeBeca] = useState('')
 
   useEffect(() => {
@@ -148,7 +148,6 @@ export default function InscripcionesAdminPage() {
     if (!inscripcionSeleccionada) return
     setGuardando(true)
 
-    // 1. Actualizar estatus de inscripción a 'baja'
     const { error: errUpd } = await supabase
       .from('inscripciones')
       .update({ 
@@ -162,7 +161,6 @@ export default function InscripcionesAdminPage() {
       return alert('Error al actualizar la inscripción: ' + errUpd.message)
     }
 
-    // 2. Buscar pagos pendientes de este alumno en este grupo y cancelarlos (ponerlos en 0 o estatus Cancelado)
     const { error: errPagos } = await supabase
       .from('pagos')
       .update({ estatus: 'Cancelado', monto: 0 })
@@ -182,18 +180,59 @@ export default function InscripcionesAdminPage() {
     setGuardando(false)
   }
 
+  // REACTIVAR / REINCORPORAR ALUMNO
+  const procesarReactivacionInscripcion = async () => {
+    if (!inscripcionSeleccionada) return
+    setGuardando(true)
+
+    // 1. Cambiar estatus de inscripción a 'activa'
+    const { error: errUpd } = await supabase
+      .from('inscripciones')
+      .update({ estatus: 'activa', motivo_baja: null })
+      .eq('id', inscripcionSeleccionada.id)
+
+    if (errUpd) {
+      setGuardando(false)
+      return alert('Error al reactivar la inscripción: ' + errUpd.message)
+    }
+
+    // 2. Restaurar los pagos que se habían puesto en Cancelado/0 a estatus 'Pendiente' con su monto base recalculado
+    // Buscamos cuánto debe ser el monto por pago de este grupo
+    const grupoInfo = grupos.find(g => Number(g.id) === Number(inscripcionSeleccionada.grupoId))
+    const costoTotal = grupoInfo ? Number(grupoInfo.costo_total) || 0 : Number(inscripcionSeleccionada.costoTotal) || 0
+    const numPagos = grupoInfo ? Number(grupoInfo.num_pagos) || 1 : Number(inscripcionSeleccionada.numPagos) || 1
+    const montoPorPago = Number((costoTotal / numPagos).toFixed(2))
+
+    const { error: errPagos } = await supabase
+      .from('pagos')
+      .update({ estatus: 'Pendiente', monto: montoPorPago })
+      .eq('alumno_id', inscripcionSeleccionada.alumnoId)
+      .eq('grupo_id', inscripcionSeleccionada.grupoId)
+      .eq('estatus', 'Cancelado')
+      .eq('monto', 0)
+
+    if (errPagos) {
+      alert('Inscripción reactivada, pero hubo un detalle al restaurar los pagos pendientes: ' + errPagos.message)
+    } else {
+      alert('¡Estudiante reincorporado con éxito! Sus pagos pendientes se han restaurado al plan financiero.')
+      setModalGestion(false)
+      setInscripcionSeleccionada(null)
+      cargarDatos()
+    }
+    setGuardando(false)
+  }
+
   // APLICAR BECA O DESCUENTO A PAGOS PENDIENTES
   const procesarBecaInscripcion = async () => {
     if (!inscripcionSeleccionada || !porcentajeBeca) return alert('Ingrese un porcentaje de descuento válido.')
     setGuardando(true)
 
     const descuento = Number(porcentajeBeca) / 100
-    if (descorutve <= 0 || descuento > 1) {
+    if (descuento <= 0 || descuento > 1) {
       setGuardando(false)
       return alert('Porcentaje inválido.')
     }
 
-    // Traer pagos pendientes del alumno para este grupo
     const { data: pagosPendientes } = await supabase
       .from('pagos')
       .select('*')
@@ -335,6 +374,8 @@ export default function InscripcionesAdminPage() {
                           <button 
                             onClick={() => {
                               setInscripcionSeleccionada(ins)
+                              // Si ya está en baja, preseleccionar la pestaña de reactivar o gestionar baja
+                              setTipoAjuste(ins.estatus === 'baja' ? 'reactivar' : 'baja')
                               setModalGestion(true)
                             }}
                             className="bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 font-bold px-3 py-1.5 rounded-xl transition text-[11px]"
@@ -472,7 +513,7 @@ export default function InscripcionesAdminPage() {
         </div>
       )}
 
-      {/* MODAL GESTIÓN: BAJA O BECAS */}
+      {/* MODAL GESTIÓN: BAJA, REACTIVACIÓN O BECAS */}
       {modalGestion && inscripcionSeleccionada && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-6">
@@ -485,22 +526,48 @@ export default function InscripcionesAdminPage() {
               <button onClick={() => setModalGestion(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold">✕</button>
             </div>
 
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
-              <button 
-                onClick={() => setTipoAjuste('baja')} 
-                className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'baja' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'}`}
-              >
-                🔴 Dar de Baja
-              </button>
+            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
+              {inscripcionSeleccionada.estatus === 'baja' ? (
+                <button 
+                  onClick={() => setTipoAjuste('reactivar')} 
+                  className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'reactivar' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'}`}
+                >
+                  🟢 Reactivar / Reincorporar
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setTipoAjuste('baja')} 
+                  className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'baja' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'}`}
+                >
+                  🔴 Dar de Baja
+                </button>
+              )}
               <button 
                 onClick={() => setTipoAjuste('beca')} 
                 className={`flex-1 py-2 rounded-lg transition ${tipoAjuste === 'beca' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500'}`}
               >
-                🎓 Aplicar Beca / Descuento
+                🎓 Aplicar Beca
               </button>
             </div>
 
-            {tipoAjuste === 'baja' ? (
+            {tipoAjuste === 'reactivar' ? (
+              <div className="space-y-4 text-xs">
+                <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 space-y-1">
+                  <span className="font-bold block">Reincorporar Estudiante:</span>
+                  <p>Al reactivar su inscripción, el sistema restaurará sus cuotas pendientes para que pueda continuar con su plan de pagos, conservando intacto el historial de lo que ya abonó anteriormente.</p>
+                </div>
+                <div className="flex justify-end gap-3 pt-4">
+                  <button onClick={() => setModalGestion(false)} className="px-4 py-2 font-semibold text-slate-500">Cancelar</button>
+                  <button 
+                    disabled={guardando}
+                    onClick={procesarReactivacionInscripcion}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-semibold transition"
+                  >
+                    {guardando ? 'Reactivando...' : 'Confirmar Reincorporación'}
+                  </button>
+                </div>
+              </div>
+            ) : tipoAjuste === 'baja' ? (
               <div className="space-y-4 text-xs">
                 <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 space-y-1">
                   <span className="font-bold block">Aviso importante:</span>
