@@ -12,7 +12,7 @@ export default function DetalleCursoPage() {
   const [curso, setCurso] = useState(null)
   const [grupos, setGrupos] = useState([])
   const [loading, setLoading] = useState(true)
-  const [pestanaActiva, setPestanaActiva] = useState('detalles') // 'detalles' | 'grupos' | 'workshops' | 'imagenes'
+  const [pestanaActiva, setPestanaActiva] = useState('detalles')
 
   const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '', precio: '', foto_url: '', visible_web: true })
   const [guardando, setGuardando] = useState(false)
@@ -115,7 +115,6 @@ export default function DetalleCursoPage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER SUPERIOR */}
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-4">
             <button 
@@ -145,7 +144,6 @@ export default function DetalleCursoPage() {
 
         <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* PESTAÑAS DE NAVEGACIÓN SUPERIOR */}
           <div className="flex gap-8 border-b border-slate-200 text-sm font-bold">
             <button 
               onClick={() => setPestanaActiva('detalles')}
@@ -157,23 +155,22 @@ export default function DetalleCursoPage() {
               onClick={() => setPestanaActiva('grupos')}
               className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'grupos' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
             >
-              🏛️ Grupos <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">{grupos.length}</span>[cite: 3]
+              🏛️ Grupos <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">{grupos.length}</span>
             </button>
             <button 
               onClick={() => setPestanaActiva('workshops')}
               className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'workshops' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
             >
-              ⚡ Workshops <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">0</span>[cite: 3]
+              ⚡ Workshops <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">0</span>
             </button>
             <button 
               onClick={() => setPestanaActiva('imagenes')}
               className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'imagenes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
             >
-              🖼️ Imágenes[cite: 5]
+              🖼️ Imágenes
             </button>
           </div>
 
-          {/* CONTENIDO DE LA PESTAÑA: DETALLES */}
           {pestanaActiva === 'detalles' && (
             <div className="space-y-6">
               <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
@@ -239,7 +236,6 @@ export default function DetalleCursoPage() {
                 </form>
               </div>
 
-              {/* ZONA DE PELIGRO */}
               <div className="bg-white p-8 rounded-3xl border border-rose-200/80 shadow-xs space-y-4">
                 <h4 className="text-sm font-extrabold text-rose-600">Zona de Peligro</h4>
                 <p className="text-xs text-slate-500">Eliminar el curso es una acción irreversible y borrará toda su vinculación.</p>
@@ -253,7 +249,6 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
-          {/* CONTENIDO DE LA PESTAÑA: GRUPOS */}
           {pestanaActiva === 'grupos' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -311,7 +306,6 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
-          {/* OTRAS PESTAÑAS (WORKSHOPS E IMÁGENES) */}
           {pestanaActiva === 'workshops' && (
             <div className="bg-white p-12 rounded-3xl border border-slate-200/80 text-center space-y-3 shadow-xs">
               <p className="text-sm font-bold text-slate-700">No hay workshops registrados para este curso.</p>
@@ -321,11 +315,11 @@ export default function DetalleCursoPage() {
 
           {pestanaActiva === 'imagenes' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs">
-              <h3 className="text-base font-extrabold text-slate-900">Gestión de Imágenes y Miniaturas[cite: 5]</h3>
+              <h3 className="text-base font-extrabold text-slate-900">Gestión de Imágenes y Miniaturas</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="border-2 border-dashed border-slate-200 rounded-3xl p-6 text-center space-y-3">
                   <span className="text-2xl">🖼️</span>
-                  <div className="text-xs font-bold text-slate-700">Thumbnail (1200x800)[cite: 5]</div>
+                  <div className="text-xs font-bold text-slate-700">Thumbnail (1200x800)</div>
                   <input type="url" placeholder="URL de la imagen..." value={formEdicion.foto_url} onChange={(e) => setFormEdicion({ ...formEdicion, foto_url: e.target.value })} className="w-full p-3 border rounded-xl text-xs bg-slate-50" />
                 </div>
               </div>
