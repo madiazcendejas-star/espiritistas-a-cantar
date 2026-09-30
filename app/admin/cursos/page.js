@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '../../../../lib/supabase'
+import { supabase } from '../../../lib/supabase'
 
 export default function CursosAdminPage() {
   const router = useRouter()
@@ -48,7 +48,6 @@ export default function CursosAdminPage() {
     } else {
       setModalCurso(false)
       setFormCurso({ Nombre_curso: '', descripcion: '', precio: '', foto_url: '' })
-      // Redirigir de inmediato al expediente del nuevo curso creado
       if (data && data[0]) {
         router.push(`/admin/cursos/${data[0].id}`)
       } else {
