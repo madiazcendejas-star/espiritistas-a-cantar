@@ -5,8 +5,11 @@ import { supabase } from '../../../lib/supabase'
 
 export default function ComprobantesAdminPage() {
   const [pagosPendientes, setPagosPendientes] = useState([])
-  const [debugRaw, setDebugRaw] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Estado para el modal de rechazo con nota
+  const [pagoARechazar, setPagoARechazar] = useState(null)
+  const [motivoRechazo, setMotivoRechazo] = useState('')
 
   useEffect(() => {
     cargarComprobantes()
@@ -27,8 +30,6 @@ export default function ComprobantesAdminPage() {
       if (pagosError) throw pagosError
 
       if (pagosData) {
-        setDebugRaw(pagosData)
-
         const conComprobante = pagosData.filter(p => {
           const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
           return url && String(url).trim() !== ''
@@ -53,16 +54,17 @@ export default function ComprobantesAdminPage() {
     }
   }
 
-  // Aprobar usando únicamente la columna real 'comprobante_url'
+  // Aprobar pago
   const aprobarYAplicarPago = async (pagoId) => {
-    const confirmar = window.confirm('¿Aprobar y aplicar este pago?')
+    const confirmar = window.confirm('¿Estás seguro de aprobar y aplicar este pago?')
     if (!confirmar) return
 
     const { error } = await supabase
       .from('pagos')
       .update({ 
         estatus: 'Pagado', 
-        comprobante_url: null 
+        comprobante_url: null,
+        observaciones: 'Pago aprobado y validado por administración.'
       })
       .eq('id', pagoId)
 
@@ -71,6 +73,34 @@ export default function ComprobantesAdminPage() {
     } else {
       alert('¡Pago aprobado con éxito!')
       cargarComprobantes()
+    }
+  }
+
+  // Rechazar pago con motivo
+  const confirmarRechazo = async (e) => {
+    e.preventDefault()
+    if (!pagoARechazar || !motivoRechazo.trim()) {
+      return alert('Por favor escribe el motivo del rechazo.')
+    }
+
+    try {
+      const { error } = await supabase
+        .from('pagos')
+        .update({ 
+          estatus: 'Pendiente', // Regresa a pendiente para que pueda subir otro
+          comprobante_url: null, // Borramos el comprobante incorrecto
+          observaciones: `Rechazado: ${motivoRechazo.trim()}`
+        })
+        .eq('id', pagoARechazar)
+
+      if (error) throw error
+
+      alert('Comprobante rechazado correctamente. El alumno podrá subir uno nuevo.')
+      setPagoARechazar(null)
+      setMotivoRechazo('')
+      cargarComprobantes()
+    } catch (error) {
+      alert('Error al rechazar el pago: ' + error.message)
     }
   }
 
@@ -125,16 +155,29 @@ export default function ComprobantesAdminPage() {
             pagosPendientes.map((p, idx) => {
               const alumno = p.alumnos || {}
               return (
-                <div key={idx} className="bg-white border border-slate-200 rounded-3xl p-6 flex justify-between items-center shadow-xs">
+                <div key={idx} className="bg-white border border-slate-200 rounded-3xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-xs">
                   <div className="space-y-1">
                     <h4 className="font-extrabold text-slate-900">
                       {alumno.nombre || alumno.Nombre || `Alumno ID: ${p.alumno_id}`} — Cuota #{p.id} (${p.monto || p.Monto || 0} MXN)
                     </h4>
                     <p className="text-xs text-indigo-600 font-mono truncate max-w-xl">URL: {p.comprobante_url}</p>
                   </div>
-                  <div className="flex gap-3">
-                    <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition">👁️ Ver Comprobante</a>
-                    <button onClick={() => aprobarYAplicarPago(p.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition">✅ Aprobar y Aplicar</button>
+                  <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                    <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition">
+                      👁️ Ver
+                    </a>
+                    <button 
+                      onClick={() => setPagoARechazar(p.id)} 
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 px-4 py-2.5 rounded-xl text-xs font-bold transition border border-rose-200"
+                    >
+                      ❌ Rechazar
+                    </button>
+                    <button 
+                      onClick={() => aprobarYAplicarPago(p.id)} 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                    >
+                      ✅ Aprobar
+                    </button>
                   </div>
                 </div>
               )
@@ -142,6 +185,49 @@ export default function ComprobantesAdminPage() {
           )}
         </div>
       </main>
+
+      {/* MODAL PARA MOTIVO DE RECHAZO */}
+      {pagoARechazar && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Rechazar Comprobante</h3>
+              <p className="text-xs text-slate-500 mt-1">Indica el motivo del rechazo. El alumno verá esta nota para corregir su envío.</p>
+            </div>
+
+            <form onSubmit={confirmarRechazo} className="space-y-5">
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-2">Motivo del rechazo *</label>
+                <textarea 
+                  required
+                  rows={4}
+                  value={motivoRechazo}
+                  onChange={(e) => setMotivoRechazo(e.target.value)}
+                  placeholder="Ej. El comprobante está borroso, no coincide el monto o pertenece a otra fecha."
+                  className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-rose-500 font-medium resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button 
+                  type="button" 
+                  onClick={() => { setPagoARechazar(null); setMotivoRechazo(''); }} 
+                  className="px-5 py-2.5 text-xs font-semibold text-slate-500"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-2xl text-xs font-bold transition shadow-sm"
+                >
+                  Confirmar Rechazo
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
