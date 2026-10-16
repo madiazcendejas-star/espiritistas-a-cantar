@@ -147,7 +147,7 @@ export default function AlumnoPortalPage() {
     }
   }
 
-  // SUBIR COMPROBANTE DE PAGO
+  // SUBIR COMPROBANTE DE PAGO CORREGIDO Y REFORZADO
   const enviarComprobante = async (e) => {
     e.preventDefault()
     if (!archivoComprobante || !pagoSeleccionado) {
@@ -173,10 +173,16 @@ export default function AlumnoPortalPage() {
 
       const publicUrl = urlData.publicUrl
 
+      if (!publicUrl) {
+        throw new Error('No se pudo generar la URL pública de la imagen.')
+      }
+
+      // Guardar la liga en la base de datos asegurando ambas variantes de nombre de columna
       const { error: updateError } = await supabase
         .from('pagos')
         .update({
           comprobante_url: publicUrl,
+          url_comprobante: publicUrl,
           estatus: 'Revision'
         })
         .eq('id', pagoSeleccionado)
