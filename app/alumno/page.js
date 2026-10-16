@@ -158,23 +158,7 @@ export default function AlumnoPortalPage() {
     setSubiendo(true)
 
     try {
-      // 1. Obtener el pago actual para verificar si ya tenía un comprobante y borrarlo del storage
-      const pagoActual = pagos.find(p => p.id === pagoSeleccionado)
-      const urlAnterior = pagoActual?.comprobante_url
-
-      if (urlAnterior) {
-        try {
-          const partesUrl = urlAnterior.split('/')
-          const nombreArchivoAnterior = partesUrl[partesUrl.length - 1]
-          if (nombreArchivoAnterior) {
-            await supabase.storage.from('comprobantes').remove([nombreArchivoAnterior])
-          }
-        } catch (err) {
-          console.log('No se pudo borrar el archivo anterior:', err)
-        }
-      }
-
-      // 2. Subir nuevo archivo al bucket 'comprobantes'
+      // 1. Subir imagen al Bucket 'comprobantes'
       const fileExt = archivoComprobante.name.split('.').pop()
       const fileName = `comprobante_${pagoSeleccionado}_${Date.now()}.${fileExt}`
       
@@ -183,10 +167,10 @@ export default function AlumnoPortalPage() {
         .upload(fileName, archivoComprobante)
 
       if (uploadError) {
-        throw new Error('Error al subir imagen al Storage: ' + uploadError.message)
+        throw new Error('Error al subir al Storage: ' + uploadError.message)
       }
 
-      // 3. Obtener URL pública
+      // 2. Obtener URL pública
       const { data: urlData } = supabase.storage
         .from('comprobantes')
         .getPublicUrl(fileName)
@@ -197,7 +181,7 @@ export default function AlumnoPortalPage() {
         throw new Error('No se pudo generar la URL pública de la imagen.')
       }
 
-      // 4. Actualizar la base de datos usando la columna correcta 'comprobante_url'
+      // 3. Actualizar la tabla pagos asegurando guardar el enlace en 'comprobante_url'
       const { error: updateError } = await supabase
         .from('pagos')
         .update({
@@ -207,10 +191,10 @@ export default function AlumnoPortalPage() {
         .eq('id', pagoSeleccionado)
 
       if (updateError) {
-        throw new Error('Error al actualizar la base de datos: ' + updateError.message)
+        throw new Error('Error al guardar la URL en la base de datos: ' + updateError.message)
       }
 
-      alert('¡Comprobante enviado con éxito! Administración lo validará pronto.')
+      alert('¡Comprobante enviado y registrado con éxito!')
       setPagoSeleccionado(null)
       setArchivoComprobante(null)
       await cargarDatosPortal(alumno.id)
@@ -378,9 +362,7 @@ export default function AlumnoPortalPage() {
 
         <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
           
-          {/* ==================================================== */}
-          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (BLOQUEO ESTRICTO) */}
-          {/* ==================================================== */}
+          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO */}
           {cursoSeleccionado ? (
             <div className="space-y-6">
               <button 
@@ -497,9 +479,7 @@ export default function AlumnoPortalPage() {
             </div>
           ) : (
             <>
-              {/* ==================================================== */}
               {/* VISTA 2: MENÚ "MIS CURSOS" */}
-              {/* ==================================================== */}
               {menuActivo === 'cursos' && (
                 <div className="space-y-6">
                   <div>
@@ -571,9 +551,7 @@ export default function AlumnoPortalPage() {
                 </div>
               )}
 
-              {/* ==================================================== */}
               {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" */}
-              {/* ==================================================== */}
               {menuActivo === 'pagos' && (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-4">
@@ -640,9 +618,7 @@ export default function AlumnoPortalPage() {
                 </div>
               )}
 
-              {/* ==================================================== */}
               {/* VISTA 4: MENÚ "SESIONES Y TANDAS" */}
-              {/* ==================================================== */}
               {menuActivo === 'tandas' && tandaAlumno && (
                 <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-8 shadow-lg border border-indigo-500/30 space-y-6">
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-indigo-700/50 pb-4">
@@ -681,9 +657,7 @@ export default function AlumnoPortalPage() {
                 </div>
               )}
 
-              {/* ==================================================== */}
               {/* VISTA 5: MENÚ "MI PERFIL" */}
-              {/* ==================================================== */}
               {menuActivo === 'perfil' && (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6 max-w-2xl">
                   <div>
