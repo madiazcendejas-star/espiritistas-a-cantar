@@ -14,37 +14,45 @@ export default function ComprobantesAdminPage() {
   const cargarComprobantes = async () => {
     setLoading(true)
     
-    // 1. Traemos todos los pagos de la tabla
-    const { data: pagosData, error: pagosError } = await supabase
-      .from('pagos')
-      .select('*')
-      .order('created_at', { ascending: false })
+    try {
+      // 1. Traemos todos los pagos sin filtros estrictos
+      const { data: pagosData, error: pagosError } = await supabase
+        .from('pagos')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    // 2. Traemos todos los alumnos para asociarlos de forma segura
-    const { data: alumnosData } = await supabase
-      .from('alumnos')
-      .select('*')
+      // 2. Traemos todos los alumnos
+      const { data: alumnosData } = await supabase
+        .from('alumnos')
+        .select('*')
 
-    if (!pagosError && pagosData) {
-      // Filtrar únicamente los pagos que tengan un comprobante subido
-      const conComprobante = pagosData.filter(p => {
-        const url = p.comprobante_url || p.url_comprobante
-        return url && url.trim() !== ''
-      })
+      if (pagosError) throw pagosError
 
-      // Asociar la información del alumno correspondiente
-      const pagosConAlumno = conComprobante.map(p => {
-        const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
-        const alumnoEncontrado = alumnosData?.find(a => Number(a.id) === Number(alumnoId)) || {}
-        return {
-          ...p,
-          alumnos: alumnoEncontrado
-        }
-      })
+      if (pagosData) {
+        // Filtrar aquellos pagos que tengan una URL de comprobante guardada (en cualquiera de los dos nombres de columna posibles)
+        const conComprobante = pagosData.filter(p => {
+          const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
+          return url && String(url).trim() !== ''
+        })
 
-      setPagosPendientes(pagosConAlumno)
+        // Unir con la información del alumno de forma flexible
+        const pagosConAlumno = conComprobante.map(p => {
+          const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
+          const alumnoEncontrado = alumnosData?.find(a => Number(a.id) === Number(alumnoId)) || {}
+          return {
+            ...p,
+            comprobante_url: p.comprobante_url || p.url_comprobante || p.Comprobante_url,
+            alumnos: alumnoEncontrado
+          }
+        })
+
+        setPagosPendientes(pagosConAlumno)
+      }
+    } catch (error) {
+      console.error('Error al cargar comprobantes:', error)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // Aprobar comprobante, aplicar pago y limpiar la imagen para ahorrar memoria
@@ -53,12 +61,13 @@ export default function ComprobantesAdminPage() {
     if (!confirmar) return
 
     try {
-      // 1. Actualizar el estatus del pago a 'Pagado' y limpiar la URL para liberar memoria
+      // Actualizar el estatus del pago a 'Pagado' y limpiar la URL del comprobante
       const { error: errorUpdate } = await supabase
         .from('pagos')
         .update({ 
           estatus: 'Pagado',
-          comprobante_url: null 
+          comprobante_url: null,
+          url_comprobante: null
         })
         .eq('id', pagoId)
 
@@ -136,7 +145,7 @@ export default function ComprobantesAdminPage() {
                 {pagosPendientes.map((p, idx) => {
                   const monto = Number(p.monto || p.Monto || 0)
                   const alumno = p.alumnos || {}
-                  const comprobanteUrl = p.comprobante_url || p.url_comprobante
+                  const comprobanteUrl = p.comprobante_url
 
                   return (
                     <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
