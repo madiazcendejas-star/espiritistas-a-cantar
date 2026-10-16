@@ -107,30 +107,30 @@ export default function EstudiantesAdminPage() {
   })
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
+    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900 text-sm">
       
       {/* SIDEBAR ADMINISTRATIVO */}
-      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
-        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
+      <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
+        <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
+            <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-bold text-sm shadow-md">EC</div>
             <div className="flex flex-col">
-              <span className="font-bold text-white text-xs leading-tight">Espiritistas a Cantar</span>
-              <span className="text-[10px] text-indigo-400 font-medium">Panel Administrativo</span>
+              <span className="font-bold text-white text-sm leading-tight">Espiritistas a Cantar</span>
+              <span className="text-xs text-indigo-400 font-medium">Panel Administrativo</span>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto text-xs font-medium">
-          <div className="px-3 pb-2 text-[10px] uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
-          <a href="/admin" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
-          <a href="/admin/estudiantes" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
-          <a href="/admin/cursos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
-          <a href="/admin/grupos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
-          <a href="/admin/pagos" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
+        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto text-sm font-medium">
+          <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
+          <a href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
+          <a href="/admin/estudiantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
+          <a href="/admin/cursos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
+          <a href="/admin/grupos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
+          <a href="/admin/pagos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
           
-          <div className="pt-4 px-3 pb-2 text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
-          <a href="/admin/tandas" className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📍 Tandas y Misas</a>
+          <div className="pt-6 px-3 pb-2 text-xs uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
+          <a href="/admin/tandas" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📍 Tandas y Misas</a>
         </nav>
       </aside>
 
@@ -138,31 +138,31 @@ export default function EstudiantesAdminPage() {
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
         {/* HEADER SUPERIOR */}
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
+        <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
           <div>
-            <h1 className="text-sm font-bold text-slate-900">Estudiantes</h1>
-            <p className="text-[11px] text-slate-400">Gestiona la información y expedientes de tus estudiantes</p>
+            <h1 className="text-lg font-extrabold text-slate-900">Estudiantes</h1>
+            <p className="text-xs text-slate-500">Gestiona la información y expedientes de tus estudiantes</p>
           </div>
           <button 
             onClick={abrirModalNuevo}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold shadow-sm transition flex items-center gap-2"
           >
             <span>+</span> Nuevo estudiante
           </button>
         </header>
 
         {/* VISTA GENERAL */}
-        <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
+        <div className="p-10 max-w-[1700px] mx-auto w-full space-y-8">
           
           {/* BARRA DE BÚSQUEDA DINÁMICA */}
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <span className="text-slate-400 text-sm pl-2">🔍</span>
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+            <span className="text-slate-400 text-base pl-2">🔍</span>
             <input 
               type="text" 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               placeholder="Buscar por matrícula, nombre, teléfono o correo electrónico..." 
-              className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
+              className="w-full text-sm outline-none bg-transparent text-slate-900 placeholder-slate-400 font-medium"
             />
           </div>
 
@@ -174,21 +174,21 @@ export default function EstudiantesAdminPage() {
             
             <div className="overflow-x-auto">
               {loading ? (
-                <div className="text-center py-16 text-xs text-slate-400">Cargando directorio de estudiantes...</div>
+                <div className="text-center py-16 text-sm text-slate-400">Cargando directorio de estudiantes...</div>
               ) : alumnosFiltrados.length === 0 ? (
-                <div className="text-center py-16 text-xs text-slate-400">No se encontraron estudiantes registrados.</div>
+                <div className="text-center py-16 text-sm text-slate-400">No se encontraron estudiantes registrados.</div>
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-[#1e293b] text-white text-[10px] font-bold uppercase tracking-wider">
-                      <th className="py-3.5 px-6">Nombre</th>
-                      <th className="py-3.5 px-6">Email</th>
-                      <th className="py-3.5 px-6">Teléfono</th>
-                      <th className="py-3.5 px-6">Matrícula</th>
-                      <th className="py-3.5 px-6 text-right">Contraseña LMS</th>
+                    <tr className="bg-[#1e293b] text-white text-xs font-bold uppercase tracking-wider">
+                      <th className="py-4 px-6">Nombre</th>
+                      <th className="py-4 px-6">Email</th>
+                      <th className="py-4 px-6">Teléfono</th>
+                      <th className="py-4 px-6">Matrícula</th>
+                      <th className="py-4 px-6 text-right">Contraseña LMS</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                     {alumnosFiltrados.map((a) => {
                       const nombre = a.nombre || a.Nombre || 'Sin nombre'
                       const correo = a.correo || a.Correo || 'Sin correo'
@@ -196,7 +196,6 @@ export default function EstudiantesAdminPage() {
                       const matricula = a.matricula || `${a.id}`
                       const password = a.password || 'EAC2026*'
                       
-                      // Iniciales para el espacio de foto
                       const iniciales = nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
                       return (
@@ -205,19 +204,19 @@ export default function EstudiantesAdminPage() {
                           onClick={() => window.location.href = `/admin/estudiantes/detalle?id=${a.id}`}
                           className="hover:bg-slate-50 transition cursor-pointer group"
                         >
-                          <td className="py-4 px-4 font-semibold text-slate-900 flex items-center gap-3">
-                            <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition">
+                          <td className="py-4 px-6 font-semibold text-slate-900 flex items-center gap-4">
+                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition">
                               {iniciales}
                             </div>
                             <div>
-                              <span className="block group-hover:text-indigo-600 transition">{nombre}</span>
-                              <span className="text-[10px] text-slate-400 font-normal">Ver expediente</span>
+                              <span className="block group-hover:text-indigo-600 transition font-bold">{nombre}</span>
+                              <span className="text-xs text-slate-400 font-normal">Ver expediente</span>
                             </div>
                           </td>
-                          <td className="py-4 px-6 text-slate-600">{correo}</td>
-                          <td className="py-4 px-6 text-slate-600">{telefono}</td>
-                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold">#{matricula}</td>
-                          <td className="py-4 px-6 font-mono text-slate-500 text-right">{password}</td>
+                          <td className="py-4 px-6 text-slate-600 font-medium">{correo}</td>
+                          <td className="py-4 px-6 text-slate-600 font-medium">{telefono}</td>
+                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold text-sm">#{matricula}</td>
+                          <td className="py-4 px-6 font-mono text-slate-500 font-semibold text-right">{password}</td>
                         </tr>
                       )
                     })}
@@ -233,99 +232,99 @@ export default function EstudiantesAdminPage() {
       {/* MODAL NUEVO ESTUDIANTE */}
       {modalNuevo && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 space-y-6">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Registrar Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-400 mt-0.5">La matrícula numérica y la contraseña se generan automáticamente.</p>
+              <h3 className="text-lg font-bold text-slate-900">Registrar Nuevo Estudiante</h3>
+              <p className="text-xs text-slate-500 mt-1">La matrícula numérica y la contraseña se generan automáticamente.</p>
             </div>
 
-            <form onSubmit={crearAlumno} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={crearAlumno} className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nombre *</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Nombre *</label>
                   <input 
                     type="text" 
                     required
                     value={formNuevo.nombre}
                     onChange={(e) => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
                     placeholder="Ej. Alma"
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Apellidos *</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Apellidos *</label>
                   <input 
                     type="text" 
                     required
                     value={formNuevo.apellidos}
                     onChange={(e) => setFormNuevo({ ...formNuevo, apellidos: e.target.value })}
                     placeholder="Ej. Aldabalde"
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Correo Electrónico *</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Correo Electrónico *</label>
                   <input 
                     type="email" 
                     required
                     value={formNuevo.correo}
                     onChange={(e) => setFormNuevo({ ...formNuevo, correo: e.target.value })}
                     placeholder="correo@ejemplo.com"
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Teléfono *</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Teléfono *</label>
                   <input 
                     type="text" 
                     required
                     value={formNuevo.telefono}
                     onChange={(e) => setFormNuevo({ ...formNuevo, telefono: e.target.value })}
                     placeholder="91004691"
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha de Nacimiento</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Fecha de Nacimiento</label>
                   <input 
                     type="date" 
                     value={formNuevo.fecha_nacimiento}
                     onChange={(e) => setFormNuevo({ ...formNuevo, fecha_nacimiento: e.target.value })}
-                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">🔑 Contraseña Generada</label>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">🔑 Contraseña Generada</label>
                   <input 
                     type="text" 
                     required
                     value={formNuevo.password}
                     onChange={(e) => setFormNuevo({ ...formNuevo, password: e.target.value })}
-                    className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
+                    className="w-full p-3.5 border border-indigo-200 rounded-2xl text-sm bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Dirección</label>
+                <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Dirección</label>
                 <input 
                   type="text" 
                   value={formNuevo.direccion}
                   onChange={(e) => setFormNuevo({ ...formNuevo, direccion: e.target.value })}
                   placeholder="Calle, Colonia, Ciudad..."
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setModalNuevo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
+              <div className="flex justify-end gap-3 pt-5 border-t border-slate-100">
+                <button type="button" onClick={() => setModalNuevo(false)} className="px-5 py-2.5 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-sm font-semibold transition shadow-sm disabled:opacity-50">
                   {guardando ? 'Guardando...' : 'Crear Estudiante'}
                 </button>
               </div>
