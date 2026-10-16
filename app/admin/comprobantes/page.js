@@ -15,13 +15,11 @@ export default function ComprobantesAdminPage() {
   const cargarComprobantes = async () => {
     setLoading(true)
     try {
-      // 1. Obtenemos todos los pagos ordenados por id (sin usar created_at)
       const { data: pagosData, error: pagosError } = await supabase
         .from('pagos')
         .select('*')
         .order('id', { ascending: false })
 
-      // 2. Obtenemos todos los alumnos
       const { data: alumnosData } = await supabase
         .from('alumnos')
         .select('*')
@@ -31,7 +29,6 @@ export default function ComprobantesAdminPage() {
       if (pagosData) {
         setDebugRaw(pagosData)
 
-        // Filtramos cualquier pago que tenga texto en comprobante_url
         const conComprobante = pagosData.filter(p => {
           const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
           return url && String(url).trim() !== ''
@@ -56,13 +53,17 @@ export default function ComprobantesAdminPage() {
     }
   }
 
+  // Aprobar usando únicamente la columna real 'comprobante_url'
   const aprobarYAplicarPago = async (pagoId) => {
     const confirmar = window.confirm('¿Aprobar y aplicar este pago?')
     if (!confirmar) return
 
     const { error } = await supabase
       .from('pagos')
-      .update({ estatus: 'Pagado', comprobante_url: null, url_comprobante: null })
+      .update({ 
+        estatus: 'Pagado', 
+        comprobante_url: null 
+      })
       .eq('id', pagoId)
 
     if (error) {
@@ -105,21 +106,20 @@ export default function ComprobantesAdminPage() {
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 shadow-xs rounded-3xl">
           <div>
             <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes</h1>
-            <p className="text-xs text-slate-500">Filtrados detectados: {pagosPendientes.length} | Total en tabla pagos: {debugRaw.length}</p>
+            <p className="text-xs text-slate-500">Pendientes de revisión: {pagosPendientes.length}</p>
           </div>
-          <button onClick={cargarComprobantes} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">
+          <button onClick={cargarComprobantes} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition">
             🔄 Recargar Datos
           </button>
         </header>
 
-        {/* LISTADO DE COMPROBANTES DETECTADOS */}
+        {/* LISTADO DE COMPROBANTES */}
         <div className="space-y-4">
           {loading ? (
             <div className="text-center py-12 text-slate-400">Cargando...</div>
           ) : pagosPendientes.length === 0 ? (
             <div className="bg-white border border-slate-200 p-12 rounded-3xl text-center space-y-3">
               <h3 className="font-bold text-slate-800 text-base">🎉 ¡Todo al día! No hay comprobantes pendientes.</h3>
-              <p className="text-xs text-slate-400">Los comprobantes subidos por los alumnos aparecerán aquí automáticamente.</p>
             </div>
           ) : (
             pagosPendientes.map((p, idx) => {
