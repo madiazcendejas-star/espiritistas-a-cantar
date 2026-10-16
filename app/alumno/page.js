@@ -20,6 +20,12 @@ export default function AlumnoPortalPage() {
 
   const [loading, setLoading] = useState(false)
 
+  // NAVEGACIÓN Y MENÚS DEL ALUMNO ('cursos', 'pagos', 'tandas', 'perfil')
+  const [menuActivo, setMenuActivo] = useState('cursos')
+
+  // CURSO SELECCIONADO PARA VER SU CONTENIDO
+  const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
+
   // Estado para cambiar contraseña
   const [modalPass, setModalPass] = useState(false)
   const [nuevaPass, setNuevaPass] = useState('')
@@ -79,27 +85,21 @@ export default function AlumnoPortalPage() {
   }
 
   const cargarDatosPortal = async (alumnoId) => {
-    // 1. Inscripciones
     const { data: ins } = await supabase.from('inscripciones').select('*').eq('alumno_id', alumnoId)
     setInscripciones(ins || [])
 
-    // 2. Grupos
     const { data: grp } = await supabase.from('grupos').select('*')
     setGrupos(grp || [])
 
-    // 3. Cursos
     const { data: crs } = await supabase.from('cursos').select('*')
     setCursos(crs || [])
 
-    // 4. Pagos
     const { data: pgs } = await supabase.from('pagos').select('*').eq('alumno_id', alumnoId)
     setPagos(pgs || [])
 
-    // 5. Recursos
     const { data: rcs } = await supabase.from('recursos').select('*')
     setRecursos(rcs || [])
 
-    // 6. Tanda Activa
     const { data: tandaData } = await supabase
       .from('alumno_tandas')
       .select(`
@@ -158,7 +158,6 @@ export default function AlumnoPortalPage() {
     setSubiendo(true)
 
     try {
-      // 1. Subir al Storage (Bucket 'comprobantes')
       const fileExt = archivoComprobante.name.split('.').pop()
       const fileName = `comprobante_${pagoSeleccionado}_${Date.now()}.${fileExt}`
       
@@ -168,14 +167,12 @@ export default function AlumnoPortalPage() {
 
       if (uploadError) throw uploadError
 
-      // 2. Obtener URL pública
       const { data: urlData } = supabase.storage
         .from('comprobantes')
         .getPublicUrl(fileName)
 
       const publicUrl = urlData.publicUrl
 
-      // 3. Actualizar registro de pago en la tabla pagos
       const { error: updateError } = await supabase
         .from('pagos')
         .update({
@@ -186,7 +183,7 @@ export default function AlumnoPortalPage() {
 
       if (updateError) throw updateError
 
-      alert('¡Comprobante enviado con éxito! Administración lo revisará y aplicará tu pago.')
+      alert('¡Comprobante enviado con éxito! Administración lo validará pronto.')
       setPagoSeleccionado(null)
       setArchivoComprobante(null)
       await cargarDatosPortal(alumno.id)
@@ -262,6 +259,10 @@ export default function AlumnoPortalPage() {
   }
 
   const nombreAlumno = alumno.nombre || alumno.Nombre || 'Estudiante'
+  const matriculaAlumno = alumno.matricula || 'N/A'
+  const correoAlumno = alumno.correo || 'No registrado'
+  const telefonoAlumno = alumno.telefono || 'No registrado'
+
   const pagosHechosTanda = pagosTanda.filter(p => p.estado === 'pagado').length
   const totalPagosTanda = tandaAlumno?.tandas_config?.total_pagos || 10
   const montoPorPagoTanda = tandaAlumno?.tandas_config?.monto_por_pago || 0
@@ -271,267 +272,393 @@ export default function AlumnoPortalPage() {
     : 'Por definir'
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 text-sm flex flex-col">
+    <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 text-sm flex">
       
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-bold text-sm">EC</div>
-          <span className="text-sm font-bold text-slate-800">Espiritistas a Cantar · Aula Virtual</span>
+      {/* BARRA LATERAL TIPO UNIVERSIDAD */}
+      <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
+        <div className="h-20 px-6 flex items-center gap-3 border-b border-slate-800/80 bg-[#0f172a]">
+          <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-bold text-sm shadow-md">EC</div>
+          <div className="flex flex-col">
+            <span className="font-bold text-white text-sm leading-tight">Espiritistas a Cantar</span>
+            <span className="text-xs text-indigo-400 font-medium">Aula Virtual</span>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-xs font-semibold text-slate-600">¡Bienvenido, {nombreAlumno}!</span>
+
+        <nav className="flex-1 py-6 px-4 space-y-2 text-sm font-medium">
+          <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Navegación</div>
           <button 
-            onClick={() => setModalPass(true)} 
-            className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-4 py-2 rounded-xl font-semibold transition"
+            onClick={() => { setMenuActivo('cursos'); setCursoSeleccionado(null); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition ${menuActivo === 'cursos' && !cursoSeleccionado ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
           >
-            🔑 Cambiar Contraseña
+            📚 Mis Cursos
           </button>
           <button 
+            onClick={() => setMenuActivo('pagos')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition ${menuActivo === 'pagos' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+          >
+            💳 Pagos y Comprobantes
+          </button>
+          {tandaAlumno && (
+            <button 
+              onClick={() => setMenuActivo('tandas')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition ${menuActivo === 'tandas' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+            >
+              📍 Sesiones y Tandas
+            </button>
+          )}
+          <button 
+            onClick={() => setMenuActivo('perfil')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition ${menuActivo === 'perfil' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+          >
+            👤 Mi Perfil
+          </button>
+        </nav>
+
+        <div className="p-4 border-t border-slate-800/80 bg-[#0f172a]/50">
+          <button 
             onClick={() => setAlumno(null)} 
-            className="text-xs bg-rose-50 text-rose-600 hover:bg-rose-100 px-4 py-2 rounded-xl font-semibold transition"
+            className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 py-3 rounded-2xl text-xs font-bold transition text-center"
           >
             Cerrar Sesión
           </button>
         </div>
-      </header>
+      </aside>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 p-10 max-w-[1500px] mx-auto w-full space-y-10">
-        <div>
-          <h1 className="text-xl font-extrabold text-slate-900">Mis Cursos, Clases y Pagos</h1>
-          <p className="text-xs text-slate-500 mt-1">Accede a tus clases grabadas, materiales, estatus de grupos y sube tus comprobantes de pago.</p>
-        </div>
-
-        {/* ---------------------------------------------------- */}
-        {/* APARTADO DE PAGOS Y COMPROBANTES DEL ALUMNO */}
-        {/* ---------------------------------------------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-            <h3 className="text-base font-bold text-slate-900">💳 Mis Cuotas y Comprobantes</h3>
-            <span className="text-xs text-slate-500">Sube tu comprobante para que administración lo aplique</span>
+      <main className="flex-1 flex flex-col h-screen overflow-y-auto">
+        
+        {/* HEADER SUPERIOR */}
+        <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
+          <div className="flex items-center gap-3">
+            <h1 className="text-base font-extrabold text-slate-900">
+              {cursoSeleccionado ? cursoSeleccionado.nombreCurso : 
+               menuActivo === 'cursos' ? 'Mis Cursos Activos' :
+               menuActivo === 'pagos' ? 'Estado de Cuenta y Pagos' :
+               menuActivo === 'tandas' ? 'Compromiso Presencial (Tanda)' : 'Mi Perfil Estudiantil'}
+            </h1>
           </div>
 
-          {pagos.length === 0 ? (
-            <div className="text-center py-8 text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              No tienes cuotas o pagos registrados actualmente.
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden sm:block">
+              <span className="block text-xs font-bold text-slate-800">{nombreAlumno}</span>
+              <span className="text-[11px] text-slate-400 font-mono">Matrícula: #{matriculaAlumno}</span>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {pagos.map((p, idx) => {
-                const monto = Number(p.monto || p.Monto || 0)
-                const estatus = p.estatus || p.Estatus || 'Pendiente'
-                const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
+            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm border border-indigo-100">
+              {nombreAlumno.substring(0, 2).toUpperCase()}
+            </div>
+          </div>
+        </header>
 
-                return (
-                  <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-bold text-slate-900">Cuota #{p.id}</span>
-                        <span className={`text-xs px-3 py-1 rounded-full font-bold ${
-                          estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-700' :
-                          estatus === 'Revision' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
-                        }`}>
-                          {estatus === 'Pagado' ? '✓ Pagado' : estatus === 'Revision' ? '⏳ En Revisión' : '⚠️ Pendiente'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500">Vencimiento: {fechaVence}</p>
-                    </div>
+        <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
+          
+          {/* ==================================================== */}
+          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (CLASES Y RECURSOS) */}
+          {/* ==================================================== */}
+          {cursoSeleccionado ? (
+            <div className="space-y-6">
+              <button 
+                onClick={() => setCursoSeleccionado(null)}
+                className="text-xs font-bold text-indigo-600 hover:underline flex items-center gap-1.5 bg-indigo-50 px-4 py-2 rounded-xl w-fit"
+              >
+                ← Volver a mis cursos
+              </button>
 
-                    <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                      <span className="text-base font-extrabold text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</span>
-                      
-                      {estatus !== 'Pagado' && estatus !== 'Revision' && (
-                        <button 
-                          onClick={() => setPagoSeleccionado(p.id)}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                        >
-                          📤 Subir Comprobante
-                        </button>
-                      )}
-
-                      {estatus === 'Revision' && (
-                        <span className="text-xs text-amber-700 font-semibold bg-amber-50 px-3.5 py-2 rounded-xl">Comprobante enviado · Validando</span>
-                      )}
-
-                      {estatus === 'Pagado' && (
-                        <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3.5 py-2 rounded-xl">Pago Aplicado</span>
-                      )}
-                    </div>
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
+                      {cursoSeleccionado.nombreGrupo}
+                    </span>
+                    <h2 className="text-xl font-extrabold text-slate-900 mt-2">{cursoSeleccionado.nombreCurso}</h2>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ---------------------------------------------------- */}
-        {/* TANDAS Y SESIONES PRESENCIALES */}
-        {/* ---------------------------------------------------- */}
-        {tandaAlumno && (
-          <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-8 shadow-lg border border-indigo-500/30 space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-indigo-700/50 pb-4">
-              <div>
-                <span className="bg-indigo-500/30 text-indigo-200 text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-indigo-400/20">
-                  📍 Sesión Presencial y Compromiso
-                </span>
-                <h3 className="text-lg font-extrabold text-white mt-2">{tandaAlumno.tandas_config.nombre}</h3>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-xs">
-                📅 <strong>Fecha de tu Misa:</strong> <span className="text-indigo-200">{fechaMisaFormateada}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <span className="text-xs uppercase font-bold text-indigo-300 block mb-1">Pagos Registrados</span>
-                <span className="text-2xl font-extrabold text-white">{pagosHechosTanda} / {totalPagosTanda}</span>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                <span className="text-xs uppercase font-bold text-indigo-300 block mb-1">Saldo Pendiente</span>
-                <span className={`text-2xl font-extrabold ${saldoPendienteTanda === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  ${saldoPendienteTanda.toFixed(2)}
-                </span>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col justify-center">
-                <span className="text-xs uppercase font-bold text-indigo-300 block mb-2">Progreso de Tu Compromiso</span>
-                <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className="bg-indigo-400 h-full transition-all duration-500" 
-                    style={{ width: `${(pagosHechosTanda / totalPagosTanda) * 100}%` }}
-                  ></div>
+                  <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100">
+                    ✅ Acceso Habilitado
+                  </span>
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* CURSOS E INSCRIPCIONES */}
-        {inscripciones.length === 0 ? (
-          <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
-            <span className="text-3xl">📚</span>
-            <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones registradas</h3>
-            <p className="text-xs text-slate-400">Comunícate con administración para que te inscriba a tu curso o taller.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {inscripciones.map((ins) => {
-              const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
-              const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
-              const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
-              const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
-              const estatusIns = ins.estatus || 'activa'
-
-              const estaEnBaja = estatusIns === 'baja'
-              const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
-              const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
-              const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
-
-              return (
-                <div key={ins.id} className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
-                    <div>
-                      <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
-                        {nombreGrupo}
-                      </span>
-                      <h3 className="text-lg font-extrabold text-slate-900 mt-1.5">{nombreCurso}</h3>
-                    </div>
-                    {estaEnBaja ? (
-                      <span className="bg-rose-50 text-rose-600 px-4 py-2 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2">
-                        🔴 Curso dado de baja · Acceso suspendido
-                      </span>
-                    ) : tienePagoVencido ? (
-                      <span className="bg-rose-50 text-rose-600 px-4 py-2 rounded-2xl text-xs font-bold border border-rose-100 flex items-center gap-2">
-                        ⚠️ Acceso pausado por pago pendiente en este grupo
-                      </span>
-                    ) : (
-                      <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100 flex items-center gap-2">
-                        ✅ Al corriente · Acceso habilitado
-                      </span>
-                    )}
-                  </div>
-
-                  {estaEnBaja ? (
-                    <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 text-center space-y-2">
-                      <p className="text-xs font-bold text-rose-900">Actualmente estás dado de baja de este curso.</p>
-                      <p className="text-xs text-rose-700">Tu historial y pagos previos están seguros. Si deseas reincorporarte, comunícate con administración.</p>
-                    </div>
-                  ) : tienePagoVencido ? (
-                    <div className="p-6 bg-rose-50/50 rounded-2xl border border-rose-100 text-center space-y-2">
-                      <p className="text-xs font-bold text-rose-900">Tienes cuotas pendientes o vencidas en este grupo.</p>
-                      <p className="text-xs text-rose-700">Por favor regulariza tu pago y sube tu comprobante para desbloquear los videos y materiales de clase.</p>
-                    </div>
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales Grabados</h4>
+                  
+                  {cursoSeleccionado.recursos.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      Próximamente se subirán las grabaciones y PDFs para este grupo.
+                    </p>
                   ) : (
-                    <div className="space-y-4">
-                      <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales del Grupo</h4>
-                      
-                      {recursosGrupo.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic py-4">Próximamente se subirán las grabaciones y PDFs de este grupo.</p>
-                      ) : (
-                        <div className="space-y-3">
-                          {recursosGrupo.map((rec) => {
-                            const estaAbierto = recursoAbierto === rec.id
-                            const urlEmbebida = obtenerUrlIncrustada(rec.url)
+                    <div className="space-y-3">
+                      {cursoSeleccionado.recursos.map((rec) => {
+                        const estaAbierto = recursoAbierto === rec.id
+                        const urlEmbebida = obtenerUrlIncrustada(rec.url)
 
-                            return (
-                              <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
-                                <div 
-                                  onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
-                                  className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
-                                >
-                                  <div className="flex items-center gap-4">
-                                    <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
-                                      {rec.tipo === 'video' ? '▶' : '📄'}
-                                    </span>
-                                    <div>
-                                      <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
-                                      <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
-                                    </div>
-                                  </div>
-                                  <span className="text-xs font-bold text-indigo-600">
-                                    {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
-                                  </span>
+                        return (
+                          <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
+                            <div 
+                              onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
+                              className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
+                            >
+                              <div className="flex items-center gap-4">
+                                <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
+                                  {rec.tipo === 'video' ? '▶' : '📄'}
+                                </span>
+                                <div>
+                                  <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
+                                  <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
                                 </div>
+                              </div>
+                              <span className="text-xs font-bold text-indigo-600">
+                                {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
+                              </span>
+                            </div>
 
-                                {estaAbierto && (
-                                  <div className="p-5 bg-white border-t border-slate-200 space-y-4">
-                                    {rec.tipo === 'video' ? (
-                                      <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
-                                        <iframe 
-                                          src={urlEmbebida} 
-                                          title={rec.titulo}
-                                          className="w-full h-full border-0"
-                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                          allowFullScreen
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
-                                        <a 
-                                          href={rec.url} 
-                                          target="_blank" 
-                                          rel="noopener noreferrer"
-                                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
-                                        >
-                                          Abrir / Descargar PDF ↗
-                                        </a>
-                                      </div>
-                                    )}
+                            {estaAbierto && (
+                              <div className="p-5 bg-white border-t border-slate-200 space-y-4">
+                                {rec.tipo === 'video' ? (
+                                  <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
+                                    <iframe 
+                                      src={urlEmbebida} 
+                                      title={rec.titulo}
+                                      className="w-full h-full border-0"
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                      allowFullScreen
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
+                                    <a 
+                                      href={rec.url} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                                    >
+                                      Abrir / Descargar PDF ↗
+                                    </a>
                                   </div>
                                 )}
                               </div>
-                            )
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>
-              )
-            })}
-          </div>
-        )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ==================================================== */}
+              {/* VISTA 2: MENÚ "MIS CURSOS" (TARJETAS TIPO UNIVERSIDAD) */}
+              {/* ==================================================== */}
+              {menuActivo === 'cursos' && (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a sus clases, videos y materiales.</p>
+                  </div>
+
+                  {inscripciones.length === 0 ? (
+                    <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+                      <span className="text-3xl">📚</span>
+                      <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones registradas</h3>
+                      <p className="text-xs text-slate-400">Comunícate con administración para que te asigne a tu curso o taller.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {inscripciones.map((ins) => {
+                        const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+                        const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
+                        const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
+                        const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
+                        
+                        // Imagen personalizada del curso (si la hay en tu tabla cursos, ej. imagen o imagen_url)
+                        const imagenCurso = cursoObj?.imagen || cursoObj?.imagen_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop'
+                        
+                        const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
+
+                        return (
+                          <div 
+                            key={ins.id} 
+                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo })}
+                            className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
+                          >
+                            <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                              <img 
+                                src={imagenCurso} 
+                                alt={nombreCurso} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                              />
+                              <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">
+                                {nombreGrupo}
+                              </div>
+                            </div>
+
+                            <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                              <div className="space-y-1">
+                                <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
+                                <p className="text-xs text-slate-500">{recursosGrupo.length} clases / recursos disponibles</p>
+                              </div>
+
+                              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                <span className="text-xs font-bold text-indigo-600">Ingresar al curso →</span>
+                                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl font-semibold">Activo</span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ==================================================== */}
+              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" */}
+              {/* ==================================================== */}
+              {menuActivo === 'pagos' && (
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+                    <h3 className="text-base font-bold text-slate-900">💳 Mis Cuotas y Comprobantes</h3>
+                    <span className="text-xs text-slate-500">Sube tus comprobantes para que administración los aplique</span>
+                  </div>
+
+                  {pagos.length === 0 ? (
+                    <div className="text-center py-16 text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      No tienes cuotas o pagos registrados actualmente.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {pagos.map((p, idx) => {
+                        const monto = Number(p.monto || p.Monto || 0)
+                        const estatus = p.estatus || p.Estatus || 'Pendiente'
+                        const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
+
+                        return (
+                          <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-3">
+                                <span className="text-sm font-bold text-slate-900">Cuota #{p.id}</span>
+                                <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                                  estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-700' :
+                                  estatus === 'Revision' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
+                                }`}>
+                                  {estatus === 'Pagado' ? '✓ Pagado' : estatus === 'Revision' ? '⏳ En Revisión' : '⚠️ Pendiente'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500">Vencimiento: {fechaVence}</p>
+                            </div>
+
+                            <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                              <span className="text-base font-extrabold text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</span>
+                              
+                              {estatus !== 'Pagado' && estatus !== 'Revision' && (
+                                <button 
+                                  onClick={() => setPagoSeleccionado(p.id)}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                                >
+                                  📤 Subir Comprobante
+                                </button>
+                              )}
+
+                              {estatus === 'Revision' && (
+                                <span className="text-xs text-amber-700 font-semibold bg-amber-50 px-3.5 py-2 rounded-xl">Comprobante enviado · Validando</span>
+                              )}
+
+                              {estatus === 'Pagado' && (
+                                <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3.5 py-2 rounded-xl">Pago Aplicado</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ==================================================== */}
+              {/* VISTA 4: MENÚ "SESIONES Y TANDAS" */}
+              {/* ==================================================== */}
+              {menuActivo === 'tandas' && tandaAlumno && (
+                <div className="bg-gradient-to-br from-indigo-900 to-slate-900 text-white rounded-3xl p-8 shadow-lg border border-indigo-500/30 space-y-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-indigo-700/50 pb-4">
+                    <div>
+                      <span className="bg-indigo-500/30 text-indigo-200 text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-wider border border-indigo-400/20">
+                        📍 Sesión Presencial y Compromiso
+                      </span>
+                      <h3 className="text-lg font-extrabold text-white mt-2">{tandaAlumno.tandas_config.nombre}</h3>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-xs">
+                      📅 <strong>Fecha de tu Misa:</strong> <span className="text-indigo-200">{fechaMisaFormateada}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                      <span className="text-xs uppercase font-bold text-indigo-300 block mb-1">Pagos Registrados</span>
+                      <span className="text-2xl font-extrabold text-white">{pagosHechosTanda} / {totalPagosTanda}</span>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                      <span className="text-xs uppercase font-bold text-indigo-300 block mb-1">Saldo Pendiente</span>
+                      <span className={`text-2xl font-extrabold ${saldoPendienteTanda === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        ${saldoPendienteTanda.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col justify-center">
+                      <span className="text-xs uppercase font-bold text-indigo-300 block mb-2">Progreso de Tu Compromiso</span>
+                      <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-indigo-400 h-full transition-all duration-500" 
+                          style={{ width: `${(pagosHechosTanda / totalPagosTanda) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ==================================================== */}
+              {/* VISTA 5: MENÚ "MI PERFIL" */}
+              {/* ==================================================== */}
+              {menuActivo === 'perfil' && (
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6 max-w-2xl">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Información del Perfil</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Tus datos personales registrados en la academia.</p>
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Nombre Completo:</span>
+                      <span className="text-sm font-extrabold text-slate-900">{nombreAlumno}</span>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Matrícula:</span>
+                      <span className="text-sm font-mono font-bold text-indigo-600">#{matriculaAlumno}</span>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Correo Electrónico:</span>
+                      <span className="text-sm font-medium text-slate-800">{correoAlumno}</span>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-500 uppercase">Teléfono:</span>
+                      <span className="text-sm font-medium text-slate-800">{telefonoAlumno}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-100 flex justify-end">
+                    <button 
+                      onClick={() => setModalPass(true)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-xs font-bold shadow-sm transition"
+                    >
+                      🔑 Cambiar Contraseña de Acceso
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+        </div>
       </main>
 
       {/* MODAL PARA SUBIR COMPROBANTE */}
