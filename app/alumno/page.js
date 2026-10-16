@@ -158,9 +158,9 @@ export default function AlumnoPortalPage() {
     setSubiendo(true)
 
     try {
-      // 1. Obtener el pago actual para verificar si ya tenía un comprobante anterior y eliminarlo del Storage si aplica
+      // 1. Obtener el pago actual para verificar si ya tenía un comprobante y borrarlo del storage
       const pagoActual = pagos.find(p => p.id === pagoSeleccionado)
-      const urlAnterior = pagoActual?.comprobante_url || pagoActual?.url_comprobante
+      const urlAnterior = pagoActual?.comprobante_url
 
       if (urlAnterior) {
         try {
@@ -170,11 +170,11 @@ export default function AlumnoPortalPage() {
             await supabase.storage.from('comprobantes').remove([nombreArchivoAnterior])
           }
         } catch (err) {
-          console.log('No se pudo borrar el archivo anterior del storage:', err)
+          console.log('No se pudo borrar el archivo anterior:', err)
         }
       }
 
-      // 2. Subir el nuevo archivo al bucket 'comprobantes'
+      // 2. Subir nuevo archivo al bucket 'comprobantes'
       const fileExt = archivoComprobante.name.split('.').pop()
       const fileName = `comprobante_${pagoSeleccionado}_${Date.now()}.${fileExt}`
       
@@ -186,7 +186,7 @@ export default function AlumnoPortalPage() {
         throw new Error('Error al subir imagen al Storage: ' + uploadError.message)
       }
 
-      // 3. Obtener URL pública de la nueva imagen
+      // 3. Obtener URL pública
       const { data: urlData } = supabase.storage
         .from('comprobantes')
         .getPublicUrl(fileName)
@@ -197,12 +197,11 @@ export default function AlumnoPortalPage() {
         throw new Error('No se pudo generar la URL pública de la imagen.')
       }
 
-      // 4. Actualizar la base de datos de pagos
+      // 4. Actualizar la base de datos usando la columna correcta 'comprobante_url'
       const { error: updateError } = await supabase
         .from('pagos')
         .update({
           comprobante_url: publicUrl,
-          url_comprobante: publicUrl,
           estatus: 'Revision'
         })
         .eq('id', pagoSeleccionado)
@@ -573,7 +572,7 @@ export default function AlumnoPortalPage() {
               )}
 
               {/* ==================================================== */}
-              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" (CON OPCIÓN DE ACTUALIZAR) */}
+              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" */}
               {/* ==================================================== */}
               {menuActivo === 'pagos' && (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
@@ -592,7 +591,7 @@ export default function AlumnoPortalPage() {
                         const monto = Number(p.monto || p.Monto || 0)
                         const estatus = p.estatus || p.Estatus || 'Pendiente'
                         const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
-                        const tieneComprobanteSubido = p.comprobante_url || p.url_comprobante
+                        const tieneComprobanteSubido = p.comprobante_url
 
                         return (
                           <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -612,11 +611,9 @@ export default function AlumnoPortalPage() {
                             <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
                               <span className="text-base font-extrabold text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</span>
                               
-                              {/* SI YA ESTÁ PAGADO: YA NO SE PUEDE MODIFICAR */}
                               {estatus === 'Pagado' ? (
                                 <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3.5 py-2 rounded-xl">Pago Validado</span>
                               ) : tieneComprobanteSubido ? (
-                                /* SI ESTÁ EN REVISIÓN O PENDIENTE PERO YA TIENE COMPROBANTE: PERMITE ACTUALIZARLO */
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs text-amber-700 font-medium bg-amber-50 px-3 py-2 rounded-xl">En Revisión</span>
                                   <button 
@@ -627,7 +624,6 @@ export default function AlumnoPortalPage() {
                                   </button>
                                 </div>
                               ) : (
-                                /* SI NO TIENE COMPROBANTE: BOTÓN NORMAL DE SUBIR */
                                 <button 
                                   onClick={() => setPagoSeleccionado(p.id)}
                                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
@@ -736,7 +732,7 @@ export default function AlumnoPortalPage() {
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-6">
             <div>
               <h3 className="text-lg font-bold text-slate-900">Subir o Actualizar Comprobante</h3>
-              <p className="text-xs text-slate-500 mt-1">Si necesitas cambiar tu comprobante anterior, selecciona la nueva imagen (JPG o PNG).</p>
+              <p className="text-xs text-slate-500 mt-1">Selecciona la imagen de tu ticket o transferencia bancaria (JPG o PNG).</p>
             </div>
 
             <form onSubmit={enviarComprobante} className="space-y-5">
