@@ -23,7 +23,7 @@ export default function AlumnoPortalPage() {
   // NAVEGACIÓN Y MENÚS DEL ALUMNO ('cursos', 'pagos', 'tandas', 'perfil')
   const [menuActivo, setMenuActivo] = useState('cursos')
 
-  // CURSO SELECCIONADO PARA VER SU CONTENIDO
+  // CURSO SELECCIONADO PARA VER SU CURSO
   const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
 
   // Estado para cambiar contraseña
@@ -37,6 +37,20 @@ export default function AlumnoPortalPage() {
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null)
   const [archivoComprobante, setArchivoComprobante] = useState(null)
   const [subiendo, setSubiendo] = useState(false)
+
+  // RECUPERAR SESIÓN AL RECARGAR LA PÁGINA
+  useEffect(() => {
+    const sesionGuardada = localStorage.getItem('alumno_session_eac')
+    if (sesionGuardada) {
+      try {
+        const al = JSON.parse(sesionGuardada)
+        setAlumno(al)
+        cargarDatosPortal(al.id)
+      } catch (e) {
+        localStorage.removeItem('alumno_session_eac')
+      }
+    }
+  }, [])
 
   const iniciarSesion = async (e) => {
     e.preventDefault()
@@ -79,9 +93,16 @@ export default function AlumnoPortalPage() {
       return alert('Contraseña incorrecta.')
     }
 
+    // Guardar sesión en localStorage
+    localStorage.setItem('alumno_session_eac', JSON.stringify(al))
     setAlumno(al)
     await cargarDatosPortal(al.id)
     setLoading(false)
+  }
+
+  const cerrarSesion = () => {
+    localStorage.removeItem('alumno_session_eac')
+    setAlumno(null)
   }
 
   const cargarDatosPortal = async (alumnoId) => {
@@ -147,7 +168,7 @@ export default function AlumnoPortalPage() {
     }
   }
 
-  // SUBIR O REEMPLAZAR COMPROBANTE (VERSIÓN BLINDADA POR ALUMNO Y PENDIENTE)
+  // SUBIR O REEMPLAZAR COMPROBANTE
   const enviarComprobante = async (e) => {
     e.preventDefault()
     if (!archivoComprobante || !pagoSeleccionado) {
@@ -158,7 +179,6 @@ export default function AlumnoPortalPage() {
     setSubiendo(true)
 
     try {
-      // 1. Subir imagen al Bucket 'comprobantes'
       const fileExt = archivoComprobante.name.split('.').pop()
       const fileName = `comprobante_${pagoSeleccionado}_${Date.now()}.${fileExt}`
       
@@ -170,7 +190,6 @@ export default function AlumnoPortalPage() {
         throw new Error('Error al subir al Storage: ' + uploadError.message)
       }
 
-      // 2. Obtener URL pública
       const { data: urlData } = supabase.storage
         .from('comprobantes')
         .getPublicUrl(fileName)
@@ -181,13 +200,12 @@ export default function AlumnoPortalPage() {
         throw new Error('No se pudo generar la URL pública de la imagen.')
       }
 
-      // 3. ACTUALIZACIÓN SEGURA: Actualizamos el pago y limpiamos observaciones anteriores de rechazo al subir uno nuevo
       const { data: updateData, error: updateError } = await supabase
         .from('pagos')
         .update({
           comprobante_url: publicUrl,
           estatus: 'Revision',
-          observaciones: null // Limpiamos la nota de rechazo anterior al enviar nuevo comprobante
+          observaciones: null
         })
         .match({ id: pagoSeleccionado, alumno_id: alumno.id })
         .select()
@@ -344,7 +362,7 @@ export default function AlumnoPortalPage() {
 
         <div className="p-4 border-t border-slate-800/80 bg-[#0f172a]/50">
           <button 
-            onClick={() => setAlumno(null)} 
+            onClick={cerrarSesion} 
             className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 py-3 rounded-2xl text-xs font-bold transition text-center"
           >
             Cerrar Sesión
@@ -568,7 +586,7 @@ export default function AlumnoPortalPage() {
                 </div>
               )}
 
-              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" (CON AVISO DE RECHAZO) */}
+              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" */}
               {menuActivo === 'pagos' && (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-4">
