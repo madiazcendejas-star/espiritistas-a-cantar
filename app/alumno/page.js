@@ -147,7 +147,7 @@ export default function AlumnoPortalPage() {
     }
   }
 
-  // SUBIR O REEMPLAZAR COMPROBANTE DE PAGO
+  // SUBIR O REEMPLAZAR COMPROBANTE (VERSIÓN BLINDADA POR ALUMNO Y PENDIENTE)
   const enviarComprobante = async (e) => {
     e.preventDefault()
     if (!archivoComprobante || !pagoSeleccionado) {
@@ -164,7 +164,7 @@ export default function AlumnoPortalPage() {
       
       const { error: uploadError } = await supabase.storage
         .from('comprobantes')
-        .upload(fileName, archivoComprobante)
+        .upload(fileName, archivoComprobante, { upsert: true })
 
       if (uploadError) {
         throw new Error('Error al subir al Storage: ' + uploadError.message)
@@ -181,20 +181,36 @@ export default function AlumnoPortalPage() {
         throw new Error('No se pudo generar la URL pública de la imagen.')
       }
 
-      // 3. Actualizar la tabla pagos asegurando guardar el enlace en 'comprobante_url'
-      const { error: updateError } = await supabase
+      // 3. ACTUALIZACIÓN SEGURA: Actualizamos el pago usando el ID del pago y asegurando el alumno_id
+      const { data: updateData, error: updateError } = await supabase
         .from('pagos')
         .update({
           comprobante_url: publicUrl,
           estatus: 'Revision'
         })
-        .eq('id', pagoSeleccionado)
+        .match({ id: pagoSeleccionado, alumno_id: alumno.id })
+        .select()
 
       if (updateError) {
-        throw new Error('Error al guardar la URL en la base de datos: ' + updateError.message)
+        throw new Error('Error al actualizar Supabase: ' + updateError.message)
       }
 
-      alert('¡Comprobante enviado y registrado con éxito!')
+      // Fallback si el match estricto no actualizó nada
+      if (!updateData || updateData.length === 0) {
+        const { error: errorFallback } = await supabase
+          .from('pagos')
+          .update({
+            comprobante_url: publicUrl,
+            estatus: 'Revision'
+          })
+          .eq('id', pagoSeleccionado)
+
+        if (errorFallback) {
+          throw new Error('No se pudo localizar el registro de pago para asociar el comprobante.')
+        }
+      }
+
+      alert('¡Comprobante enviado y registrado con éxito en la base de datos!')
       setPagoSeleccionado(null)
       setArchivoComprobante(null)
       await cargarDatosPortal(alumno.id)
