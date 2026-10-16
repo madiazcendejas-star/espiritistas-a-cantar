@@ -352,7 +352,7 @@ export default function AlumnoPortalPage() {
         <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
           
           {/* ==================================================== */}
-          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (CLASES Y RECURSOS) */}
+          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (CON BLOQUEO ESTRICTO) */}
           {/* ==================================================== */}
           {cursoSeleccionado ? (
             <div className="space-y-6">
@@ -363,97 +363,122 @@ export default function AlumnoPortalPage() {
                 ← Volver a mis cursos
               </button>
 
-              <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
-                  <div>
-                    <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
-                      {cursoSeleccionado.nombreGrupo}
-                    </span>
-                    <h2 className="text-xl font-extrabold text-slate-900 mt-2">{cursoSeleccionado.nombreCurso}</h2>
-                  </div>
-                  <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100">
-                    ✅ Acceso Habilitado
-                  </span>
+              {/* VALIDACIÓN ESTRICTA DE BLOQUEO POR PAGO PENDIENTE O BAJA */}
+              {cursoSeleccionado.estaEnBaja ? (
+                <div className="bg-white rounded-3xl border border-rose-200 p-12 text-center space-y-4 shadow-sm">
+                  <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">🔴</div>
+                  <h3 className="text-lg font-extrabold text-slate-900">Acceso Suspendido</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Actualmente te encuentras dado de baja de este curso. Si deseas reincorporarte, comunícate con administración.
+                  </p>
                 </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales Grabados</h4>
-                  
-                  {cursoSeleccionado.recursos.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      Próximamente se subirán las grabaciones y PDFs para este grupo.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {cursoSeleccionado.recursos.map((rec) => {
-                        const estaAbierto = recursoAbierto === rec.id
-                        const urlEmbebida = obtenerUrlIncrustada(rec.url)
-
-                        return (
-                          <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
-                            <div 
-                              onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
-                              className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
-                            >
-                              <div className="flex items-center gap-4">
-                                <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
-                                  {rec.tipo === 'video' ? '▶' : '📄'}
-                                </span>
-                                <div>
-                                  <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
-                                  <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
-                                </div>
-                              </div>
-                              <span className="text-xs font-bold text-indigo-600">
-                                {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
-                              </span>
-                            </div>
-
-                            {estaAbierto && (
-                              <div className="p-5 bg-white border-t border-slate-200 space-y-4">
-                                {rec.tipo === 'video' ? (
-                                  <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
-                                    <iframe 
-                                      src={urlEmbebida} 
-                                      title={rec.titulo}
-                                      className="w-full h-full border-0"
-                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                      allowFullScreen
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
-                                    <a 
-                                      href={rec.url} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
-                                    >
-                                      Abrir / Descargar PDF ↗
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+              ) : cursoSeleccionado.tienePagoVencido ? (
+                <div className="bg-white rounded-3xl border border-rose-200 p-12 text-center space-y-4 shadow-sm">
+                  <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">⚠️</div>
+                  <h3 className="text-lg font-extrabold text-slate-900">Acceso Pausado por Cuota Pendiente</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Tienes pagos pendientes o vencidos correspondientes a este grupo. Para desbloquear las clases y materiales, por favor regulariza tu pago y sube tu comprobante en la sección de Pagos.
+                  </p>
+                  <button 
+                    onClick={() => setMenuActivo('pagos')}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-xs font-bold transition shadow-sm inline-block"
+                  >
+                    Ir a Pagos y Subir Comprobante →
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                      <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
+                        {cursoSeleccionado.nombreGrupo}
+                      </span>
+                      <h2 className="text-xl font-extrabold text-slate-900 mt-2">{cursoSeleccionado.nombreCurso}</h2>
                     </div>
-                  )}
+                    <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100">
+                      ✅ Acceso Habilitado
+                    </span>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales Grabados</h4>
+                    
+                    {cursoSeleccionado.recursos.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                        Próximamente se subirán las grabaciones y PDFs para este grupo.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {cursoSeleccionado.recursos.map((rec) => {
+                          const estaAbierto = recursoAbierto === rec.id
+                          const urlEmbebida = obtenerUrlIncrustada(rec.url)
+
+                          return (
+                            <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
+                              <div 
+                                onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
+                                className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
+                              >
+                                <div className="flex items-center gap-4">
+                                  <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
+                                    {rec.tipo === 'video' ? '▶' : '📄'}
+                                  </span>
+                                  <div>
+                                    <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
+                                    <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
+                                  </div>
+                                </div>
+                                <span className="text-xs font-bold text-indigo-600">
+                                  {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
+                                </span>
+                              </div>
+
+                              {estaAbierto && (
+                                <div className="p-5 bg-white border-t border-slate-200 space-y-4">
+                                  {rec.tipo === 'video' ? (
+                                    <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
+                                      <iframe 
+                                        src={urlEmbebida} 
+                                        title={rec.titulo}
+                                        className="w-full h-full border-0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                        allowFullScreen
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                      <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
+                                      <a 
+                                        href={rec.url} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                                      >
+                                        Abrir / Descargar PDF ↗
+                                      </a>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ) : (
             <>
               {/* ==================================================== */}
-              {/* VISTA 2: MENÚ "MIS CURSOS" (TARJETAS TIPO UNIVERSIDAD) */}
+              {/* VISTA 2: MENÚ "MIS CURSOS" */}
               {/* ==================================================== */}
               {menuActivo === 'cursos' && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a sus clases, videos y materiales.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a sus clases y materiales.</p>
                   </div>
 
                   {inscripciones.length === 0 ? (
@@ -469,16 +494,19 @@ export default function AlumnoPortalPage() {
                         const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
                         const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
                         const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
-                        
-                        // Imagen personalizada del curso (si la hay en tu tabla cursos, ej. imagen o imagen_url)
                         const imagenCurso = cursoObj?.imagen || cursoObj?.imagen_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop'
                         
+                        const estatusIns = ins.estatus || 'activa'
+                        const estaEnBaja = estatusIns === 'baja'
+                        const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
+                        const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
+
                         const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
 
                         return (
                           <div 
                             key={ins.id} 
-                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo })}
+                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo, estaEnBaja, tienePagoVencido })}
                             className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
                           >
                             <div className="relative h-48 w-full overflow-hidden bg-slate-100">
@@ -500,7 +528,13 @@ export default function AlumnoPortalPage() {
 
                               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
                                 <span className="text-xs font-bold text-indigo-600">Ingresar al curso →</span>
-                                <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl font-semibold">Activo</span>
+                                {estaEnBaja ? (
+                                  <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Baja</span>
+                                ) : tienePagoVencido ? (
+                                  <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Pago Pendiente</span>
+                                ) : (
+                                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl font-semibold">Activo</span>
+                                )}
                               </div>
                             </div>
                           </div>
