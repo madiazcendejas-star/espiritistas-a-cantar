@@ -15,12 +15,13 @@ export default function ComprobantesAdminPage() {
   const cargarComprobantes = async () => {
     setLoading(true)
     try {
-      // Traemos TODO de la tabla pagos directamente sin filtros ocultos
+      // 1. Obtenemos todos los pagos ordenados por id (sin usar created_at)
       const { data: pagosData, error: pagosError } = await supabase
         .from('pagos')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
 
+      // 2. Obtenemos todos los alumnos
       const { data: alumnosData } = await supabase
         .from('alumnos')
         .select('*')
@@ -28,7 +29,7 @@ export default function ComprobantesAdminPage() {
       if (pagosError) throw pagosError
 
       if (pagosData) {
-        setDebugRaw(pagosData) // Guardamos los datos crudos para verlos en pantalla
+        setDebugRaw(pagosData)
 
         // Filtramos cualquier pago que tenga texto en comprobante_url
         const conComprobante = pagosData.filter(p => {
@@ -103,7 +104,7 @@ export default function ComprobantesAdminPage() {
       <main className="flex-1 flex flex-col h-full overflow-y-auto p-10 space-y-8">
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 shadow-xs rounded-3xl">
           <div>
-            <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes (Modo Diagnóstico)</h1>
+            <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes</h1>
             <p className="text-xs text-slate-500">Filtrados detectados: {pagosPendientes.length} | Total en tabla pagos: {debugRaw.length}</p>
           </div>
           <button onClick={cargarComprobantes} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">
@@ -116,32 +117,29 @@ export default function ComprobantesAdminPage() {
           {loading ? (
             <div className="text-center py-12 text-slate-400">Cargando...</div>
           ) : pagosPendientes.length === 0 ? (
-            <div className="bg-rose-50 border border-rose-200 p-8 rounded-3xl text-center space-y-3">
-              <h3 className="font-bold text-rose-900 text-base">El filtro no encontró pagos con URL de comprobante.</h3>
-              <p className="text-xs text-rose-700">Revisa la caja de diagnóstico abajo para ver si los datos están llegando desde Supabase.</p>
+            <div className="bg-white border border-slate-200 p-12 rounded-3xl text-center space-y-3">
+              <h3 className="font-bold text-slate-800 text-base">🎉 ¡Todo al día! No hay comprobantes pendientes.</h3>
+              <p className="text-xs text-slate-400">Los comprobantes subidos por los alumnos aparecerán aquí automáticamente.</p>
             </div>
           ) : (
-            pagosPendientes.map((p, idx) => (
-              <div key={idx} className="bg-white border border-slate-200 rounded-3xl p-6 flex justify-between items-center shadow-xs">
-                <div>
-                  <h4 className="font-extrabold text-slate-900">Cuota #{p.id} - ${p.monto} MXN (Alumno ID: {p.alumno_id})</h4>
-                  <p className="text-xs text-indigo-600 font-mono truncate max-w-xl">URL: {p.comprobante_url}</p>
+            pagosPendientes.map((p, idx) => {
+              const alumno = p.alumnos || {}
+              return (
+                <div key={idx} className="bg-white border border-slate-200 rounded-3xl p-6 flex justify-between items-center shadow-xs">
+                  <div className="space-y-1">
+                    <h4 className="font-extrabold text-slate-900">
+                      {alumno.nombre || alumno.Nombre || `Alumno ID: ${p.alumno_id}`} — Cuota #{p.id} (${p.monto || p.Monto || 0} MXN)
+                    </h4>
+                    <p className="text-xs text-indigo-600 font-mono truncate max-w-xl">URL: {p.comprobante_url}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition">👁️ Ver Comprobante</a>
+                    <button onClick={() => aprobarYAplicarPago(p.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition">✅ Aprobar y Aplicar</button>
+                  </div>
                 </div>
-                <div className="flex gap-3">
-                  <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold">👁️ Ver</a>
-                  <button onClick={() => aprobarYAplicarPago(p.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold">✅ Aprobar</button>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
-        </div>
-
-        {/* CAJA DE DIAGNÓSTICO VISIBLE */}
-        <div className="bg-slate-900 text-emerald-400 p-6 rounded-3xl font-mono text-xs space-y-2 overflow-x-auto">
-          <h4 className="text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2">
-            🛠️ Consola de Diagnóstico (Todos los registros obtenidos de la tabla pagos en Supabase):
-          </h4>
-          <pre>{JSON.stringify(debugRaw, null, 2)}</pre>
         </div>
       </main>
     </div>
