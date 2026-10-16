@@ -13,33 +13,52 @@ export default function ComprobantesAdminPage() {
 
   const cargarComprobantes = async () => {
     setLoading(true)
-    // Traemos los pagos que tengan un comprobante pendiente de revisión o una URL de comprobante adjunta
-    const { data, error } = await supabase
+    
+    // 1. Traemos todos los pagos de la tabla
+    const { data: pagosData, error: pagosError } = await supabase
       .from('pagos')
-      .select('*, alumnos(nombre, correo, matricula)')
-      .or('estatus.eq.Pendiente,estatus.eq.Revision,estatus.eq.pendiente,estatus.eq.revision')
+      .select('*')
       .order('created_at', { ascending: false })
 
-    if (!error && data) {
-      // Filtramos para asegurar que solo se muestren los que tienen comprobante guardado
-      const conComprobante = data.filter(p => p.comprobante_url || p.url_comprobante)
-      setPagosPendientes(conComprobante)
+    // 2. Traemos todos los alumnos para asociarlos de forma segura
+    const { data: alumnosData } = await supabase
+      .from('alumnos')
+      .select('*')
+
+    if (!pagosError && pagosData) {
+      // Filtrar únicamente los pagos que tengan un comprobante subido
+      const conComprobante = pagosData.filter(p => {
+        const url = p.comprobante_url || p.url_comprobante
+        return url && url.trim() !== ''
+      })
+
+      // Asociar la información del alumno correspondiente
+      const pagosConAlumno = conComprobante.map(p => {
+        const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
+        const alumnoEncontrado = alumnosData?.find(a => Number(a.id) === Number(alumnoId)) || {}
+        return {
+          ...p,
+          alumnos: alumnoEncontrado
+        }
+      })
+
+      setPagosPendientes(pagosConAlumno)
     }
     setLoading(false)
   }
 
   // Aprobar comprobante, aplicar pago y limpiar la imagen para ahorrar memoria
-  const aprobarYAplicarPago = async (pagoId, comprobanteUrl) => {
+  const aprobarYAplicarPago = async (pagoId) => {
     const confirmar = window.confirm('¿Estás seguro de aprobar este comprobante y aplicar el pago al alumno?')
     if (!confirmar) return
 
     try {
-      // 1. Actualizar el estatus del pago a 'Pagado'
+      // 1. Actualizar el estatus del pago a 'Pagado' y limpiar la URL para liberar memoria
       const { error: errorUpdate } = await supabase
         .from('pagos')
         .update({ 
           estatus: 'Pagado',
-          comprobante_url: null // Limpiamos la URL de la imagen para liberar memoria, conservando el registro financiero
+          comprobante_url: null 
         })
         .eq('id', pagoId)
 
@@ -129,9 +148,9 @@ export default function ComprobantesAdminPage() {
                           <span className="text-xs text-slate-500 font-mono">Cuota #{p.id}</span>
                         </div>
                         <h4 className="text-base font-extrabold text-slate-900">
-                          {alumno.nombre || 'Estudiante'} <span className="text-xs font-normal text-slate-500">(Matrícula: #{alumno.matricula || 'N/A'})</span>
+                          {alumno.nombre || alumno.Nombre || 'Estudiante'} <span className="text-xs font-normal text-slate-500">(Matrícula: #{alumno.matricula || 'N/A'})</span>
                         </h4>
-                        <p className="text-xs text-slate-500">Correo: {alumno.correo || 'No registrado'}</p>
+                        <p className="text-xs text-slate-500">Correo: {alumno.correo || alumno.Correo || 'No registrado'}</p>
                       </div>
 
                       <div className="flex items-center gap-4 w-full md:w-auto justify-end">
@@ -149,7 +168,7 @@ export default function ComprobantesAdminPage() {
                         )}
 
                         <button 
-                          onClick={() => aprobarYAplicarPago(p.id, comprobanteUrl)}
+                          onClick={() => aprobarYAplicarPago(p.id)}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-2"
                         >
                           <span>✅</span> Aprobar y Aplicar Pago
