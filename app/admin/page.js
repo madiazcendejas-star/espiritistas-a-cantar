@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalEstudiantes: 0,
-    crecimientoMatricula: 0, // Porcentaje o diferencia vs mes anterior
+    crecimientoMatricula: 0,
     estadoMatricula: 'igual', // 'crecio' | 'decrecio' | 'igual'
     totalGrupos: 0,
     totalCobrado: 0,
@@ -42,7 +42,6 @@ export default function AdminDashboardPage() {
       const ultimoDiaMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59).toISOString()
 
       // Mes anterior para comparar matrícula
-      const primerDiaMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth() - 1, 1).toISOString()
       const ultimoDiaMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth(), 0, 23, 59, 59).toISOString()
 
       // 1. Estudiantes Activos totales y del mes anterior para la tendencia
@@ -69,7 +68,7 @@ export default function AdminDashboardPage() {
         .from('grupos')
         .select('*', { count: 'exact', head: true })
 
-      // 3. Bajas del mes (asumiendo campo 'estatus' o 'fecha_baja' en alumnos o inscripciones)
+      // 3. Bajas del mes
       const { count: countBajas } = await supabase
         .from('alumnos')
         .select('*', { count: 'exact', head: true })
@@ -77,7 +76,7 @@ export default function AdminDashboardPage() {
         .gte('updated_at', primerDiaMes)
         .lte('updated_at', ultimoDiaMes)
 
-      // 4. Alumnos tomando un curso ahorita (ej. inscripciones activas)
+      // 4. Alumnos tomando un curso ahorita (inscripciones activas)
       const { data: inscripcionesActivas } = await supabase
         .from('inscripciones')
         .select('alumno_id')
@@ -113,10 +112,9 @@ export default function AdminDashboardPage() {
       }
 
       // 6. Hoy en la academia (Clases del día de hoy)
-      // Ajusta 'clases' o 'horarios' según el nombre de tu tabla en Supabase
       const diaSemanaHoy = ahora.toLocaleDateString('es-MX', { weekday: 'long' }).toLowerCase()
       const { data: dataClases } = await supabase
-        .from('horarios_clases') // Cambiar por tu tabla real de clases/horarios si difiere
+        .from('horarios_clases') 
         .select('*')
         .ilike('dia', `%${diaSemanaHoy}%`)
 
@@ -210,10 +208,9 @@ export default function AdminDashboardPage() {
                   stats.estadoMatricula === 'crecio' ? 'bg-emerald-50 text-emerald-600' :
                   stats.estadoMatricula === 'decrecio' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
                 }`}>
-                  {stats.estadoMatricula === 'crecio' && '📈 Creció (+'}
-                  {stats.estadoMatricula === 'decrecio' && '📉 Decreció ('}
-                  {stats.estadoMatricula === 'igual' && '➖ Se mantuvo (') }
-                  {stats.crecimientoMatricula})
+                  {stats.estadoMatricula === 'crecio' && `📈 Creció (+${stats.crecimientoMatricula})`}
+                  {stats.estadoMatricula === 'decrecio' && `📉 Decreció (${stats.crecimientoMatricula})`}
+                  {stats.estadoMatricula === 'igual' && `➖ Se mantuvo (${stats.crecimientoMatricula})`}
                 </span>
               </div>
             </div>
