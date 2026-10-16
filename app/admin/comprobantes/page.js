@@ -13,20 +13,22 @@ export default function ComprobantesAdminPage() {
 
   const cargarComprobantes = async () => {
     setLoading(true)
-    // Traemos los pagos que tengan un comprobante pendiente de revisión
+    // Traemos los pagos que tengan un comprobante pendiente de revisión o una URL de comprobante adjunta
     const { data, error } = await supabase
       .from('pagos')
       .select('*, alumnos(nombre, correo, matricula)')
-      .or('estatus.eq.Pendiente,estatus.eq.Revision,estatus.eq.pendiente')
+      .or('estatus.eq.Pendiente,estatus.eq.Revision,estatus.eq.pendiente,estatus.eq.revision')
       .order('created_at', { ascending: false })
 
     if (!error && data) {
-      setPagosPendientes(data)
+      // Filtramos para asegurar que solo se muestren los que tienen comprobante guardado
+      const conComprobante = data.filter(p => p.comprobante_url || p.url_comprobante)
+      setPagosPendientes(conComprobante)
     }
     setLoading(false)
   }
 
-  // Aprobar comprobante, aplicar pago y opcionalmente limpiar la imagen para ahorrar memoria
+  // Aprobar comprobante, aplicar pago y limpiar la imagen para ahorrar memoria
   const aprobarYAplicarPago = async (pagoId, comprobanteUrl) => {
     const confirmar = window.confirm('¿Estás seguro de aprobar este comprobante y aplicar el pago al alumno?')
     if (!confirmar) return
@@ -37,17 +39,11 @@ export default function ComprobantesAdminPage() {
         .from('pagos')
         .update({ 
           estatus: 'Pagado',
-          comprobante_url: null // Limpiamos la URL de la imagen para liberar memoria, conservando el registro
+          comprobante_url: null // Limpiamos la URL de la imagen para liberar memoria, conservando el registro financiero
         })
         .eq('id', pagoId)
 
       if (errorUpdate) throw errorUpdate
-
-      // 2. Opcional: Si guardas las imágenes en Supabase Storage, puedes eliminar el archivo físico aquí con:
-      // if (comprobanteUrl) {
-      //   const rutaRelativa = comprobanteUrl.split('/').pop()
-      //   await supabase.storage.from('comprobantes').remove([rutaRelativa])
-      // }
 
       alert('¡Pago aprobado y aplicado con éxito! El registro financiero se ha guardado y se liberó espacio de almacenamiento.')
       cargarComprobantes()
