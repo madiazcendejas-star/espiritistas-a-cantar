@@ -5,6 +5,7 @@ import { supabase } from '../../../lib/supabase'
 
 export default function ComprobantesAdminPage() {
   const [pagosPendientes, setPagosPendientes] = useState([])
+  const [debugRaw, setDebugRaw] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -13,15 +14,13 @@ export default function ComprobantesAdminPage() {
 
   const cargarComprobantes = async () => {
     setLoading(true)
-    
     try {
-      // 1. Traemos todos los pagos de la tabla
+      // Traemos TODO de la tabla pagos directamente sin filtros ocultos
       const { data: pagosData, error: pagosError } = await supabase
         .from('pagos')
         .select('*')
         .order('created_at', { ascending: false })
 
-      // 2. Traemos todos los alumnos
       const { data: alumnosData } = await supabase
         .from('alumnos')
         .select('*')
@@ -29,13 +28,14 @@ export default function ComprobantesAdminPage() {
       if (pagosError) throw pagosError
 
       if (pagosData) {
-        // FILTRO DIRECTO: Seleccionar cualquier pago que tenga un comprobante_url con texto
+        setDebugRaw(pagosData) // Guardamos los datos crudos para verlos en pantalla
+
+        // Filtramos cualquier pago que tenga texto en comprobante_url
         const conComprobante = pagosData.filter(p => {
           const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
-          return url && typeof url === 'string' && url.trim() !== ''
+          return url && String(url).trim() !== ''
         })
 
-        // Unir con la información del alumno de forma flexible
         const pagosConAlumno = conComprobante.map(p => {
           const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
           const alumnoEncontrado = alumnosData?.find(a => String(a.id) === String(alumnoId)) || {}
@@ -49,34 +49,26 @@ export default function ComprobantesAdminPage() {
         setPagosPendientes(pagosConAlumno)
       }
     } catch (error) {
-      console.error('Error al cargar comprobantes:', error)
+      alert('Error en admin: ' + error.message)
     } finally {
       setLoading(false)
     }
   }
 
-  // Aprobar comprobante, aplicar pago y limpiar la URL para liberar memoria
   const aprobarYAplicarPago = async (pagoId) => {
-    const confirmar = window.confirm('¿Estás seguro de aprobar este comprobante y aplicar el pago al alumno?')
+    const confirmar = window.confirm('¿Aprobar y aplicar este pago?')
     if (!confirmar) return
 
-    try {
-      const { error: errorUpdate } = await supabase
-        .from('pagos')
-        .update({ 
-          estatus: 'Pagado',
-          comprobante_url: null,
-          url_comprobante: null 
-        })
-        .eq('id', pagoId)
+    const { error } = await supabase
+      .from('pagos')
+      .update({ estatus: 'Pagado', comprobante_url: null, url_comprobante: null })
+      .eq('id', pagoId)
 
-      if (errorUpdate) throw errorUpdate
-
-      alert('¡Pago aprobado y aplicado con éxito!')
+    if (error) {
+      alert('Error al aprobar: ' + error.message)
+    } else {
+      alert('¡Pago aprobado con éxito!')
       cargarComprobantes()
-
-    } catch (error) {
-      alert('Error al aprobar el pago: ' + error.message)
     }
   }
 
@@ -104,94 +96,54 @@ export default function ComprobantesAdminPage() {
           <a href="/admin/calendario" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📅 Calendario</a>
           <a href="/admin/comprobantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-sm">🧾 Comprobantes</a>
           <a href="/admin/pagos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
-          
-          <div className="pt-6 px-3 pb-2 text-xs uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
-          <a href="/admin/tandas" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📍 Tandas y Misas</a>
         </nav>
       </aside>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
-        {/* HEADER SUPERIOR */}
-        <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
+      <main className="flex-1 flex flex-col h-full overflow-y-auto p-10 space-y-8">
+        <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 shadow-xs rounded-3xl">
           <div>
-            <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes</h1>
-            <p className="text-xs text-slate-500">Revisa los comprobantes enviados por los alumnos y aplícalos a sus cursos</p>
+            <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes (Modo Diagnóstico)</h1>
+            <p className="text-xs text-slate-500">Filtrados detectados: {pagosPendientes.length} | Total en tabla pagos: {debugRaw.length}</p>
           </div>
-          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-3.5 py-1.5 rounded-full">
-            {pagosPendientes.length} pendientes de revisión
-          </span>
+          <button onClick={cargarComprobantes} className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">
+            🔄 Recargar Datos
+          </button>
         </header>
 
-        {/* CONTENIDO */}
-        <div className="p-10 max-w-[1700px] mx-auto w-full space-y-8">
-          
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Comprobantes Subidos por Alumnos</h3>
-              <span className="text-xs text-slate-400 font-medium">Las imágenes se eliminan al aprobar para ahorrar espacio sin perder el registro</span>
+        {/* LISTADO DE COMPROBANTES DETECTADOS */}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="text-center py-12 text-slate-400">Cargando...</div>
+          ) : pagosPendientes.length === 0 ? (
+            <div className="bg-rose-50 border border-rose-200 p-8 rounded-3xl text-center space-y-3">
+              <h3 className="font-bold text-rose-900 text-base">El filtro no encontró pagos con URL de comprobante.</h3>
+              <p className="text-xs text-rose-700">Revisa la caja de diagnóstico abajo para ver si los datos están llegando desde Supabase.</p>
             </div>
-
-            {loading ? (
-              <div className="text-center py-16 text-sm text-slate-400">Cargando comprobantes...</div>
-            ) : pagosPendientes.length === 0 ? (
-              <div className="text-center py-16 text-sm text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                🎉 ¡Todo al día! No hay comprobantes pendientes por revisar en este momento.
+          ) : (
+            pagosPendientes.map((p, idx) => (
+              <div key={idx} className="bg-white border border-slate-200 rounded-3xl p-6 flex justify-between items-center shadow-xs">
+                <div>
+                  <h4 className="font-extrabold text-slate-900">Cuota #{p.id} - ${p.monto} MXN (Alumno ID: {p.alumno_id})</h4>
+                  <p className="text-xs text-indigo-600 font-mono truncate max-w-xl">URL: {p.comprobante_url}</p>
+                </div>
+                <div className="flex gap-3">
+                  <a href={p.comprobante_url} target="_blank" rel="noopener noreferrer" className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold">👁️ Ver</a>
+                  <button onClick={() => aprobarYAplicarPago(p.id)} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold">✅ Aprobar</button>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {pagosPendientes.map((p, idx) => {
-                  const monto = Number(p.monto || p.Monto || 0)
-                  const alumno = p.alumnos || {}
-                  const comprobanteUrl = p.comprobante_url
+            ))
+          )}
+        </div>
 
-                  return (
-                    <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-lg">
-                            Monto: $ {monto.toLocaleString('es-MX')} MXN
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono">Cuota #{p.id}</span>
-                        </div>
-                        <h4 className="text-base font-extrabold text-slate-900">
-                          {alumno.nombre || alumno.Nombre || `Alumno ID: ${p.alumno_id}`} <span className="text-xs font-normal text-slate-500">(Matrícula: #{alumno.matricula || 'N/A'})</span>
-                        </h4>
-                        <p className="text-xs text-slate-500">Correo: {alumno.correo || alumno.Correo || 'No registrado'}</p>
-                      </div>
-
-                      <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-                        {comprobanteUrl ? (
-                          <a 
-                            href={comprobanteUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2"
-                          >
-                            <span>👁️</span> Ver Comprobante
-                          </a>
-                        ) : (
-                          <span className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-xl font-medium">Sin imagen adjunta</span>
-                        )}
-
-                        <button 
-                          onClick={() => aprobarYAplicarPago(p.id)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm flex items-center gap-2"
-                        >
-                          <span>✅</span> Aprobar y Aplicar Pago
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
+        {/* CAJA DE DIAGNÓSTICO VISIBLE */}
+        <div className="bg-slate-900 text-emerald-400 p-6 rounded-3xl font-mono text-xs space-y-2 overflow-x-auto">
+          <h4 className="text-white font-bold uppercase tracking-wider text-[11px] border-b border-slate-800 pb-2">
+            🛠️ Consola de Diagnóstico (Todos los registros obtenidos de la tabla pagos en Supabase):
+          </h4>
+          <pre>{JSON.stringify(debugRaw, null, 2)}</pre>
         </div>
       </main>
-
     </div>
   )
 }
