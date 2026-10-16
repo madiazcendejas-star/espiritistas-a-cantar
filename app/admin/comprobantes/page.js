@@ -13,15 +13,14 @@ export default function ComprobantesAdminPage() {
 
   const cargarComprobantes = async () => {
     setLoading(true)
-    
     try {
-      // 1. Traemos todos los pagos de la tabla
+      // 1. Obtenemos todos los pagos sin filtros estrictos de estatus
       const { data: pagosData, error: pagosError } = await supabase
         .from('pagos')
         .select('*')
         .order('created_at', { ascending: false })
 
-      // 2. Traemos todos los alumnos para asociarlos de forma segura
+      // 2. Obtenemos todos los alumnos
       const { data: alumnosData } = await supabase
         .from('alumnos')
         .select('*')
@@ -29,16 +28,16 @@ export default function ComprobantesAdminPage() {
       if (pagosError) throw pagosError
 
       if (pagosData) {
-        // Filtrar únicamente los pagos que tengan un comprobante subido
+        // Filtramos de forma segura cualquier pago que tenga un comprobante (verificando múltiples nombres posibles de columna)
         const conComprobante = pagosData.filter(p => {
           const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
-          return url && String(url).trim() !== ''
+          return url && typeof url === 'string' && url.trim() !== ''
         })
 
-        // Asociar la información del alumno correspondiente
-        const pagosConAlumno = conComprobante.map(p => {
+        // Cruzamos la información con el alumno correspondiente
+        const resultadoFinal = conComprobante.map(p => {
           const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
-          const alumnoEncontrado = alumnosData?.find(a => Number(a.id) === Number(alumnoId)) || {}
+          const alumnoEncontrado = alumnosData?.find(a => String(a.id) === String(alumnoId)) || {}
           return {
             ...p,
             comprobante_url: p.comprobante_url || p.url_comprobante || p.Comprobante_url,
@@ -46,7 +45,7 @@ export default function ComprobantesAdminPage() {
           }
         })
 
-        setPagosPendientes(pagosConAlumno)
+        setPagosPendientes(resultadoFinal)
       }
     } catch (error) {
       console.error('Error al cargar comprobantes:', error)
@@ -55,14 +54,12 @@ export default function ComprobantesAdminPage() {
     }
   }
 
-  // Aprobar comprobante, aplicar pago y limpiar la imagen para ahorrar memoria
   const aprobarYAplicarPago = async (pagoId) => {
     const confirmar = window.confirm('¿Estás seguro de aprobar este comprobante y aplicar el pago al alumno?')
     if (!confirmar) return
 
     try {
-      // 1. Actualizar el estatus del pago a 'Pagado' y limpiar la URL para liberar memoria
-      const { error: errorUpdate } = await supabase
+      const { error } = await supabase
         .from('pagos')
         .update({ 
           estatus: 'Pagado',
@@ -71,11 +68,10 @@ export default function ComprobantesAdminPage() {
         })
         .eq('id', pagoId)
 
-      if (errorUpdate) throw errorUpdate
+      if (error) throw error
 
-      alert('¡Pago aprobado y aplicado con éxito! El registro financiero se ha guardado y se liberó espacio de almacenamiento.')
+      alert('¡Pago aprobado y aplicado con éxito!')
       cargarComprobantes()
-
     } catch (error) {
       alert('Error al aprobar el pago: ' + error.message)
     }
@@ -114,7 +110,6 @@ export default function ComprobantesAdminPage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
-        {/* HEADER SUPERIOR */}
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
           <div>
             <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes</h1>
@@ -125,9 +120,7 @@ export default function ComprobantesAdminPage() {
           </span>
         </header>
 
-        {/* CONTENIDO */}
         <div className="p-10 max-w-[1700px] mx-auto w-full space-y-8">
-          
           <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Comprobantes Subidos por Alumnos</h3>
@@ -189,10 +182,8 @@ export default function ComprobantesAdminPage() {
               </div>
             )}
           </div>
-
         </div>
       </main>
-
     </div>
   )
 }
