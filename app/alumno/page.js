@@ -181,12 +181,13 @@ export default function AlumnoPortalPage() {
         throw new Error('No se pudo generar la URL pública de la imagen.')
       }
 
-      // 3. ACTUALIZACIÓN SEGURA: Actualizamos el pago usando el ID del pago y asegurando el alumno_id
+      // 3. ACTUALIZACIÓN SEGURA: Actualizamos el pago y limpiamos observaciones anteriores de rechazo al subir uno nuevo
       const { data: updateData, error: updateError } = await supabase
         .from('pagos')
         .update({
           comprobante_url: publicUrl,
-          estatus: 'Revision'
+          estatus: 'Revision',
+          observaciones: null // Limpiamos la nota de rechazo anterior al enviar nuevo comprobante
         })
         .match({ id: pagoSeleccionado, alumno_id: alumno.id })
         .select()
@@ -195,13 +196,13 @@ export default function AlumnoPortalPage() {
         throw new Error('Error al actualizar Supabase: ' + updateError.message)
       }
 
-      // Fallback si el match estricto no actualizó nada
       if (!updateData || updateData.length === 0) {
         const { error: errorFallback } = await supabase
           .from('pagos')
           .update({
             comprobante_url: publicUrl,
-            estatus: 'Revision'
+            estatus: 'Revision',
+            observaciones: null
           })
           .eq('id', pagoSeleccionado)
 
@@ -567,12 +568,12 @@ export default function AlumnoPortalPage() {
                 </div>
               )}
 
-              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" */}
+              {/* VISTA 3: MENÚ "PAGOS Y COMPROBANTES" (CON AVISO DE RECHAZO) */}
               {menuActivo === 'pagos' && (
                 <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-4">
                     <h3 className="text-base font-bold text-slate-900">💳 Mis Cuotas y Comprobantes</h3>
-                    <span className="text-xs text-slate-500">Puedes cambiar tu comprobante mientras esté pendiente o en revisión</span>
+                    <span className="text-xs text-slate-500">Sube tu comprobante o corrígelo si fue rechazado</span>
                   </div>
 
                   {pagos.length === 0 ? (
@@ -586,46 +587,61 @@ export default function AlumnoPortalPage() {
                         const estatus = p.estatus || p.Estatus || 'Pendiente'
                         const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || 'Sin fecha'
                         const tieneComprobanteSubido = p.comprobante_url
+                        const observaciones = p.observaciones || ''
+                        const esRechazado = observaciones.toLowerCase().includes('rechazado')
 
                         return (
-                          <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold text-slate-900">Cuota #{p.id}</span>
-                                <span className={`text-xs px-3 py-1 rounded-full font-bold ${
-                                  estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-700' :
-                                  estatus === 'Revision' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'
-                                }`}>
-                                  {estatus === 'Pagado' ? '✓ Pagado' : estatus === 'Revision' ? '⏳ En Revisión' : '⚠️ Pendiente'}
-                                </span>
+                          <div key={idx} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-6 space-y-4">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-bold text-slate-900">Cuota #{p.id}</span>
+                                  <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                                    estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-700' :
+                                    estatus === 'Revision' ? 'bg-amber-50 text-amber-700' : 
+                                    esRechazado ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {estatus === 'Pagado' ? '✓ Pagado' : estatus === 'Revision' ? '⏳ En Revisión' : esRechazado ? '❌ Rechazado' : '⚠️ Pendiente'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500">Vencimiento: {fechaVence}</p>
                               </div>
-                              <p className="text-xs text-slate-500">Vencimiento: {fechaVence}</p>
-                            </div>
 
-                            <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                              <span className="text-base font-extrabold text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</span>
-                              
-                              {estatus === 'Pagado' ? (
-                                <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3.5 py-2 rounded-xl">Pago Validado</span>
-                              ) : tieneComprobanteSubido ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-amber-700 font-medium bg-amber-50 px-3 py-2 rounded-xl">En Revisión</span>
+                              <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                                <span className="text-base font-extrabold text-slate-900">$ {monto.toLocaleString('es-MX')} MXN</span>
+                                
+                                {estatus === 'Pagado' ? (
+                                  <span className="text-xs text-emerald-700 font-semibold bg-emerald-50 px-3.5 py-2 rounded-xl">Pago Validado</span>
+                                ) : tieneComprobanteSubido ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-amber-700 font-medium bg-amber-50 px-3 py-2 rounded-xl">En Revisión</span>
+                                    <button 
+                                      onClick={() => setPagoSeleccionado(p.id)}
+                                      className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                                    >
+                                      🔄 Cambiar Comprobante
+                                    </button>
+                                  </div>
+                                ) : (
                                   <button 
                                     onClick={() => setPagoSeleccionado(p.id)}
-                                    className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
                                   >
-                                    🔄 Cambiar Comprobante
+                                    📤 Subir Comprobante
                                   </button>
-                                </div>
-                              ) : (
-                                <button 
-                                  onClick={() => setPagoSeleccionado(p.id)}
-                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition shadow-sm"
-                                >
-                                  📤 Subir Comprobante
-                                </button>
-                              )}
+                                )}
+                              </div>
                             </div>
+
+                            {/* AVISO Y MOTIVO DE RECHAZO SI LO HUBIERA */}
+                            {esRechazado && (
+                              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs text-rose-800 space-y-1">
+                                <div className="font-bold flex items-center gap-1.5">
+                                  <span>⚠️ Comprobante Rechazado por Administración:</span>
+                                </div>
+                                <p className="text-rose-700 pl-5">{observaciones}</p>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
