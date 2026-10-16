@@ -13,14 +13,15 @@ export default function ComprobantesAdminPage() {
 
   const cargarComprobantes = async () => {
     setLoading(true)
+    
     try {
-      // 1. Obtenemos todos los pagos sin filtros estrictos de estatus
+      // 1. Traemos todos los pagos de la tabla
       const { data: pagosData, error: pagosError } = await supabase
         .from('pagos')
         .select('*')
         .order('created_at', { ascending: false })
 
-      // 2. Obtenemos todos los alumnos
+      // 2. Traemos todos los alumnos
       const { data: alumnosData } = await supabase
         .from('alumnos')
         .select('*')
@@ -28,14 +29,14 @@ export default function ComprobantesAdminPage() {
       if (pagosError) throw pagosError
 
       if (pagosData) {
-        // Filtramos de forma segura cualquier pago que tenga un comprobante (verificando múltiples nombres posibles de columna)
+        // FILTRO DIRECTO: Seleccionar cualquier pago que tenga un comprobante_url con texto
         const conComprobante = pagosData.filter(p => {
           const url = p.comprobante_url || p.url_comprobante || p.Comprobante_url
           return url && typeof url === 'string' && url.trim() !== ''
         })
 
-        // Cruzamos la información con el alumno correspondiente
-        const resultadoFinal = conComprobante.map(p => {
+        // Unir con la información del alumno de forma flexible
+        const pagosConAlumno = conComprobante.map(p => {
           const alumnoId = p.alumno_id || p.Alumno_id || p.alumnos_id
           const alumnoEncontrado = alumnosData?.find(a => String(a.id) === String(alumnoId)) || {}
           return {
@@ -45,7 +46,7 @@ export default function ComprobantesAdminPage() {
           }
         })
 
-        setPagosPendientes(resultadoFinal)
+        setPagosPendientes(pagosConAlumno)
       }
     } catch (error) {
       console.error('Error al cargar comprobantes:', error)
@@ -54,12 +55,13 @@ export default function ComprobantesAdminPage() {
     }
   }
 
+  // Aprobar comprobante, aplicar pago y limpiar la URL para liberar memoria
   const aprobarYAplicarPago = async (pagoId) => {
     const confirmar = window.confirm('¿Estás seguro de aprobar este comprobante y aplicar el pago al alumno?')
     if (!confirmar) return
 
     try {
-      const { error } = await supabase
+      const { error: errorUpdate } = await supabase
         .from('pagos')
         .update({ 
           estatus: 'Pagado',
@@ -68,10 +70,11 @@ export default function ComprobantesAdminPage() {
         })
         .eq('id', pagoId)
 
-      if (error) throw error
+      if (errorUpdate) throw errorUpdate
 
       alert('¡Pago aprobado y aplicado con éxito!')
       cargarComprobantes()
+
     } catch (error) {
       alert('Error al aprobar el pago: ' + error.message)
     }
@@ -110,6 +113,7 @@ export default function ComprobantesAdminPage() {
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         
+        {/* HEADER SUPERIOR */}
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
           <div>
             <h1 className="text-lg font-extrabold text-slate-900">Validación de Comprobantes</h1>
@@ -120,7 +124,9 @@ export default function ComprobantesAdminPage() {
           </span>
         </header>
 
+        {/* CONTENIDO */}
         <div className="p-10 max-w-[1700px] mx-auto w-full space-y-8">
+          
           <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Comprobantes Subidos por Alumnos</h3>
@@ -150,7 +156,7 @@ export default function ComprobantesAdminPage() {
                           <span className="text-xs text-slate-500 font-mono">Cuota #{p.id}</span>
                         </div>
                         <h4 className="text-base font-extrabold text-slate-900">
-                          {alumno.nombre || alumno.Nombre || 'Estudiante'} <span className="text-xs font-normal text-slate-500">(Matrícula: #{alumno.matricula || 'N/A'})</span>
+                          {alumno.nombre || alumno.Nombre || `Alumno ID: ${p.alumno_id}`} <span className="text-xs font-normal text-slate-500">(Matrícula: #{alumno.matricula || 'N/A'})</span>
                         </h4>
                         <p className="text-xs text-slate-500">Correo: {alumno.correo || alumno.Correo || 'No registrado'}</p>
                       </div>
@@ -182,8 +188,10 @@ export default function ComprobantesAdminPage() {
               </div>
             )}
           </div>
+
         </div>
       </main>
+
     </div>
   )
 }
