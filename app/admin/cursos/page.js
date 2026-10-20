@@ -14,7 +14,14 @@ export default function CursosAdminPage() {
   const [busqueda, setBusqueda] = useState('')
   const [modalCurso, setModalCurso] = useState(false)
   const [guardando, setGuardando] = useState(false)
-  const [formCurso, setFormCurso] = useState({ Nombre_curso: '', descripcion: '', precio: '' })
+  
+  // Añadimos la propiedad modalidad con un valor por defecto ('en_linea')
+  const [formCurso, setFormCurso] = useState({ 
+    Nombre_curso: '', 
+    descripcion: '', 
+    precio: '', 
+    modalidad: 'en_linea' 
+  })
 
   useEffect(() => {
     cargarDatos()
@@ -39,14 +46,15 @@ export default function CursosAdminPage() {
     const { data, error } = await supabase.from('cursos').insert([{
       Nombre_curso: formCurso.Nombre_curso.trim(),
       descripcion: formCurso.descripcion.trim(),
-      precio: Number(formCurso.precio) || 0
+      precio: Number(formCurso.precio) || 0,
+      modalidad: formCurso.modalidad
     }]).select()
 
     if (error) {
       alert('Error al crear curso: ' + error.message)
     } else {
       setModalCurso(false)
-      setFormCurso({ Nombre_curso: '', descripcion: '', precio: '' })
+      setFormCurso({ Nombre_curso: '', descripcion: '', precio: '', modalidad: 'en_linea' })
       if (data && data[0]) {
         router.push(`/admin/cursos/${data[0].id}`)
       } else {
@@ -150,6 +158,7 @@ export default function CursosAdminPage() {
               <thead>
                 <tr className="bg-indigo-600 text-white text-xs font-bold uppercase tracking-wider">
                   <th className="py-4 px-8">Curso</th>
+                  <th className="py-4 px-6">Modalidad</th>
                   <th className="py-4 px-6">Grupos</th>
                   <th className="py-4 px-6">Ocupación</th>
                   <th className="py-4 px-8">Precio (Desde)</th>
@@ -158,12 +167,13 @@ export default function CursosAdminPage() {
               <tbody className="divide-y divide-slate-100 text-sm font-medium">
                 {cursosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="py-10 text-center text-slate-400 italic">No se encontraron cursos registrados.</td>
+                    <td colSpan="5" className="py-10 text-center text-slate-400 italic">No se encontraron cursos registrados.</td>
                   </tr>
                 ) : (
                   cursosFiltrados.map((c) => {
                     const nombreCurso = c.Nombre_curso || c.nombre_curso || 'Curso sin nombre'
                     const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(c.id))
+                    const modalidad = c.modalidad || 'en_linea'
                     
                     return (
                       <tr 
@@ -178,6 +188,14 @@ export default function CursosAdminPage() {
                             className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-xs group-hover:scale-105 transition"
                           />
                           <span className="font-bold text-slate-900 text-base">{nombreCurso}</span>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${
+                            modalidad === 'presencial' ? 'bg-purple-50 text-purple-700' :
+                            modalidad === 'hibrido' ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'
+                          }`}>
+                            {modalidad === 'presencial' ? '📍 Presencial' : modalidad === 'hibrido' ? '🔀 Híbrido' : '💻 En Línea'}
+                          </span>
                         </td>
                         <td className="py-4 px-6 text-slate-600 font-semibold">
                           👥 {gruposDelCurso.length}
@@ -216,6 +234,18 @@ export default function CursosAdminPage() {
                   onChange={(e) => setFormCurso({ ...formCurso, Nombre_curso: e.target.value })}
                   className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Modalidad del Curso *</label>
+                <select
+                  value={formCurso.modalidad}
+                  onChange={(e) => setFormCurso({ ...formCurso, modalidad: e.target.value })}
+                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
+                >
+                  <option value="en_linea">💻 En Línea (Virtual)</option>
+                  <option value="presencial">📍 Presencial</option>
+                  <option value="hibrido">🔀 Híbrido (Ambas)</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descripción</label>
