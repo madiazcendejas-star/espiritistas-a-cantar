@@ -134,6 +134,21 @@ export default function InscripcionesAdminPage() {
       alert('Inscripción creada, pero hubo un error al generar las cuotas: ' + errPagos.message)
     } else {
       alert('¡Inscripción y plan de pagos generado con éxito!')
+
+      // DISPARAR WHATSAPP AUTOMÁTICO (OPCIÓN 2)
+      const telLimpio = alumnoSeleccionado.telefono ? String(alumnoSeleccionado.telefono).replace(/\D/g, '') : ''
+      if (telLimpio) {
+        const telefonoAlumno = alumnoSeleccionado.telefono || ''
+        const passwordTemp = alumnoSeleccionado.password || alumnoSeleccionado.Password || alumnoSeleccionado.telefono || 'Tu teléfono o matrícula'
+
+        const mensajeBienvenida = `¡Bienvenid@ a *Espiritistas a Cantar*! Tu inscripción ha sido confirmada.\n\nAQUÍ TIENES TUS DATOS DE ACCESO A LA PLATAFORMA:\n\n🔗 *Enlace:* https://espiritistasacantar.com/alumno\n👤 *Usuario:* ${telefonoAlumno}\n🔑 *Contraseña temporal:* ${passwordTemp}\n\nEn el portal podrás encontrar el acceso a tus cursos, pagos y próximos cursos. ¡Cualquier duda, aquí estamos para apoyarte!`
+
+        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeBienvenida)}`
+        window.open(urlWa, '_blank')
+      } else {
+        alert('Aviso: El alumno no tiene un número de teléfono registrado para enviarle el WhatsApp automático de bienvenida.')
+      }
+
       setModalNuevaInscripcion(false)
       setAlumnoSeleccionado(null)
       setCursoSeleccionado(null)
@@ -185,7 +200,6 @@ export default function InscripcionesAdminPage() {
     if (!inscripcionSeleccionada) return
     setGuardando(true)
 
-    // 1. Cambiar estatus de inscripción a 'activa'
     const { error: errUpd } = await supabase
       .from('inscripciones')
       .update({ estatus: 'activa', motivo_baja: null })
@@ -196,8 +210,6 @@ export default function InscripcionesAdminPage() {
       return alert('Error al reactivar la inscripción: ' + errUpd.message)
     }
 
-    // 2. Restaurar los pagos que se habían puesto en Cancelado/0 a estatus 'Pendiente' con su monto base recalculado
-    // Buscamos cuánto debe ser el monto por pago de este grupo
     const grupoInfo = grupos.find(g => Number(g.id) === Number(inscripcionSeleccionada.grupoId))
     const costoTotal = grupoInfo ? Number(grupoInfo.costo_total) || 0 : Number(inscripcionSeleccionada.costoTotal) || 0
     const numPagos = grupoInfo ? Number(grupoInfo.num_pagos) || 1 : Number(inscripcionSeleccionada.numPagos) || 1
@@ -374,7 +386,6 @@ export default function InscripcionesAdminPage() {
                           <button 
                             onClick={() => {
                               setInscripcionSeleccionada(ins)
-                              // Si ya está en baja, preseleccionar la pestaña de reactivar o gestionar baja
                               setTipoAjuste(ins.estatus === 'baja' ? 'reactivar' : 'baja')
                               setModalGestion(true)
                             }}
