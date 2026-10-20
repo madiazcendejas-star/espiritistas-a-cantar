@@ -3,6 +3,63 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
+// COMPONENTE AUXILIAR PARA EL BOTÓN INTELIGENTE DE MEET
+function BotonClaseEnVivo({ sesion }) {
+  const [estaDisponible, setEstaDisponible] = useState(false)
+  const [mensajeEstado, setMensajeEstado] = useState('')
+
+  useEffect(() => {
+    const verificarDisponibilidad = () => {
+      const ahora = new Date().getTime()
+      const fechaClase = new Date(sesion.fecha_hora).getTime()
+      
+      const margenPermitido = 15 * 60 * 1000 // 15 minutos antes
+      const duracionClase = 2 * 60 * 60 * 1000 // 2 horas de duración estimada
+
+      const tiempoInicioPermitido = fechaClase - margenPermitido
+      const tiempoFinClase = fechaClase + duracionClase
+
+      if (ahora >= tiempoInicioPermitido && ahora <= tiempoFinClase) {
+        setEstaDisponible(true)
+      } else if (ahora < tiempoInicioPermitido) {
+        setEstaDisponible(false)
+        setMensajeEstado('Disponible 15 mins antes')
+      } else {
+        setEstaDisponible(false)
+        setMensajeEstado('Clase finalizada')
+      }
+    }
+
+    verificarDisponibilidad()
+    const intervalo = setInterval(verificarDisponibilidad, 60000)
+    return () => clearInterval(intervalo)
+  }, [sesion.fecha_hora])
+
+  if (!sesion.enlace_meet) return null
+
+  return (
+    <div>
+      {estaDisponible ? (
+        <a 
+          href={sesion.enlace_meet} 
+          target="_blank" 
+          rel="noreferrer"
+          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition inline-block animate-pulse"
+        >
+          Unirme a Clase 🎥
+        </a>
+      ) : (
+        <button 
+          disabled
+          className="bg-slate-100 text-slate-400 px-4 py-2.5 rounded-xl text-xs font-medium cursor-not-allowed border border-slate-200"
+        >
+          🔒 {mensajeEstado || 'Próximamente'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function AlumnoPortalPage() {
   const [identificador, setIdentificador] = useState('')
   const [passwordInput, setPasswordInput] = useState('')
@@ -13,6 +70,7 @@ export default function AlumnoPortalPage() {
   const [cursos, setCursos] = useState([])
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
+  const [sesionesGrupo, setSesionesGrupo] = useState([])
   
   // TANDAS Y SESIONES PRESENCIALES
   const [tandaAlumno, setTandaAlumno] = useState(null)
@@ -93,7 +151,6 @@ export default function AlumnoPortalPage() {
       return alert('Contraseña incorrecta.')
     }
 
-    // Guardar sesión en localStorage
     localStorage.setItem('alumno_session_eac', JSON.stringify(al))
     setAlumno(al)
     await cargarDatosPortal(al.id)
@@ -120,6 +177,9 @@ export default function AlumnoPortalPage() {
 
     const { data: rcs } = await supabase.from('recursos').select('*')
     setRecursos(rcs || [])
+
+    const { data: ses } = await supabase.from('sesiones_grupo').select('*').order('fecha_hora', { ascending: true })
+    setSesionesGrupo(ses || [])
 
     const { data: tandaData } = await supabase
       .from('alumno_tandas')
@@ -168,7 +228,6 @@ export default function AlumnoPortalPage() {
     }
   }
 
-  // SUBIR O REEMPLAZAR COMPROBANTE
   const enviarComprobante = async (e) => {
     e.preventDefault()
     if (!archivoComprobante || !pagoSeleccionado) {
@@ -430,84 +489,107 @@ export default function AlumnoPortalPage() {
                   </button>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
-                    <div>
-                      <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
-                        {cursoSeleccionado.nombreGrupo}
-                      </span>
-                      <h2 className="text-xl font-extrabold text-slate-900 mt-2">{cursoSeleccionado.nombreCurso}</h2>
-                    </div>
-                    <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100">
-                      ✅ Acceso Habilitado
-                    </span>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases y Materiales Grabados</h4>
-                    
-                    {cursoSeleccionado.recursos.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        Próximamente se subirán las grabaciones y PDFs para este grupo.
-                      </p>
-                    ) : (
-                      <div className="space-y-3">
-                        {cursoSeleccionado.recursos.map((rec) => {
-                          const estaAbierto = recursoAbierto === rec.id
-                          const urlEmbebida = obtenerUrlIncrustada(rec.url)
-
-                          return (
-                            <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
-                              <div 
-                                onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
-                                className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
-                              >
-                                <div className="flex items-center gap-4">
-                                  <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
-                                    {rec.tipo === 'video' ? '▶' : '📄'}
-                                  </span>
-                                  <div>
-                                    <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
-                                    <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
-                                  </div>
-                                </div>
-                                <span className="text-xs font-bold text-indigo-600">
-                                  {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
-                                </span>
-                              </div>
-
-                              {estaAbierto && (
-                                <div className="p-5 bg-white border-t border-slate-200 space-y-4">
-                                  {rec.tipo === 'video' ? (
-                                    <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
-                                      <iframe 
-                                        src={urlEmbebida} 
-                                        title={rec.titulo}
-                                        className="w-full h-full border-0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                        allowFullScreen
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                      <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
-                                      <a 
-                                        href={rec.url} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
-                                      >
-                                        Abrir / Descargar PDF ↗
-                                      </a>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
+                <div className="space-y-6">
+                  <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-100">
+                      <div>
+                        <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3.5 py-1 rounded-full uppercase tracking-wider">
+                          {cursoSeleccionado.nombreGrupo}
+                        </span>
+                        <h2 className="text-xl font-extrabold text-slate-900 mt-2">{cursoSeleccionado.nombreCurso}</h2>
                       </div>
-                    )}
+                      <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl text-xs font-bold border border-emerald-100">
+                        ✅ Acceso Habilitado
+                      </span>
+                    </div>
+
+                    {/* SECCIÓN NUEVA: CLASES EN VIVO Y ENLACES DE MEET */}
+                    <div className="space-y-4 pt-2">
+                      <h4 className="text-xs font-bold uppercase text-emerald-800 tracking-wider">📅 Próximas Clases en Vivo (Google Meet)</h4>
+                      {cursoSeleccionado.sesiones.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-2xl border border-slate-100">No hay sesiones en vivo programadas para este grupo aún.</p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-3">
+                          {cursoSeleccionado.sesiones.map((sesion) => (
+                            <div key={sesion.id} className="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                              <div>
+                                <span className="text-xs font-bold text-emerald-900 block">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
+                                <span className="text-[11px] text-slate-500">🕒 {new Date(sesion.fecha_hora).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })}</span>
+                              </div>
+                              <BotonClaseEnVivo sesion={sesion} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECCIÓN: CLASES GRABADAS Y MATERIALES */}
+                    <div className="space-y-4 pt-4 border-t border-slate-100">
+                      <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider">Clases Grabadas y Materiales</h4>
+                      
+                      {cursoSeleccionado.recursos.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                          Próximamente se subirán las grabaciones y PDFs para este grupo.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {cursoSeleccionado.recursos.map((rec) => {
+                            const estaAbierto = recursoAbierto === rec.id
+                            const urlEmbebida = obtenerUrlIncrustada(rec.url)
+
+                            return (
+                              <div key={rec.id} className="border border-slate-200 rounded-2xl overflow-hidden transition bg-slate-50">
+                                <div 
+                                  onClick={() => setRecursoAbierto(estaAbierto ? null : rec.id)}
+                                  className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-100 transition"
+                                >
+                                  <div className="flex items-center gap-4">
+                                    <span className="w-10 h-10 rounded-2xl bg-white text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs border border-slate-100">
+                                      {rec.tipo === 'video' ? '▶' : '📄'}
+                                    </span>
+                                    <div>
+                                      <h5 className="text-sm font-bold text-slate-900">{rec.titulo}</h5>
+                                      <span className="text-xs text-slate-500 uppercase">{rec.tipo === 'video' ? 'Clase Grabada' : 'Documento PDF'}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-bold text-indigo-600">
+                                    {estaAbierto ? '▲ Ocultar' : '▼ Ver clase'}
+                                  </span>
+                                </div>
+
+                                {estaAbierto && (
+                                  <div className="p-5 bg-white border-t border-slate-200 space-y-4">
+                                    {rec.tipo === 'video' ? (
+                                      <div className="aspect-video w-full bg-slate-950 rounded-2xl overflow-hidden shadow-md">
+                                        <iframe 
+                                          src={urlEmbebida} 
+                                          title={rec.titulo}
+                                          className="w-full h-full border-0"
+                                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                          allowFullScreen
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                        <span className="text-xs text-slate-700">Documento adjunto disponible para lectura o descarga.</span>
+                                        <a 
+                                          href={rec.url} 
+                                          target="_blank" 
+                                          rel="noopener noreferrer"
+                                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                                        >
+                                          Abrir / Descargar PDF ↗
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -519,7 +601,7 @@ export default function AlumnoPortalPage() {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a sus clases y materiales.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases en vivo, grabadas y materiales.</p>
                   </div>
 
                   {inscripciones.length === 0 ? (
@@ -543,11 +625,12 @@ export default function AlumnoPortalPage() {
                         const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
 
                         const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
+                        const sesionesGrupoItem = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(ins.grupo_id))
 
                         return (
                           <div 
                             key={ins.id} 
-                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo, estaEnBaja, tienePagoVencido })}
+                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo, sesiones: sesionesGrupoItem, estaEnBaja, tienePagoVencido })}
                             className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
                           >
                             <div className="relative h-48 w-full overflow-hidden bg-slate-100">
@@ -564,7 +647,7 @@ export default function AlumnoPortalPage() {
                             <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
                               <div className="space-y-1">
                                 <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
-                                <p className="text-xs text-slate-500">{recursosGrupo.length} clases / recursos disponibles</p>
+                                <p className="text-xs text-slate-500">{sesionesGrupoItem.length} clases en vivo · {recursosGrupo.length} materiales</p>
                               </div>
 
                               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -651,7 +734,6 @@ export default function AlumnoPortalPage() {
                               </div>
                             </div>
 
-                            {/* AVISO Y MOTIVO DE RECHAZO SI LO HUBIERA */}
                             {esRechazado && (
                               <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs text-rose-800 space-y-1">
                                 <div className="font-bold flex items-center gap-1.5">
