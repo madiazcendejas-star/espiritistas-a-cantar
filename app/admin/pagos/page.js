@@ -113,10 +113,10 @@ export default function PagosAdminPage() {
     if (error) {
       alert('Error al actualizar pago: ' + error.message)
     } else {
-      // Lanzar notificación automática por WhatsApp
-      const telLimpio = pago.alumnoTelefono ? pago.alumnoTelefono.replace(/\D/g, '') : ''
+      // Lanzar notificación automática por WhatsApp con el mensaje validado
+      const telLimpio = pago.alumnoTelefono ? String(pago.alumnoTelefono).replace(/\D/g, '') : ''
       if (telLimpio) {
-        const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de *Espiritistas a Cantar*. 🎶\n\nTe confirmamos que tu pago por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* para el curso *${pago.cursoNombre}* ha sido **validado y registrado con éxito** en el sistema.\n\nTu acceso a las clases y materiales se encuentra 100% activo. ¡Muchas gracias y nos vemos en clase!`
+        const mensaje = `¡Hola *${pago.alumnoNombre}*! Te confirmamos que tu pago por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* para el curso *${pago.cursoNombre}* ha sido registrado y validado con éxito en el sistema.\n\nTu acceso se encuentra 100% al corriente. ¡Muchas gracias y nos vemos en clase!`
         const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
         window.open(urlWa, '_blank')
       } else {
