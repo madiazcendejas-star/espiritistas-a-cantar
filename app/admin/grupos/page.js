@@ -17,28 +17,29 @@ export default function GruposAdminPage() {
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario Nuevo Grupo (Añadido tipo_modalidad)
+  // Formulario Nuevo Grupo (Añadido cuota_inscripcion)
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
-    tipo_modalidad: 'en_linea', // 'en_linea', 'presencial', 'hibrido'
-    fecha_inicio: '',
-    fecha_fin: '',
-    duracion_acceso: '1_ano',
+    tipo_modalidad: 'en_linea',
+    cuota_inscripcion: '',
     costo_total: '',
     num_pagos: 1,
-    frecuencia: 'mensual'
+    frecuencia: 'mensual',
+    fecha_inicio: '',
+    fecha_fin: '',
+    duracion_acceso: '1_ano'
   })
 
   // Formulario Recurso para el Grupo
   const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
 
-  // Formulario Nueva Sesión de Clase (Soporta Meet o Salón Presencial)
+  // Formulario Nueva Sesión de Clase
   const [formSesion, setFormSesion] = useState({
     numero_sesion: 1,
     titulo_sesion: '',
     fecha_hora: '',
-    enlace_meet: '' // Aquí guardamos el link de Meet o la dirección/salón presencial
+    enlace_meet: ''
   })
 
   // Estados para Reprogramación Masiva de Pagos por Grupo
@@ -72,19 +73,31 @@ export default function GruposAdminPage() {
       curso_id: Number(formGrupo.curso_id),
       nombre_grupo: formGrupo.nombre_grupo.trim(),
       tipo_modalidad: formGrupo.tipo_modalidad,
-      fecha_inicio: formGrupo.fecha_inicio || null,
-      fecha_fin: formGrupo.fecha_fin || null,
-      duracion_acceso: formGrupo.duracion_acceso,
+      cuota_inscripcion: Number(formGrupo.cuota_inscripcion) || 0,
       costo_total: Number(formGrupo.costo_total),
       num_pagos: Number(formGrupo.num_pagos),
-      frecuencia: formGrupo.frecuencia
+      frecuencia: formGrupo.frecuencia,
+      fecha_inicio: formGrupo.fecha_inicio || null,
+      fecha_fin: formGrupo.fecha_fin || null,
+      duracion_acceso: formGrupo.duracion_acceso
     }])
 
     if (error) {
       alert('Error al crear grupo: ' + error.message)
     } else {
       setModalGrupo(false)
-      setFormGrupo({ curso_id: '', nombre_grupo: '', tipo_modalidad: 'en_linea', fecha_inicio: '', fecha_fin: '', duracion_acceso: '1_ano', costo_total: '', num_pagos: 1, frecuencia: 'mensual' })
+      setFormGrupo({
+        curso_id: '',
+        nombre_grupo: '',
+        tipo_modalidad: 'en_linea',
+        cuota_inscripcion: '',
+        costo_total: '',
+        num_pagos: 1,
+        frecuencia: 'mensual',
+        fecha_inicio: '',
+        fecha_fin: '',
+        duracion_acceso: '1_ano'
+      })
       cargarDatos()
       alert('¡Grupo creado exitosamente!')
     }
@@ -264,6 +277,7 @@ export default function GruposAdminPage() {
               const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(g.id))
               const sesionesCount = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(g.id)).length
               const modalidadGrupo = g.tipo_modalidad || 'en_linea'
+              const cuotaInscripcion = Number(g.cuota_inscripcion || 0)
 
               return (
                 <div 
@@ -288,8 +302,10 @@ export default function GruposAdminPage() {
 
                   <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Costo</span>
-                      <span className="font-extrabold text-indigo-600">$ {Number(g.costo_total).toLocaleString('es-MX')} MXN</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Inscripción / Costo</span>
+                      <span className="font-extrabold text-indigo-600">
+                        {cuotaInscripcion > 0 ? `$${cuotaInscripcion} ins. / ` : ''}${Number(g.costo_total).toLocaleString('es-MX')} MXN
+                      </span>
                     </div>
                     <span className="text-indigo-600 font-semibold">Gestionar grupo →</span>
                   </div>
@@ -343,6 +359,31 @@ export default function GruposAdminPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cuota de Inscripción ($)</label>
+                  <input type="number" placeholder="0 si no aplica" value={formGrupo.cuota_inscripcion} onChange={(e) => setFormGrupo({ ...formGrupo, cuota_inscripcion: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Total del Curso ($)</label>
+                  <input type="number" required value={formGrupo.costo_total} onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Número de Pagos</label>
+                  <input type="number" required min="1" value={formGrupo.num_pagos} onChange={(e) => setFormGrupo({ ...formGrupo, num_pagos: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Frecuencia de Pago</label>
+                  <select value={formGrupo.frecuencia} onChange={(e) => setFormGrupo({ ...formGrupo, frecuencia: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none">
+                    <option value="diaria">Diaria</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="quincenal">Quincenal</option>
+                    <option value="mensual">Mensual</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Inicio</label>
                   <input type="date" value={formGrupo.fecha_inicio} onChange={(e) => setFormGrupo({ ...formGrupo, fecha_inicio: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
                 </div>
@@ -350,25 +391,6 @@ export default function GruposAdminPage() {
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Fin</label>
                   <input type="date" value={formGrupo.fecha_fin} onChange={(e) => setFormGrupo({ ...formGrupo, fecha_fin: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Total ($)</label>
-                  <input type="number" required value={formGrupo.costo_total} onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Número de Pagos</label>
-                  <input type="number" required min="1" value={formGrupo.num_pagos} onChange={(e) => setFormGrupo({ ...formGrupo, num_pagos: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Frecuencia de Pago</label>
-                <select value={formGrupo.frecuencia} onChange={(e) => setFormGrupo({ ...formGrupo, frecuencia: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none">
-                  <option value="diaria">Diaria</option>
-                  <option value="semanal">Semanal</option>
-                  <option value="quincenal">Quincenal</option>
-                  <option value="mensual">Mensual</option>
-                </select>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalGrupo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
@@ -386,12 +408,12 @@ export default function GruposAdminPage() {
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Gestión del Grupo: {grupoSeleccionado.nombre_grupo}</h3>
-                <p className="text-xs text-slate-400">Modalidad: <strong className="uppercase">{grupoSeleccionado.tipo_modalidad || 'En línea'}</strong>. Administra el calendario, ubicación/enlaces y finanzas.</p>
+                <p className="text-xs text-slate-400">Modalidad: <strong className="uppercase">{grupoSeleccionado.tipo_modalidad || 'En línea'}</strong> | Cuota Inscripción: <strong className="text-indigo-600">${Number(grupoSeleccionado.cuota_inscripcion || 0)}</strong></p>
               </div>
               <button onClick={eliminarGrupo} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-xs font-semibold">Eliminar Grupo</button>
             </div>
 
-            {/* SECCIÓN NUEVA: CALENDARIO DE SESIONES (ENLACE O SALÓN) */}
+            {/* SECCIÓN: CALENDARIO DE SESIONES */}
             <div className="p-5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-4">
               <div>
                 <h4 className="text-xs font-bold uppercase text-emerald-900 tracking-wider">🗓️ Programar Sesiones y Ubicación / Enlaces</h4>
