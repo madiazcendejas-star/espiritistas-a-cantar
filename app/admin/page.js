@@ -109,7 +109,7 @@ export default function AdminDashboardPage() {
         })
       }
 
-      // 6. Hoy en la Academia (Basado en la tabla real sesiones_grupo, grupos y cursos)
+      // 6. Hoy en la Academia (Corrección de zona horaria local)
       const { data: sesionesData } = await supabase
         .from('sesiones_grupo')
         .select(`
@@ -126,12 +126,18 @@ export default function AdminDashboardPage() {
 
       let sesionesHoyFiltradas = []
       if (sesionesData) {
-        const hoyStr = ahora.toISOString().split('T')[0] // Formato YYYY-MM-DD
+        const anioHoy = ahora.getFullYear()
+        const mesHoy = ahora.getMonth()
+        const diaHoy = ahora.getDate()
         
         sesionesHoyFiltradas = sesionesData.filter(s => {
           if (!s.fecha_hora) return false
-          const fechaSesionStr = new Date(s.fecha_hora).toISOString().split('T')[0]
-          return fechaSesionStr === hoyStr
+          const fechaSesion = new Date(s.fecha_hora)
+          return (
+            fechaSesion.getFullYear() === anioHoy &&
+            fechaSesion.getMonth() === mesHoy &&
+            fechaSesion.getDate() === diaHoy
+          )
         })
       }
 
@@ -160,7 +166,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900 text-sm">
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR CON TODAS LAS FUNCIONES */}
       <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -172,14 +178,18 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto text-sm font-medium">
-          <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
+        <nav className="flex-1 py-6 px-4 space-y-1.5 overflow-y-auto text-sm font-medium">
+          <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Gestión Escolar</div>
           <a href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-sm">🏠 Inicio</a>
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
           <a href="/admin/inscripciones" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📋 Inscripciones</a>
+          
+          <div className="pt-4 px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Finanzas y Control</div>
           <a href="/admin/pagos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
+          <a href="/admin/comprobantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🧾 Comprobantes</a>
+          <a href="/admin/calendario" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📅 Calendario General</a>
           
           <div className="pt-6 px-3 pb-2 text-xs uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
           <a href="/admin/tandas" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-950/80 text-indigo-200 border border-indigo-500/30 hover:bg-indigo-900 transition">📍 Tandas y Misas</a>
