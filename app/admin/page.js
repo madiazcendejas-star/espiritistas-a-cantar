@@ -71,7 +71,7 @@ export default function AdminDashboardPage() {
         .gte('updated_at', primerDiaMes)
         .lte('updated_at', ultimoDiaMes)
 
-      // 4. Inscripciones / Ocupación (Cualquier inscripción registrada cuenta para la tasa de ocupación real)
+      // 4. Inscripciones / Ocupación
       const { data: inscripcionesData } = await supabase
         .from('inscripciones')
         .select('*')
@@ -81,13 +81,12 @@ export default function AdminDashboardPage() {
         const idsUnicos = new Set(inscripcionesData.map(i => i.alumno_id || i.Alumno_id || i.alumnos_id))
         alumnosUnicosConCurso = idsUnicos.size
       } else {
-        // Fallivo por si la relación está directa en alumnos
         alumnosUnicosConCurso = totalActual
       }
       
       const tasaOcupacionCalc = totalActual > 0 ? Math.round((alumnosUnicosConCurso / totalActual) * 100) : 0
 
-      // 5. Pagos (Traemos todos los pagos para asegurar que detecte los pendientes y cobrados sin fallar por fechas estrictas)
+      // 5. Pagos
       const { data: dataPagos, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -110,11 +109,31 @@ export default function AdminDashboardPage() {
         })
       }
 
-      // 6. Hoy en la academia
-      const diaSemanaHoy = ahora.toLocaleDateString('es-MX', { weekday: 'long' }).toLowerCase()
-      const { data: dataClases } = await supabase
-        .from('horarios_clases') 
-        .select('*')
+      // 6. Hoy en la Academia (Basado en la tabla real sesiones_grupo, grupos y cursos)
+      const { data: sesionesData } = await supabase
+        .from('sesiones_grupo')
+        .select(`
+          *,
+          grupos (
+            nombre_grupo,
+            tipo_modalidad,
+            cursos (
+              Nombre_curso,
+              nombre_curso
+            )
+          )
+        `)
+
+      let sesionesHoyFiltradas = []
+      if (sesionesData) {
+        const hoyStr = ahora.toISOString().split('T')[0] // Formato YYYY-MM-DD
+        
+        sesionesHoyFiltradas = sesionesData.filter(s => {
+          if (!s.fecha_hora) return false
+          const fechaSesionStr = new Date(s.fecha_hora).toISOString().split('T')[0]
+          return fechaSesionStr === hoyStr
+        })
+      }
 
       setStats({
         totalEstudiantes: totalActual,
@@ -128,7 +147,7 @@ export default function AdminDashboardPage() {
         alumnosConCursoActivo: alumnosUnicosConCurso
       })
 
-      setClasesHoy(dataClases || [])
+      setClasesHoy(sesionesHoyFiltradas)
       setPagosPendientes(pendientesLista)
 
     } catch (error) {
@@ -175,7 +194,6 @@ export default function AdminDashboardPage() {
             <span className="text-xs text-slate-500 capitalize">Espiritistas a Cantar • {fechaActualTexto}</span>
           </div>
           
-          {/* BOTONES DE ACCIÓN RÁPIDA */}
           <div className="flex items-center gap-4">
             <a href="/admin/estudiantes/nuevo" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition shadow-sm flex items-center gap-2">
               <span>➕</span> Nuevo Alumno
@@ -289,19 +307,34 @@ export default function AdminDashboardPage() {
                 <div className="text-center py-10 text-sm text-slate-400">Cargando actividades del día...</div>
               ) : clasesHoy.length === 0 ? (
                 <div className="text-center py-12 text-sm text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                  No hay clases o eventos programados registrados en el sistema.
+                  No hay clases o sesiones programadas para el día de hoy.
                 </div>
               ) : (
                 <div className="space-y-4 max-h-[250px] overflow-y-auto">
-                  {clasesHoy.map((clase, idx) => (
-                    <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">{clase.nombre || clase.curso || clase.titulo || 'Clase Programada'}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">Horario: {clase.horario || clase.hora || 'Por definir'} • Grupo: {clase.grupo || 'General'}</p>
+                  {clasesHoy.map((sesion) => {
+                    const nombreCurso = sesion.grupos?.cursos?.Nombre_curso || sesion.grupos?.cursos?.nombre_curso || 'Curso Académico'
+                    const nombreGrupo = sesion.grupos?.nombre_grupo || 'Grupo'
+                    const modalidad = sesion.grupos?.tipo_modalidad || 'en_linea'
+                    const horaSesion = new Date(sesion.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+
+                    return (
+                      <div key={sesion.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-indigo-600 uppercase">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                              modalidad === 'presencial' ? 'bg-purple-50 text-purple-700' : 'bg-emerald-50 text-emerald-700'
+                            }`}>
+                              {modalidad === 'presencial' ? '📍 Presencial' : '💻 En Línea'}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-extrabold text-slate-900">{nombreCurso} • <span className="text-slate-600 font-medium">{nombreGrupo}</span></h4>
+                          <p className="text-xs text-slate-500">🕒 Hora: {horaSesion} hrs {modalidad === 'presencial' ? `• Salón: ${sesion.enlace_meet || 'Principal'}` : ''}</p>
+                        </div>
+                        <span className="bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-xs">Programada</span>
                       </div>
-                      <span className="bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl">En curso</span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
