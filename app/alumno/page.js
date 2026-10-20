@@ -503,25 +503,70 @@ export default function AlumnoPortalPage() {
                       </span>
                     </div>
 
-                    {/* SECCIÓN NUEVA: CLASES EN VIVO Y ENLACES DE MEET */}
-                    <div className="space-y-4 pt-2">
-                      <h4 className="text-xs font-bold uppercase text-emerald-800 tracking-wider">📅 Próximas Clases en Vivo (Google Meet)</h4>
-                      {cursoSeleccionado.sesiones.length === 0 ? (
-                        <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-2xl border border-slate-100">No hay sesiones en vivo programadas para este grupo aún.</p>
-                      ) : (
-                        <div className="grid grid-cols-1 gap-3">
-                          {cursoSeleccionado.sesiones.map((sesion) => (
-                            <div key={sesion.id} className="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                              <div>
-                                <span className="text-xs font-bold text-emerald-900 block">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
-                                <span className="text-[11px] text-slate-500">🕒 {new Date(sesion.fecha_hora).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })}</span>
-                              </div>
-                              <BotonClaseEnVivo sesion={sesion} />
+                    {/* VISTA DINÁMICA SEGÚN LA MODALIDAD DEL GRUPO */}
+                    {(() => {
+                      const modalidad = cursoSeleccionado.tipoModalidad || 'en_linea';
+
+                      return (
+                        <div className="space-y-6">
+                          
+                          {/* 1. SI ES EN LÍNEA O HÍBRIDO: BOTÓN DE MEET */}
+                          {(modalidad === 'en_linea' || modalidad === 'hibrido') && (
+                            <div className="space-y-4 pt-2">
+                              <h4 className="text-xs font-bold uppercase text-emerald-800 tracking-wider">💻 Clases en Vivo (Google Meet)</h4>
+                              {cursoSeleccionado.sesiones.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic bg-slate-50 p-4 rounded-2xl border border-slate-100">No hay sesiones virtuales programadas.</p>
+                              ) : (
+                                <div className="grid grid-cols-1 gap-3">
+                                  {cursoSeleccionado.sesiones.map((sesion) => (
+                                    <div key={sesion.id} className="p-4 bg-emerald-50/40 rounded-2xl border border-emerald-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                      <div>
+                                        <span className="text-xs font-bold text-emerald-900 block">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
+                                        <span className="text-[11px] text-slate-500">🕒 {new Date(sesion.fecha_hora).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })}</span>
+                                      </div>
+                                      <BotonClaseEnVivo sesion={sesion} />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )}
+
+                          {/* 2. SI ES PRESENCIAL O HÍBRIDO: CALENDARIO SALÓN + CREDENCIAL QR */}
+                          {(modalidad === 'presencial' || modalidad === 'hibrido') && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                              <div className="p-5 bg-purple-50/50 rounded-3xl border border-purple-100 space-y-4">
+                                <h4 className="text-xs font-bold uppercase text-purple-900 tracking-wider">📍 Sesiones y Ubicación Presencial</h4>
+                                {cursoSeleccionado.sesiones.length === 0 ? (
+                                  <p className="text-xs text-slate-500 italic">No hay fechas presenciales programadas.</p>
+                                ) : (
+                                  cursoSeleccionado.sesiones.map((sesion) => (
+                                    <div key={sesion.id} className="p-4 bg-white rounded-2xl border border-purple-200 space-y-1 shadow-xs">
+                                      <span className="text-xs font-bold text-slate-900">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
+                                      <p className="text-[11px] text-slate-500">🕒 {new Date(sesion.fecha_hora).toLocaleString('es-MX')}</p>
+                                      <p className="text-[11px] font-bold text-purple-700">🏢 Salón / Ubicación: {sesion.enlace_meet || 'Plantel Principal'}</p>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+
+                              <div className="bg-white p-6 rounded-3xl border border-slate-200 flex flex-col items-center justify-center text-center space-y-3 shadow-xs">
+                                <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase">Tu Credencial de Acceso (QR)</span>
+                                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                  <img 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=ALUMNO_${alumno.id}_MAT_${matriculaAlumno}`} 
+                                    alt="QR Asistencia" 
+                                    className="w-28 h-28 object-contain mx-auto"
+                                  />
+                                </div>
+                                <p className="text-[11px] text-slate-500">Muestra este código QR en la entrada de la escuela para registrar tu asistencia automáticamente.</p>
+                              </div>
+                            </div>
+                          )}
+
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
 
                     {/* SECCIÓN: CLASES GRABADAS Y MATERIALES */}
                     <div className="space-y-4 pt-4 border-t border-slate-100">
@@ -601,7 +646,7 @@ export default function AlumnoPortalPage() {
                 <div className="space-y-6">
                   <div>
                     <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases en vivo, grabadas y materiales.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases, grabaciones y materiales.</p>
                   </div>
 
                   {inscripciones.length === 0 ? (
@@ -617,6 +662,7 @@ export default function AlumnoPortalPage() {
                         const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
                         const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
                         const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
+                        const tipoModalidad = grupoObj?.tipo_modalidad || 'en_linea'
                         const imagenCurso = cursoObj?.imagen || cursoObj?.imagen_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop'
                         
                         const estatusIns = ins.estatus || 'activa'
@@ -630,7 +676,7 @@ export default function AlumnoPortalPage() {
                         return (
                           <div 
                             key={ins.id} 
-                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, recursos: recursosGrupo, sesiones: sesionesGrupoItem, estaEnBaja, tienePagoVencido })}
+                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, tipoModalidad, recursos: recursosGrupo, sesiones: sesionesGrupoItem, estaEnBaja, tienePagoVencido })}
                             className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
                           >
                             <div className="relative h-48 w-full overflow-hidden bg-slate-100">
@@ -642,12 +688,15 @@ export default function AlumnoPortalPage() {
                               <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">
                                 {nombreGrupo}
                               </div>
+                              <div className="absolute top-3 right-3 bg-indigo-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
+                                {tipoModalidad === 'presencial' ? '📍 Presencial' : tipoModalidad === 'hibrido' ? '🔀 Híbrido' : '💻 En Línea'}
+                              </div>
                             </div>
 
                             <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
                               <div className="space-y-1">
                                 <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
-                                <p className="text-xs text-slate-500">{sesionesGrupoItem.length} clases en vivo · {recursosGrupo.length} materiales</p>
+                                <p className="text-xs text-slate-500">{sesionesGrupoItem.length} sesiones · {recursosGrupo.length} materiales</p>
                               </div>
 
                               <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
