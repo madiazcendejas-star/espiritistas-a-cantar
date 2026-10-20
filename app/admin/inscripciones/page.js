@@ -135,18 +135,19 @@ export default function InscripcionesAdminPage() {
     } else {
       alert('¡Inscripción y plan de pagos generado con éxito!')
 
-      // DISPARAR WHATSAPP AUTOMÁTICO (OPCIÓN 2)
+      // DISPARAR WHATSAPP AUTOMÁTICO DE INSCRIPCIÓN A CURSO
       const telLimpio = alumnoSeleccionado.telefono ? String(alumnoSeleccionado.telefono).replace(/\D/g, '') : ''
       if (telLimpio) {
-        const telefonoAlumno = alumnoSeleccionado.telefono || ''
-        const passwordTemp = alumnoSeleccionado.password || alumnoSeleccionado.Password || alumnoSeleccionado.telefono || 'Tu teléfono o matrícula'
+        const nombreAl = alumnoSeleccionado.nombre || alumnoSeleccionado.Nombre || 'Estudiante'
+        const nombreCur = cursoSeleccionado.Nombre_curso || cursoSeleccionado.nombre_curso || 'Curso'
+        const nombreGrp = grupoSeleccionado.nombre_grupo || 'Grupo'
 
-        const mensajeBienvenida = `¡Bienvenid@ a *Espiritistas a Cantar*! Tu inscripción ha sido confirmada.\n\nAQUÍ TIENES TUS DATOS DE ACCESO A LA PLATAFORMA:\n\n🔗 *Enlace:* https://espiritistasacantar.com/alumno\n👤 *Usuario:* ${telefonoAlumno}\n🔑 *Contraseña temporal:* ${passwordTemp}\n\nEn el portal podrás encontrar el acceso a tus cursos, pagos y próximos cursos. ¡Cualquier duda, aquí estamos para apoyarte!`
+        const mensajeInscripcion = `¡Hola *${nombreAl}*! Tu inscripción al curso/taller *${nombreCur}* (${nombreGrp}) ha sido realizada correctamente.\n\nTe recordamos que puedes consultar los materiales, horarios de sesiones y avisos directamente en tu plataforma:\n🔗 https://espiritistasacantar.com/alumno\n\n¡Nos vemos en clase!`
 
-        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeBienvenida)}`
+        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeInscripcion)}`
         window.open(urlWa, '_blank')
       } else {
-        alert('Aviso: El alumno no tiene un número de teléfono registrado para enviarle el WhatsApp automático de bienvenida.')
+        alert('Aviso: El alumno no tiene un número de teléfono registrado para enviarle el WhatsApp automático de inscripción.')
       }
 
       setModalNuevaInscripcion(false)
