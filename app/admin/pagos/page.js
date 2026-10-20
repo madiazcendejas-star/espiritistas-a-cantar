@@ -50,6 +50,7 @@ export default function PagosAdminPage() {
           estatus: p.estatus || 'Pendiente',
           alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
           alumnoCorreo: al?.correo || al?.Correo || 'Sin mail',
+          alumnoTelefono: al?.telefono || al?.Telefono || '',
           alumnoMatricula: al?.matricula || `EAC-${al?.id}`,
           cursoNombre: cur?.Nombre_curso || cur?.nombre_curso || 'Curso',
           grupoNombre: gr?.nombre_grupo || 'Grupo'
@@ -99,20 +100,29 @@ export default function PagosAdminPage() {
     })
   }
 
-  const marcarComoPagado = async (id) => {
-    const confirmar = confirm('¿Deseas registrar este pago como Pagado?')
+  const marcarComoPagado = async (pago) => {
+    const confirmar = confirm(`¿Deseas registrar el pago de ${pago.alumnoNombre} como Pagado y notificar por WhatsApp?`)
     if (!confirmar) return
 
     const hoy = new Date().toISOString().split('T')[0]
     const { error } = await supabase
       .from('pagos')
       .update({ estatus: 'Pagado', fecha_pago: hoy })
-      .eq('id', id)
+      .eq('id', pago.id)
 
     if (error) {
       alert('Error al actualizar pago: ' + error.message)
     } else {
-      alert('¡Pago registrado exitosamente!')
+      // Lanzar notificación automática por WhatsApp
+      const telLimpio = pago.alumnoTelefono ? pago.alumnoTelefono.replace(/\D/g, '') : ''
+      if (telLimpio) {
+        const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de *Espiritistas a Cantar*. 🎶\n\nTe confirmamos que tu pago por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* para el curso *${pago.cursoNombre}* ha sido **validado y registrado con éxito** en el sistema.\n\nTu acceso a las clases y materiales se encuentra 100% activo. ¡Muchas gracias y nos vemos en clase!`
+        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
+        window.open(urlWa, '_blank')
+      } else {
+        alert('¡Pago registrado con éxito! (Nota: El alumno no tiene un teléfono registrado para WhatsApp automático).')
+      }
+
       cargarPagos()
     }
   }
@@ -133,11 +143,9 @@ export default function PagosAdminPage() {
     const fechaAntigua = new Date(pagoSeleccionado.fecha_vencimiento)
     const fechaNueva = new Date(nuevaFecha)
     
-    // Calcular la diferencia en días entre la fecha vieja y la nueva
     const diferenciaMs = fechaNueva.getTime() - fechaAntigua.getTime()
     const diferenciaDias = Math.round(diferenciaMs / (1000 * 60 * 60 * 24))
 
-    // 1. Actualizar la fecha del pago seleccionado
     const { error: err1 } = await supabase
       .from('pagos')
       .update({ fecha_vencimiento: nuevaFecha })
@@ -148,9 +156,7 @@ export default function PagosAdminPage() {
       return alert('Error al actualizar fecha: ' + err1.message)
     }
 
-    // 2. Si el usuario activó desplazar el resto, actualizar los pagos pendientes posteriores del mismo alumno y grupo
     if (desplazarResto && diferenciaDias !== 0) {
-      // Buscar todos los pagos pendientes de este alumno en este grupo cuya fecha sea mayor a la antigua
       const { data: pagosPosteriores } = await supabase
         .from('pagos')
         .select('*')
@@ -338,7 +344,7 @@ export default function PagosAdminPage() {
                               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">✓ Pagado</span>
                             ) : (
                               <button 
-                                onClick={() => marcarComoPagado(p.id)}
+                                onClick={() => marcarComoPagado(p)}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm"
                               >
                                 Registrar pago
