@@ -17,10 +17,11 @@ export default function GruposAdminPage() {
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario Nuevo Grupo
+  // Formulario Nuevo Grupo (Añadido tipo_modalidad)
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
+    tipo_modalidad: 'en_linea', // 'en_linea', 'presencial', 'hibrido'
     fecha_inicio: '',
     fecha_fin: '',
     duracion_acceso: '1_ano',
@@ -32,12 +33,12 @@ export default function GruposAdminPage() {
   // Formulario Recurso para el Grupo
   const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
 
-  // Formulario Nueva Sesión de Clase (Meet/Zoom o Presencial)
+  // Formulario Nueva Sesión de Clase (Soporta Meet o Salón Presencial)
   const [formSesion, setFormSesion] = useState({
     numero_sesion: 1,
     titulo_sesion: '',
     fecha_hora: '',
-    enlace_meet: ''
+    enlace_meet: '' // Aquí guardamos el link de Meet o la dirección/salón presencial
   })
 
   // Estados para Reprogramación Masiva de Pagos por Grupo
@@ -70,6 +71,7 @@ export default function GruposAdminPage() {
     const { error } = await supabase.from('grupos').insert([{
       curso_id: Number(formGrupo.curso_id),
       nombre_grupo: formGrupo.nombre_grupo.trim(),
+      tipo_modalidad: formGrupo.tipo_modalidad,
       fecha_inicio: formGrupo.fecha_inicio || null,
       fecha_fin: formGrupo.fecha_fin || null,
       duracion_acceso: formGrupo.duracion_acceso,
@@ -82,7 +84,7 @@ export default function GruposAdminPage() {
       alert('Error al crear grupo: ' + error.message)
     } else {
       setModalGrupo(false)
-      setFormGrupo({ curso_id: '', nombre_grupo: '', fecha_inicio: '', fecha_fin: '', duracion_acceso: '1_ano', costo_total: '', num_pagos: 1, frecuencia: 'mensual' })
+      setFormGrupo({ curso_id: '', nombre_grupo: '', tipo_modalidad: 'en_linea', fecha_inicio: '', fecha_fin: '', duracion_acceso: '1_ano', costo_total: '', num_pagos: 1, frecuencia: 'mensual' })
       cargarDatos()
       alert('¡Grupo creado exitosamente!')
     }
@@ -261,6 +263,7 @@ export default function GruposAdminPage() {
               const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || 'Curso General'
               const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(g.id))
               const sesionesCount = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(g.id)).length
+              const modalidadGrupo = g.tipo_modalidad || 'en_linea'
 
               return (
                 <div 
@@ -273,14 +276,11 @@ export default function GruposAdminPage() {
                       <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-2.5 py-1 rounded-full uppercase">
                         {nombreCurso}
                       </span>
-                      <div className="flex gap-1">
-                        <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-full">
-                          {sesionesCount} sesiones
-                        </span>
-                        <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-0.5 rounded-full">
-                          {recursosGrupo.length} mat.
-                        </span>
-                      </div>
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase ${
+                        modalidadGrupo === 'presencial' ? 'bg-purple-50 text-purple-700' : 'bg-emerald-50 text-emerald-700'
+                      }`}>
+                        {modalidadGrupo === 'presencial' ? '📍 Presencial' : '💻 En Línea'}
+                      </span>
                     </div>
                     <h4 className="text-base font-extrabold text-slate-900">{g.nombre_grupo}</h4>
                     <p className="text-xs text-slate-500">📅 Inicio: <strong className="text-slate-700">{g.fecha_inicio || 'Por definir'}</strong></p>
@@ -329,6 +329,18 @@ export default function GruposAdminPage() {
                   className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
                 />
               </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Modalidad del Grupo *</label>
+                <select 
+                  value={formGrupo.tipo_modalidad}
+                  onChange={(e) => setFormGrupo({ ...formGrupo, tipo_modalidad: e.target.value })}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                >
+                  <option value="en_linea">💻 En Línea (Virtual)</option>
+                  <option value="presencial">📍 Presencial</option>
+                  <option value="hibrido">🔀 Híbrido</option>
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Inicio</label>
@@ -374,16 +386,16 @@ export default function GruposAdminPage() {
             <div className="flex justify-between items-start">
               <div>
                 <h3 className="text-base font-bold text-slate-900">Gestión del Grupo: {grupoSeleccionado.nombre_grupo}</h3>
-                <p className="text-xs text-slate-400">Administra el calendario de sesiones, enlaces, materiales y finanzas del grupo.</p>
+                <p className="text-xs text-slate-400">Modalidad: <strong className="uppercase">{grupoSeleccionado.tipo_modalidad || 'En línea'}</strong>. Administra el calendario, ubicación/enlaces y finanzas.</p>
               </div>
               <button onClick={eliminarGrupo} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-xs font-semibold">Eliminar Grupo</button>
             </div>
 
-            {/* SECCIÓN NUEVA: CALENDARIO DE SESIONES Y ENLACES DE MEET/ZOOM */}
+            {/* SECCIÓN NUEVA: CALENDARIO DE SESIONES (ENLACE O SALÓN) */}
             <div className="p-5 bg-emerald-50/50 rounded-2xl border border-emerald-100 space-y-4">
               <div>
-                <h4 className="text-xs font-bold uppercase text-emerald-900 tracking-wider">🗓️ Programar Sesiones y Enlaces (Meet / Zoom)</h4>
-                <p className="text-[11px] text-emerald-700">Define las clases de este grupo, su fecha/hora y el enlace de acceso para tus alumnos.</p>
+                <h4 className="text-xs font-bold uppercase text-emerald-900 tracking-wider">🗓️ Programar Sesiones y Ubicación / Enlaces</h4>
+                <p className="text-[11px] text-emerald-700">Define las clases de este grupo, su fecha/hora y el enlace de Meet o el Salón/Ubicación presencial.</p>
               </div>
 
               <form onSubmit={agregarSesionAGrupo} className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-4 rounded-xl border border-emerald-200">
@@ -419,10 +431,10 @@ export default function GruposAdminPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Enlace Meet / Zoom / Salón</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Enlace Meet o Salón Presencial</label>
                   <input 
-                    type="url" 
-                    placeholder="https://meet.google.com/..."
+                    type="text" 
+                    placeholder="https://meet.google.com/... o Salón 3"
                     value={formSesion.enlace_meet}
                     onChange={(e) => setFormSesion({ ...formSesion, enlace_meet: e.target.value })}
                     className="w-full p-2.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
@@ -445,9 +457,9 @@ export default function GruposAdminPage() {
                         <span className="font-bold text-slate-900">Sesión {ses.numero_sesion}: {ses.titulo_sesion}</span>
                         <p className="text-[11px] text-slate-500">🕒 {new Date(ses.fecha_hora).toLocaleString('es-MX')}</p>
                         {ses.enlace_meet && (
-                          <a href={ses.enlace_meet} target="_blank" rel="noreferrer" className="text-[11px] text-indigo-600 font-semibold hover:underline block">
-                            🔗 Enlace de acceso →
-                          </a>
+                          <span className="text-[11px] text-indigo-600 font-semibold block">
+                            📍 / 🔗 Acceso: {ses.enlace_meet}
+                          </span>
                         )}
                       </div>
                       <button onClick={() => eliminarSesion(ses.id)} className="text-rose-600 font-bold hover:underline">Eliminar</button>
