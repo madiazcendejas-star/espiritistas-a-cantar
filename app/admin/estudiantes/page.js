@@ -70,7 +70,7 @@ export default function EstudiantesAdminPage() {
     // Matrícula numérica automática de 4 dígitos (ej. 2415)
     const matriculaNumerica = Math.floor(1000 + Math.random() * 9000).toString()
 
-    const { error } = await supabase.from('alumnos').insert([
+    const { data, error } = await supabase.from('alumnos').insert([
       {
         nombre: nombreCompleto,
         correo: formNuevo.correo.trim(),
@@ -80,14 +80,29 @@ export default function EstudiantesAdminPage() {
         matricula: matriculaNumerica,
         password: formNuevo.password.trim()
       }
-    ])
+    ]).select()
 
     if (error) {
       alert('Error al registrar estudiante: ' + error.message)
     } else {
+      alert('¡Estudiante registrado exitosamente con matrícula #' + matriculaNumerica + '!')
+
+      // DISPARAR WHATSAPP DE BIENVENIDA AUTOMÁTICO (OPCIÓN 2)
+      const telLimpio = formNuevo.telefono ? String(formNuevo.telefono).replace(/\D/g, '') : ''
+      if (telLimpio) {
+        const telefonoAlumno = formNuevo.telefono.trim()
+        const passwordTemp = formNuevo.password.trim()
+
+        const mensajeBienvenida = `¡Bienvenid@ a *Espiritistas a Cantar*! Tu inscripción ha sido confirmada.\n\nAQUÍ TIENES TUS DATOS DE ACCESO A LA PLATAFORMA:\n\n🔗 *Enlace:* https://espiritistasacantar.com/alumno\n👤 *Usuario:* ${telefonoAlumno}\n🔑 *Contraseña temporal:* ${passwordTemp}\n\nEn el portal podrás encontrar el acceso a tus cursos, pagos y próximos cursos. ¡Cualquier duda, aquí estamos para apoyarte!`
+
+        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeBienvenida)}`
+        window.open(urlWa, '_blank')
+      } else {
+        alert('Aviso: El teléfono ingresado no es válido para abrir el WhatsApp automático.')
+      }
+
       setModalNuevo(false)
       cargarAlumnos()
-      alert('¡Estudiante registrado exitosamente con matrícula #' + matriculaNumerica + '!')
     }
     setGuardando(false)
   }
