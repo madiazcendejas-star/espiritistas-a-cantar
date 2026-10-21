@@ -17,6 +17,10 @@ export default function DetalleCursoPage() {
   const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '', precio: '', visible_web: true })
   const [guardando, setGuardando] = useState(false)
 
+  // Estado para la subida de imagen directa desde el equipo
+  const [imagenArchivo, setImagenArchivo] = useState(null)
+  const [subiendoImagen, setSubiendoImagen] = useState(false)
+
   useEffect(() => {
     if (cursoId) cargarCursoYGrupos()
   }, [cursoId])
@@ -43,7 +47,6 @@ export default function DetalleCursoPage() {
     e.preventDefault()
     setGuardando(true)
 
-    // Se eliminó 'foto_url' del objeto para evitar el error de esquema si tu tabla no la tiene
     const { error } = await supabase
       .from('cursos')
       .update({
@@ -61,6 +64,45 @@ export default function DetalleCursoPage() {
       cargarCursoYGrupos()
     }
     setGuardando(false)
+  }
+
+  // FUNCIÓN PARA SUBIR LA IMAGEN DESDE LA PESTAÑA 'IMÁGENES'
+  const subirImagenCurso = async (e) => {
+    e.preventDefault()
+    if (!imagenArchivo) return alert('Selecciona una imagen primero.')
+
+    setSubiendoImagen(true)
+
+    const nombreArchivo = `${Date.now()}_${imagenArchivo.name.replace(/\s+/g, '_')}`
+    const { error: uploadError } = await supabase.storage
+      .from('cursos')
+      .upload(nombreArchivo, imagenArchivo)
+
+    if (uploadError) {
+      setSubiendoImagen(false)
+      return alert('Error al subir la imagen: ' + uploadError.message)
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('cursos')
+      .getPublicUrl(nombreArchivo)
+
+    const urlPublica = publicUrlData.publicUrl
+
+    // Guardar la URL en la columna 'imagen' de la tabla 'cursos'
+    const { error: updateError } = await supabase
+      .from('cursos')
+      .update({ imagen: urlPublica })
+      .eq('id', cursoId)
+
+    if (updateError) {
+      alert('Imagen subida, pero error al actualizar el curso en la base de datos: ' + updateError.message)
+    } else {
+      alert('¡Imagen de portada actualizada con éxito!')
+      setImagenArchivo(null)
+      cargarCursoYGrupos()
+    }
+    setSubiendoImagen(false)
   }
 
   const eliminarCurso = async () => {
@@ -84,6 +126,7 @@ export default function DetalleCursoPage() {
   }
 
   const nombreCurso = curso.Nombre_curso || curso.nombre_curso || 'Curso sin nombre'
+  const imagenActual = curso.imagen || curso.foto_url || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
 
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
@@ -302,10 +345,46 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
+          {/* PESTAÑA DE IMÁGENES FUNCIONAL */}
           {pestanaActiva === 'imagenes' && (
-            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs">
-              <h3 className="text-base font-extrabold text-slate-900">Gestión de Imágenes y Miniaturas</h3>
-              <p className="text-xs text-slate-500">Sube o configura los archivos multimedia para las landings públicas.</p>
+            <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs max-w-xl">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Gestión de Imágenes y Miniaturas</h3>
+                <p className="text-xs text-slate-500">Sube la portada oficial para las landings públicas y el portal de los alumnos.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <span className="block text-xs font-bold uppercase text-slate-400 mb-2">Portada actual en uso:</span>
+                  <img 
+                    src={imagenActual} 
+                    alt="Portada del curso" 
+                    className="w-full h-48 object-cover rounded-2xl border border-slate-200 shadow-xs"
+                  />
+                </div>
+
+                <form onSubmit={suberImagenCurso} className="space-y-4 pt-2 border-t border-slate-100">
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Seleccionar nueva imagen desde tu equipo</label>
+                    <input 
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setImagenArchivo(e.target.files[0])}
+                      className="w-full p-2.5 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                    />
+                  </div>
+
+                  <div className="text-right">
+                    <button 
+                      type="submit"
+                      disabled={subiendoImagen || !imagenArchivo}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
+                    >
+                      {subiendoImagen ? 'Subiendo imagen...' : 'Subir y actualizar portada'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
