@@ -14,11 +14,14 @@ export default function DetalleCursoPage() {
   const [loading, setLoading] = useState(true)
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
 
-  // Añadimos 'proximo' al estado del formulario de edición
+  // Estado con los campos extendidos para enriquecer la información del curso
   const [formEdicion, setFormEdicion] = useState({ 
     Nombre_curso: '', 
     descripcion: '', 
     precio: '', 
+    duracion: '',
+    modalidad: 'en_linea',
+    lo_que_aprenderas: '',
     visible_web: true,
     proximo: false 
   })
@@ -43,8 +46,11 @@ export default function DetalleCursoPage() {
         Nombre_curso: resCurso.Nombre_curso || resCurso.nombre_curso || '',
         descripcion: resCurso.descripcion || '',
         precio: resCurso.precio || '',
+        duracion: resCurso.duracion || '',
+        modalidad: resCurso.modalidad || 'en_linea',
+        lo_que_aprenderas: resCurso.lo_que_aprenderas || '',
         visible_web: resCurso.visible_web ?? true,
-        proximo: resCurso.proximo ?? false // Cargamos el valor desde Supabase
+        proximo: resCurso.proximo ?? false
       })
     }
     if (resGrupos) setGrupos(resGrupos)
@@ -55,22 +61,24 @@ export default function DetalleCursoPage() {
     e.preventDefault()
     setGuardando(true)
 
-    // Guardamos la configuración incluyendo el estatus de 'proximo'
     const { error } = await supabase
       .from('cursos')
       .update({
         Nombre_curso: formEdicion.Nombre_curso.trim(),
         descripcion: formEdicion.descripcion.trim(),
         precio: Number(formEdicion.precio) || 0,
+        duracion: formEdicion.duracion.trim(),
+        modalidad: formEdicion.modalidad,
+        lo_que_aprenderas: formEdicion.lo_que_aprenderas.trim(),
         visible_web: formEdicion.visible_web,
-        proximo: formEdicion.proximo // Guardamos la selección
+        proximo: formEdicion.proximo
       })
       .eq('id', cursoId)
 
     if (error) {
       alert('Error al actualizar: ' + error.message)
     } else {
-      alert('¡Curso actualizado exitosamente!')
+      alert('¡Información del curso actualizada exitosamente!')
       cargarCursoYGrupos()
     }
     setGuardando(false)
@@ -185,7 +193,6 @@ export default function DetalleCursoPage() {
             </div>
           </div>
 
-          {/* CONTROLES SUPERIORES (VISIBLE WEB Y CURSO PRÓXIMO) */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-2xl">
               <span className="text-xs font-bold text-slate-700">Visible en la web</span>
@@ -225,12 +232,6 @@ export default function DetalleCursoPage() {
               🏛️ Grupos <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">{grupos.length}</span>
             </button>
             <button 
-              onClick={() => setPestanaActiva('workshops')}
-              className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'workshops' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
-            >
-              ⚡ Workshops <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">0</span>
-            </button>
-            <button 
               onClick={() => setPestanaActiva('imagenes')}
               className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'imagenes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
             >
@@ -241,7 +242,7 @@ export default function DetalleCursoPage() {
           {pestanaActiva === 'detalles' && (
             <div className="space-y-6">
               <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-                <h3 className="text-base font-extrabold text-slate-900">Información General</h3>
+                <h3 className="text-base font-extrabold text-slate-900">Información General y Comercial</h3>
                 
                 <form onSubmit={guardarCambios} className="space-y-5">
                   <div>
@@ -255,28 +256,60 @@ export default function DetalleCursoPage() {
                     />
                   </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Precio / Inversión ($ MXN)</label>
+                      <input 
+                        type="number"
+                        value={formEdicion.precio}
+                        onChange={(e) => setFormEdicion({ ...formEdicion, precio: e.target.value })}
+                        className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duración (Ej. 4 semanas)</label>
+                      <input 
+                        type="text"
+                        value={formEdicion.duracion}
+                        onChange={(e) => setFormEdicion({ ...formEdicion, duracion: e.target.value })}
+                        placeholder="Ej. 2 meses / 4 clases"
+                        className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Modalidad</label>
+                      <select
+                        value={formEdicion.modalidad}
+                        onChange={(e) => setFormEdicion({ ...formEdicion, modalidad: e.target.value })}
+                        className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                      >
+                        <option value="en_linea">💻 En Línea</option>
+                        <option value="presencial">📍 Presencial</option>
+                        <option value="hibrido">🔀 Híbrido</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descripción</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Descripción General</label>
                     <textarea 
-                      rows="4"
+                      rows="3"
                       value={formEdicion.descripcion}
                       onChange={(e) => setFormEdicion({ ...formEdicion, descripcion: e.target.value })}
+                      placeholder="Breve introducción atractiva..."
                       className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none resize-none focus:bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Precio (Desde)</label>
-                    <input 
-                      type="number"
-                      value={formEdicion.precio}
-                      onChange={(e) => setFormEdicion({ ...formEdicion, precio: e.target.value })}
-                      className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Lo que aprenderás (Temario o viñetas)</label>
+                    <textarea 
+                      rows="4"
+                      value={formEdicion.lo_que_aprenderas}
+                      onChange={(e) => setFormEdicion({ ...formEdicion, lo_que_aprenderas: e.target.value })}
+                      placeholder="• Introducción al taller&#10;• Práctica avanzada&#10;• Material de apoyo..."
+                      className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none resize-none focus:bg-white"
                     />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 pt-2 text-xs text-slate-400 font-medium">
-                    <div>Fecha de Creación: <span className="text-slate-700 font-bold">{new Date(curso.created_at || Date.now()).toLocaleString()}</span></div>
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100">
@@ -290,17 +323,6 @@ export default function DetalleCursoPage() {
                   </div>
                 </form>
               </div>
-
-              <div className="bg-white p-8 rounded-3xl border border-rose-200/80 shadow-xs space-y-4">
-                <h4 className="text-sm font-extrabold text-rose-600">Zona de Peligro</h4>
-                <p className="text-xs text-slate-500">Eliminar el curso es una acción irreversible y borrará toda su vinculación.</p>
-                <button 
-                  onClick={eliminarCurso} 
-                  className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-5 py-3 rounded-2xl text-xs font-bold transition"
-                >
-                  Eliminar Curso
-                </button>
-              </div>
             </div>
           )}
 
@@ -308,65 +330,10 @@ export default function DetalleCursoPage() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-black text-slate-900">Grupos Asociados</h3>
-                <button 
-                  onClick={() => alert('Crear grupo vinculado a este curso')}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition"
-                >
-                  + Crear Grupo
-                </button>
               </div>
-
-              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-                <table className="w-full text-left border-collapse text-sm font-medium">
-                  <thead>
-                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-xs tracking-wider">
-                      <th className="py-4 px-6">Grupo</th>
-                      <th className="py-4 px-6">Curso</th>
-                      <th className="py-4 px-6">Horario</th>
-                      <th className="py-4 px-6">Ocupación</th>
-                      <th className="py-4 px-6">Progreso</th>
-                      <th className="py-4 px-6">Costo</th>
-                      <th className="py-4 px-6">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {grupos.length === 0 ? (
-                      <tr>
-                        <td colSpan="7" className="py-10 text-center text-slate-400 italic">No hay grupos ligados a este curso.</td>
-                      </tr>
-                    ) : (
-                      grupos.map(g => (
-                        <tr 
-                          key={g.id} 
-                          onClick={() => alert(`Ir al detalle del grupo: ${g.nombre || g.grupo}`)}
-                          className="hover:bg-slate-50 cursor-pointer transition"
-                        >
-                          <td className="py-4 px-6 font-bold text-slate-900">{g.nombre || g.grupo || 'Grupo sin nombre'}</td>
-                          <td className="py-4 px-6 text-slate-600">{nombreCurso}</td>
-                          <td className="py-4 px-6 text-slate-600">{g.horario || 'Por definir'}</td>
-                          <td className="py-4 px-6 text-slate-600">{g.ocupacion || '0/10'}</td>
-                          <td className="py-4 px-6 text-slate-600">{g.progreso || '0%'}</td>
-                          <td className="py-4 px-6 font-bold text-slate-900">
-                            ${g.costo ? Number(g.costo).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'} MXN
-                          </td>
-                          <td className="py-4 px-6">
-                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600">
-                              {g.estado || 'Activo'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs p-6 text-xs text-slate-500">
+                Gestión de grupos vinculados a este curso.
               </div>
-            </div>
-          )}
-
-          {pestanaActiva === 'workshops' && (
-            <div className="bg-white p-12 rounded-3xl border border-slate-200/80 text-center space-y-3 shadow-xs">
-              <p className="text-sm font-bold text-slate-700">No hay workshops registrados para este curso.</p>
-              <button onClick={() => alert('Crear workshop')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-2xl text-xs font-bold">+ Crear Workshop</button>
             </div>
           )}
 
