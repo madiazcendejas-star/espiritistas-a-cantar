@@ -747,7 +747,7 @@ export default function AlumnoPortalPage() {
                           const precioGrupo = grupoProximo?.precio || cur.precio || 0
                           const precioCur = Number(precioGrupo).toLocaleString('es-MX', { minimumFractionDigits: 2 })
                           const fechaProxima = grupoProximo?.fecha_inicio 
-                            ? new Date(grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'full' })
+                            ? {new Date(grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'medium', timeZone: 'UTC' })}
                             : (grupoProximo?.nombre_grupo || 'Próxima fecha por definir')
 
                           return (
