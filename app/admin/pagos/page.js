@@ -7,6 +7,7 @@ export default function PagosAdminPage() {
   const [pagos, setPagos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('todos') // 'todos', 'vencidos', 'pendiente', 'pagado', 'cancelado'
 
   // Modal para reprogramar fecha
   const [modalFecha, setModalFecha] = useState(false)
@@ -18,7 +19,7 @@ export default function PagosAdminPage() {
   // Modal para registrar pago avanzado (Adelantos, Becas, Descuentos)
   const [modalPago, setModalPago] = useState(false)
   const [montoPagadoReal, setMontoPagadoReal] = useState('')
-  const [tipoMovimiento, setTipoMovimiento] = useState('normal') // normal, beca, descuento
+  const [tipoMovimiento, setTipoMovimiento] = useState('normal')
   const [guardandoPago, setGuardandoPago] = useState(false)
 
   const [stats, setStats] = useState({
@@ -42,10 +43,22 @@ export default function PagosAdminPage() {
     const { data: resCursos } = await supabase.from('cursos').select('*')
 
     if (resPagos && resAlumnos && resGrupos && resCursos) {
+      const hoyStr = new Date().toISOString().split('T')[0]
+
       const pagosMapeados = resPagos.map(p => {
         const al = resAlumnos.find(a => Number(a.id) === Number(p.alumno_id))
         const gr = resGrupos.find(g => Number(g.id) === Number(p.grupo_id))
         const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (p.curso_id ? resCursos.find(c => Number(c.id) === Number(p.curso_id)) : null)
+
+        // Validar si el alumno está dado de baja (buscando en estatus o activo)
+        const estatusAlumno = al?.estatus || al?.Estatus || (al?.activo === false ? 'Baja' : 'Activo')
+        const esBaja = String(estatusAlumno).toLowerCase().includes('baja') || al?.activo === false
+
+        const estatusOriginal = p.estatus || 'Pendiente'
+        
+        // Si el alumno está de baja, el pago pendiente pasa automáticamente a estatus "Cancelado" / inactivo para cobro
+        const estatusFinal = esBaja && estatusOriginal !== 'Pagado' ? 'Cancelado' : estatusOriginal
+        const esVencido = estatusFinal === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
 
         return {
           id: p.id,
@@ -54,7 +67,9 @@ export default function PagosAdminPage() {
           monto: Number(p.monto) || 0,
           monto_real: (p.monto_real !== null && p.monto_real !== undefined) ? Number(p.monto_real) : (Number(p.monto) || 0),
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
-          estatus: p.estatus || 'Pendiente',
+          estatus: estatusFinal,
+          estaBaja: esBaja,
+          estaVencido: esVencido,
           alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
           alumnoCorreo: al?.correo || al?.Correo || 'Sin mail',
           alumnoTelefono: al?.telefono || al?.Telefono || '',
@@ -76,22 +91,20 @@ export default function PagosAdminPage() {
     let vencidosM = 0
     let cobrado = 0
     let pendiente = 0
-    let totalGeneral = listaPagos.length
-
-    const hoyStr = new Date().toISOString().split('T')[0]
+    let totalGeneral = listaPagos.filter(p => p.estatus !== 'Cancelado').length
 
     listaPagos.forEach(p => {
+      // Ignorar totalmente los pagos de alumnos dados de baja en las métricas de cobro
+      if (p.estatus === 'Cancelado') return
+
       const montoOficial = Number(p.monto) || 0
       const montoReal = p.monto_real !== undefined ? Number(p.monto_real) : montoOficial
-      const estatus = p.estatus || 'Pendiente'
-      
-      const esVencido = estatus === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
 
-      if (estatus === 'Pagado') {
+      if (p.estatus === 'Pagado') {
         cobrado += montoReal
       } else {
         pendiente += montoOficial
-        if (esVencido) {
+        if (p.estaVencido) {
           vencidosC++
           vencidosM += montoOficial
         }
@@ -111,6 +124,9 @@ export default function PagosAdminPage() {
   }
 
   const abrirModalPago = (pago) => {
+    if (pago.estaBaja) {
+      return alert('No se puede registrar pago a un alumno que se encuentra dado de baja.')
+    }
     setPagoSeleccionado(pago)
     setMontoPagadoReal(pago.monto)
     setTipoMovimiento('normal')
@@ -179,6 +195,9 @@ export default function PagosAdminPage() {
   }
 
   const enviarRecordatorioWhatsApp = (pago) => {
+    if (pago.estaBaja) {
+      return alert('Este alumno está dado de baja, no se le pueden enviar recordatorios de cobro.')
+    }
     const telLimpio = pago.alumnoTelefono ? String(pago.alumnoTelefono).replace(/\D/g, '') : ''
     if (!telLimpio) {
       return alert('Este alumno no tiene un número de teléfono registrado para WhatsApp.')
@@ -189,6 +208,7 @@ export default function PagosAdminPage() {
   }
 
   const abrirModalFecha = (pago) => {
+    if (pago.estaBaja) return alert('No se pueden modificar fechas a alumnos dados de baja.')
     setPagoSeleccionado(pago)
     setNuevaFecha(pago.fecha_vencimiento)
     setDesplazarResto(true)
@@ -247,12 +267,22 @@ export default function PagosAdminPage() {
     cargarPagos()
   }
 
+  // Filtrado combinado por búsqueda de texto y botones de estado
   const pagosFiltrados = pagos.filter(p => {
     const termino = busqueda.toLowerCase()
-    return p.alumnoNombre.toLowerCase().includes(termino) ||
-           p.alumnoMatricula.toLowerCase().includes(termino) ||
-           p.cursoNombre.toLowerCase().includes(termino) ||
-           p.grupoNombre.toLowerCase().includes(termino)
+    const coincideTexto = p.alumnoNombre.toLowerCase().includes(termino) ||
+                           p.alumnoMatricula.toLowerCase().includes(termino) ||
+                           p.cursoNombre.toLowerCase().includes(termino) ||
+                           p.grupoNombre.toLowerCase().includes(termino)
+
+    if (!coincideTexto) return false
+
+    if (filtroEstado === 'vencidos') return p.estaVencido
+    if (filtroEstado === 'pendiente') return p.estatus === 'Pendiente' && !p.estaVencido
+    if (filtroEstado === 'pagado') return p.estatus === 'Pagado'
+    if (filtroEstado === 'cancelado') return p.estatus === 'Cancelado'
+
+    return true // 'todos'
   })
 
   return (
@@ -329,15 +359,51 @@ export default function PagosAdminPage() {
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-            <span className="text-slate-400 text-sm pl-2">🔍</span>
-            <input 
-              type="text" 
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por estudiante, matrícula, curso o grupo..." 
-              className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
-            />
+          {/* BARRA DE BÚSQUEDA Y FILTROS RÁPIDOS */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button 
+                onClick={() => setFiltroEstado('todos')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'todos' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+              >
+                📋 Todos ({pagos.length})
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('vencidos')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'vencidos' ? 'bg-rose-600 text-white shadow-sm' : 'bg-white text-rose-600 border border-rose-200 hover:bg-rose-50'}`}
+              >
+                ⚠️ Vencidos ({pagos.filter(p => p.estaVencido).length})
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('pendiente')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pendiente' ? 'bg-amber-600 text-white shadow-sm' : 'bg-white text-amber-600 border border-amber-200 hover:bg-amber-50'}`}
+              >
+                ⏳ Al corriente ({pagos.filter(p => p.estatus === 'Pendiente' && !p.estaVencido).length})
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('pagado')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pagado' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50'}`}
+              >
+                ✓ Pagados ({pagos.filter(p => p.estatus === 'Pagado').length})
+              </button>
+              <button 
+                onClick={() => setFiltroEstado('cancelado')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'cancelado' ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+              >
+                🚫 Bajas / Cancelados ({pagos.filter(p => p.estatus === 'Cancelado').length})
+              </button>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
+              <span className="text-slate-400 text-sm pl-2">🔍</span>
+              <input 
+                type="text" 
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por estudiante, matrícula, curso o grupo..." 
+                className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
+              />
+            </div>
           </div>
 
           <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
@@ -348,7 +414,7 @@ export default function PagosAdminPage() {
               {loading ? (
                 <div className="text-center py-16 text-xs text-slate-400">Cargando registros financieros...</div>
               ) : pagosFiltrados.length === 0 ? (
-                <div className="text-center py-16 text-xs text-slate-400">No hay pagos registrados en la base de datos.</div>
+                <div className="text-center py-16 text-xs text-slate-400">No hay pagos que coincidan con los filtros seleccionados.</div>
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -364,18 +430,21 @@ export default function PagosAdminPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {pagosFiltrados.map((p) => {
-                      const estatus = p.estatus || 'Pendiente'
-                      const hoyStr = new Date().toISOString().split('T')[0]
-                      const estaVencido = estatus === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
+                      const estatus = p.estatus
+                      const estaVencido = p.estaVencido
+                      const esBaja = p.estaBaja
 
                       return (
-                        <tr key={p.id} className="hover:bg-slate-50 transition">
+                        <tr key={p.id} className={`hover:bg-slate-50 transition ${esBaja ? 'opacity-70 bg-slate-50/50' : ''}`}>
                           <td className="py-4 px-6 font-mono font-bold text-indigo-600">
                             #PAG-{p.id}
                             <div className="text-[10px] text-slate-400">#{p.alumnoMatricula}</div>
                           </td>
                           <td className="py-4 px-6">
-                            <div className="font-bold text-slate-900">{p.alumnoNombre}</div>
+                            <div className="font-bold text-slate-900 flex items-center gap-2">
+                              {p.alumnoNombre}
+                              {esBaja && <span className="bg-slate-200 text-slate-700 text-[9px] px-2 py-0.5 rounded-full font-bold">BAJA</span>}
+                            </div>
                             <span className="text-[10px] text-slate-400">{p.alumnoCorreo}</span>
                           </td>
                           <td className="py-4 px-6">
@@ -384,7 +453,7 @@ export default function PagosAdminPage() {
                           </td>
                           <td className="py-4 px-6 text-slate-500 flex items-center gap-2">
                             <span>{p.fecha_vencimiento}</span>
-                            {estatus !== 'Pagado' && (
+                            {!esBaja && estatus !== 'Pagado' && (
                               <button 
                                 onClick={() => abrirModalFecha(p)} 
                                 className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition"
@@ -404,16 +473,20 @@ export default function PagosAdminPage() {
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                               estatus === 'Pagado' 
                                 ? 'bg-emerald-50 text-emerald-600' 
-                                : estaVencido 
-                                  ? 'bg-rose-50 text-rose-600 border border-rose-200' 
-                                  : 'bg-amber-50 text-amber-600'
+                                : estatus === 'Cancelado'
+                                  ? 'bg-slate-200 text-slate-600'
+                                  : estaVencido 
+                                    ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                                    : 'bg-amber-50 text-amber-600'
                             }`}>
-                              {estaVencido ? '⚠️ Vencido' : estatus}
+                              {estatus === 'Cancelado' ? '🚫 Cancelado (Baja)' : estaVencido ? '⚠️ Vencido' : estatus}
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right">
                             {estatus === 'Pagado' ? (
                               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">✓ Pagado</span>
+                            ) : estatus === 'Cancelado' ? (
+                              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-xl">Sin acción (Baja)</span>
                             ) : (
                               <div className="flex items-center justify-end gap-2">
                                 {estaVencido && (
