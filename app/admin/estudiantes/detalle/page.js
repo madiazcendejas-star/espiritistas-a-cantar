@@ -200,16 +200,6 @@ function DetalleContenido() {
             <span className="text-slate-300">/</span>
             <span className="text-xs font-bold text-slate-700">Expediente del Estudiante</span>
           </div>
-          
-          <div className="flex items-center gap-3">
-            {/* BOTÓN NUEVO PARA REENVIAR ACCESOS */}
-            <button 
-              onClick={reenviarAccesosWhatsApp}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
-            >
-              <span>💬</span> Reenviar accesos por WhatsApp
-            </button>
-          </div>
         </header>
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
@@ -356,8 +346,20 @@ function DetalleContenido() {
                 </div>
               </div>
 
+              {/* SECCIÓN DE CONTACTO RÁPIDO Y BOTÓN DE ACCESOS INTEGRADO */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 lg:col-span-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Contacto Rápido</h3>
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Contacto Rápido y Credenciales</h3>
+                  
+                  {/* Botón integrado con el estilo del ERP */}
+                  <button 
+                    onClick={reenviarAccesosWhatsApp}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
+                  >
+                    <span>💬</span> Reenviar datos de acceso por WhatsApp
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
                     <span className="text-lg">📧</span>
