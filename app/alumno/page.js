@@ -738,7 +738,17 @@ export default function AlumnoPortalPage() {
                         {cursosProximos.map((cur) => {
                           const nombreCur = cur.Nombre_curso || cur.nombre_curso || 'Curso Próximo'
                           const imagenCur = cur.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
-                          const precioCur = Number(cur.precio || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+                          
+                          // LÓGICA DINÁMICA: Buscar el grupo más próximo para este curso madre
+                          const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(cur.id))
+                          // Ordenar por la fecha más cercana (si tienen campo fecha_inicio o similar, ajusta según tu esquema)
+                          const grupoProximo = gruposDelCurso.sort((a, b) => new Date(a.fecha_inicio || a.created_at) - new Date(b.fecha_inicio || b.created_at))[0]
+
+                          const precioGrupo = grupoProximo?.precio || cur.precio || 0
+                          const precioCur = Number(precioGrupo).toLocaleString('es-MX', { minimumFractionDigits: 2 })
+                          const fechaProxima = grupoProximo?.fecha_inicio 
+                            ? new Date(grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'full' })
+                            : (grupoProximo?.nombre_grupo || 'Próxima fecha por definir')
 
                           return (
                             <div key={cur.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs flex flex-col justify-between">
@@ -759,7 +769,7 @@ export default function AlumnoPortalPage() {
                               <div className="p-6 pt-0 flex items-center justify-between">
                                 <span className="text-base font-black text-slate-900">${precioCur} MXN</span>
                                 <button 
-                                  onClick={() => setCursoPopup(cur)}
+                                  onClick={() => setCursoPopup({ ...cur, _grupoProximo: grupoProximo })}
                                   className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-sm transition"
                                 >
                                   Más información del curso
@@ -784,7 +794,7 @@ export default function AlumnoPortalPage() {
 
                   {pagos.length === 0 ? (
                     <div className="text-center py-16 text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      No tienes cuotas o pagos registrados actualmente.
+                      No tienes cuotas ou pagos registrados actualmente.
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -937,7 +947,7 @@ export default function AlumnoPortalPage() {
         </div>
       </main>
 
-      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (ACTUALIZADO CON DURACIÓN, MODALIDAD, APRENDERÁS Y WHATSAPP) */}
+      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (CONECTADO AL GRUPO MÁS PRÓXIMO) */}
       {cursoPopup && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -958,10 +968,21 @@ export default function AlumnoPortalPage() {
               <div>
                 <div className="flex flex-wrap gap-2 mb-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Próximo Lanzamiento</span>
-                  {cursoPopup.duracion && <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">⏱️ {cursoPopup.duracion}</span>}
-                  {cursoPopup.modalidad && <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700 bg-purple-50 px-3 py-1 rounded-full">💻 {cursoPopup.modalidad.toUpperCase()}</span>}
+                  {cursoPopup._grupoProximo?.fecha_inicio && (
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
+                      📅 Inicia: {new Date(cursoPopup._grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+                    </span>
+                  )}
+                  {cursoPopup._grupoProximo?.tipo_modalidad && (
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700 bg-purple-50 px-3 py-1 rounded-full">
+                      💻 {cursoPopup._grupoProximo.tipo_modalidad.toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-2xl font-black text-slate-900">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
+                {cursoPopup._grupoProximo?.nombre_grupo && (
+                  <p className="text-xs font-bold text-indigo-600 mt-1">Grupo asignado: {cursoPopup._grupoProximo.nombre_grupo}</p>
+                )}
               </div>
 
               {/* Descripción */}
@@ -985,13 +1006,15 @@ export default function AlumnoPortalPage() {
 
             <div className="p-6 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Inversión Especial</span>
-                <span className="text-2xl font-black text-white">${Number(cursoPopup.precio || 0).toLocaleString('es-MX')} MXN</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Inversión del Grupo</span>
+                <span className="text-2xl font-black text-white">
+                  ${Number(cursoPopup._grupoProximo?.precio || cursoPopup.precio || 0).toLocaleString('es-MX')} MXN
+                </span>
               </div>
 
-              {/* BOTÓN DIRECTO A WHATSAPP CON MENSAJE PRECARGADO */}
+              {/* BOTÓN DIRECTO A WHATSAPP CON MENSAJE PRECARGADO INDICANDO EL GRUPO */}
               <a 
-                href={`https://wa.me/525650426741?text=${encodeURIComponent(`Hola, deseo inscribirme al curso: ${cursoPopup.Nombre_curso || cursoPopup.nombre_curso}`)}`}
+                href={`https://wa.me/525650426741?text=${encodeURIComponent(`Hola, deseo inscribirme al curso: ${cursoPopup.Nombre_curso || cursoPopup.nombre_curso} (${cursoPopup._grupoProximo?.nombre_grupo || 'Próximo grupo'})`)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3.5 rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2"
