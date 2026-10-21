@@ -18,10 +18,10 @@ export default function GruposAdminPage() {
   const [modalGrupo, setModalGrupo] = useState(false)
   const [modalDetalle, setModalDetalle] = useState(false)
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
-  const [pestanaActiva, setPestanaActiva] = useState('detalles') // 'detalles', 'inscripciones', 'sesiones', 'materiales'
+  const [pestanaActiva, setPestanaActiva] = useState('detalles')
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario Nuevo Grupo (Incluyendo capacidad y periodicidad)
+  // Formulario Nuevo Grupo (Con Capacidad Editable)
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
@@ -35,6 +35,9 @@ export default function GruposAdminPage() {
     fecha_fin: '',
     horario_texto: 'Lunes y Miércoles 18:00 - 20:00'
   })
+
+  // Estado para editar capacidad y datos del grupo seleccionado
+  const [capacidadEditada, setCapacidadEditada] = useState(15)
 
   // Formulario Recurso
   const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
@@ -115,6 +118,25 @@ export default function GruposAdminPage() {
     setGuardando(false)
   }
 
+  const actualizarCapacidadGrupo = async (e) => {
+    e.preventDefault()
+    if (!grupoSeleccionado) return
+
+    const { error } = await supabase
+      .from('grupos')
+      .update({ capacidad: Number(capacidadEditada) })
+      .eq('id', grupoSeleccionado.id)
+
+    if (error) {
+      alert('Error al actualizar la capacidad: ' + error.message)
+    } else {
+      alert('¡Capacidad actualizada con éxito!')
+      // Actualizar estado local
+      setGrupoSeleccionado({ ...grupoSeleccionado, capacidad: Number(capacidadEditada) })
+      cargarDatos()
+    }
+  }
+
   const eliminarGrupo = async () => {
     if (!confirm('¿Estás seguro de eliminar este grupo? Se perderán sus inscripciones y pagos asociados.')) return
     const { error } = await supabase.from('grupos').delete().eq('id', grupoSeleccionado.id)
@@ -179,12 +201,12 @@ export default function GruposAdminPage() {
     if (!error) cargarDatos()
   }
 
-  // Estadísticas superiores
+  // Estadísticas globales superiores basadas en la capacidad real de cada grupo
   const totalGrupos = grupos.length
   const totalInscripcionesConfirmadas = inscripciones.filter(i => i.estatus === 'activa' || !i.estatus).length
   const totalInscripcionesPorConfirmar = inscripciones.filter(i => i.estatus === 'Revision' || i.estatus === 'pendiente').length
   
-  const plazasTotales = grupos.reduce((acc, g) => acc + (g.capacidad || 15), 0)
+  const plazasTotales = grupos.reduce((acc, g) => acc + (Number(g.capacidad) || 15), 0)
   const plazasDisponibles = Math.max(0, plazasTotales - totalInscripcionesConfirmadas)
   const tasaOcupacion = plazasTotales > 0 ? Math.round((totalInscripcionesConfirmadas / plazasTotales) * 100) : 0
 
@@ -239,7 +261,7 @@ export default function GruposAdminPage() {
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* TARJETAS DE MÉTRICAS SUPERIORES (Estilo Craqui) */}
+          {/* TARJETAS DE MÉTRICAS SUPERIORES */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
               <span className="text-xs font-bold text-slate-400 uppercase">Total Grupos</span>
@@ -268,7 +290,7 @@ export default function GruposAdminPage() {
             </div>
           </div>
 
-          {/* BUSCADOR Y FILTROS DINÁMICOS */}
+          {/* BUSCADOR Y FILTROS */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 w-full">
               <span className="text-slate-400 text-sm pl-2">🔍</span>
@@ -299,13 +321,18 @@ export default function GruposAdminPage() {
               const cursoAsociado = cursos.find(c => Number(c.id) === Number(g.curso_id))
               const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || 'Curso General'
               const inscritosGrupo = inscripciones.filter(i => Number(i.grupo_id) === Number(g.id) && (i.estatus === 'activa' || !i.estatus)).length
-              const capacidadGrupo = g.capacidad || 15
+              const capacidadGrupo = Number(g.capacidad) || 15
               const ocupacionGrupo = Math.round((inscritosGrupo / capacidadGrupo) * 100)
 
               return (
                 <div 
                   key={g.id} 
-                  onClick={() => { setGrupoSeleccionado(g); setPestanaActiva('detalles'); setModalDetalle(true); }}
+                  onClick={() => { 
+                    setGrupoSeleccionado(g); 
+                    setCapacidadEditada(g.capacidad || 15);
+                    setPestanaActiva('detalles'); 
+                    setModalDetalle(true); 
+                  }}
                   className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition group"
                 >
                   <div className="space-y-2">
@@ -412,13 +439,13 @@ export default function GruposAdminPage() {
         </div>
       )}
 
-      {/* MODAL DETALLE DE GRUPO CON PESTAÑAS (Estilo Craqui) */}
+      {/* MODAL DETALLE DE GRUPO CON PESTAÑAS */}
       {modalDetalle && grupoSeleccionado && (() => {
         const cursoAsociado = cursos.find(c => Number(c.id) === Number(grupoSeleccionado.curso_id))
         const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || 'Curso General'
         const inscritosGrupo = inscripciones.filter(i => Number(i.grupo_id) === Number(grupoSeleccionado.id))
         const confirmados = inscritosGrupo.filter(i => i.estatus === 'activa' || !i.estatus).length
-        const capacidad = grupoSeleccionado.capacidad || 15
+        const capacidad = Number(grupoSeleccionado.capacidad) || 15
         const ocupacion = Math.round((confirmados / capacidad) * 100)
         const sesionesDelGrupo = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(grupoSeleccionado.id))
         const materialesDelGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupoSeleccionado.id))
@@ -441,7 +468,7 @@ export default function GruposAdminPage() {
                 </div>
               </div>
 
-              {/* NAVEGACIÓN POR PESTAÑAS (Estilo Craqui) */}
+              {/* NAVEGACIÓN POR PESTAÑAS */}
               <div className="flex gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
                 <button onClick={() => setPestanaActiva('detalles')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'detalles' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📄 Detalles</button>
                 <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({confirmados})</button>
@@ -449,7 +476,7 @@ export default function GruposAdminPage() {
                 <button onClick={() => setPestanaActiva('materiales')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'materiales' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📚 Materiales ({materialesDelGrupo.length})</button>
               </div>
 
-              {/* CONTENIDO DE PESTAÑA: DETALLES */}
+              {/* CONTENIDO DE PESTAÑA: DETALLES (Incluye la opción de modificar la capacidad) */}
               {pestanaActiva === 'detalles' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -476,6 +503,24 @@ export default function GruposAdminPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    
+                    {/* MODIFICAR CAPACIDAD DEL GRUPO */}
+                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                      <h4 className="text-xs font-bold uppercase text-slate-700">⚙️ Configurar Capacidad del Grupo</h4>
+                      <p className="text-[11px] text-slate-500">Modifica el número máximo de plazas permitidas para este grupo.</p>
+                      <form onSubmit={actualizarCapacidadGrupo} className="flex gap-2">
+                        <input 
+                          type="number" 
+                          min="1"
+                          required 
+                          value={capacidadEditada} 
+                          onChange={(e) => setCapacidadEditada(e.target.value)} 
+                          className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
+                        />
+                        <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap">Actualizar Plazas</button>
+                      </form>
+                    </div>
+
                     <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                       <h4 className="text-xs font-bold uppercase text-slate-500">Información Financiera</h4>
                       <div className="flex justify-between text-xs py-1 border-b border-slate-200">
@@ -488,33 +533,36 @@ export default function GruposAdminPage() {
                       </div>
                     </div>
 
-                    <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
-                      <h4 className="text-xs font-bold uppercase text-indigo-900">📅 Ajuste Masivo de Pagos del Grupo</h4>
-                      <p className="text-[11px] text-indigo-700">Desplaza las fechas de vencimiento pendientes si una clase se movió.</p>
-                      <form onSubmit={async (e) => {
-                        e.preventDefault()
-                        if (!fechaOriginalAjuste || !fechaNuevaAjuste) return alert('Selecciona las fechas.')
-                        setGuardandoMasivo(true)
-                        const diffDias = Math.round((new Date(fechaNuevaAjuste) - new Date(fechaOriginalAjuste)) / (1000 * 60 * 60 * 24))
-                        const { data: pgs } = await supabase.from('pagos').select('*').eq('grupo_id', grupoSeleccionado.id).eq('estatus', 'Pendiente').gte('fecha_vencimiento', fechaOriginalAjuste)
-                        let count = 0
-                        for (let p of (pgs || [])) {
-                          const f = new Date(p.fecha_vencimiento)
-                          f.setDate(f.getDate() + diffDias)
-                          await supabase.from('pagos').update({ fecha_vencimiento: f.toISOString().split('T')[0] }).eq('id', p.id)
-                          count++
-                        }
-                        alert(`¡Se reprogramaron ${count} cuotas pendientes!`)
-                        setGuardandoMasivo(false)
-                      }} className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <input type="date" required value={fechaOriginalAjuste} onChange={(e) => setFechaOriginalAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
-                          <input type="date" required value={fechaNuevaAjuste} onChange={(e) => setFechaNuevaAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
-                        </div>
-                        <button type="submit" disabled={guardandoMasivo} className="w-full bg-indigo-600 text-white py-2 rounded-xl text-xs font-semibold">Reprogramar Pagos en Cadena</button>
-                      </form>
-                    </div>
                   </div>
+
+                  {/* AJUSTE MASIVO DE PAGOS */}
+                  <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
+                    <h4 className="text-xs font-bold uppercase text-indigo-900">📅 Ajuste Masivo de Pagos del Grupo</h4>
+                    <p className="text-[11px] text-indigo-700">Desplaza las fechas de vencimiento pendientes si una clase se movió.</p>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault()
+                      if (!fechaOriginalAjuste || !fechaNuevaAjuste) return alert('Selecciona las fechas.')
+                      setGuardandoMasivo(true)
+                      const diffDias = Math.round((new Date(fechaNuevaAjuste) - new Date(fechaOriginalAjuste)) / (1000 * 60 * 60 * 24))
+                      const { data: pgs } = await supabase.from('pagos').select('*').eq('grupo_id', grupoSeleccionado.id).eq('estatus', 'Pendiente').gte('fecha_vencimiento', fechaOriginalAjuste)
+                      let count = 0
+                      for (let p of (pgs || [])) {
+                        const f = new Date(p.fecha_vencimiento)
+                        f.setDate(f.getDate() + diffDias)
+                        await supabase.from('pagos').update({ fecha_vencimiento: f.toISOString().split('T')[0] }).eq('id', p.id)
+                        count++
+                      }
+                      alert(`¡Se reprogramaron ${count} cuotas pendientes!`)
+                      setGuardandoMasivo(false)
+                    }} className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input type="date" required value={fechaOriginalAjuste} onChange={(e) => setFechaOriginalAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
+                        <input type="date" required value={fechaNuevaAjuste} onChange={(e) => setFechaNuevaAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
+                      </div>
+                      <button type="submit" disabled={guardandoMasivo} className="w-full bg-indigo-600 text-white py-2 rounded-xl text-xs font-semibold">Reprogramar Pagos en Cadena</button>
+                    </form>
+                  </div>
+
                 </div>
               )}
 
