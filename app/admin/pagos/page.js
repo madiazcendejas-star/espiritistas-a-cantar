@@ -15,6 +15,12 @@ export default function PagosAdminPage() {
   const [desplazarResto, setDesplazarResto] = useState(true)
   const [guardandoFecha, setGuardandoFecha] = useState(false)
 
+  // Modal para registrar pago avanzado (Adelantos, Becas, Descuentos)
+  const [modalPago, setModalPago] = useState(false)
+  const [montoPagadoReal, setMontoPagadoReal] = useState('')
+  const [tipoMovimiento, setTipoMovimiento] = useState('normal') // normal, beca, descuento
+  const [guardandoPago, setGuardandoPago] = useState(false)
+
   const [stats, setStats] = useState({
     vencidosCount: 0,
     vencidosMonto: 0,
@@ -46,6 +52,7 @@ export default function PagosAdminPage() {
           alumno_id: p.alumno_id,
           grupo_id: p.grupo_id,
           monto: Number(p.monto) || 0,
+          monto_real: p.monto_real !== null ? Number(p.monto_real) : (Number(p.monto) || 0),
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
           estatus: p.estatus || 'Pendiente',
           alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
@@ -74,16 +81,19 @@ export default function PagosAdminPage() {
     const hoy = new Date().toISOString().split('T')[0]
 
     listaPagos.forEach(p => {
-      const monto = Number(p.monto) || 0
+      const montoOficial = Number(p.monto) || 0
+      const montoReal = p.monto_real !== undefined ? Number(p.monto_real) : montoOficial
       const estatus = p.estatus || 'Pendiente'
 
       if (estatus === 'Pagado') {
-        cobrado += monto
+        // Para los ingresos reales, sumamos lo que *realmente* pagó (ej. si hubo beca o descuento)
+        cobrado += montoReal
       } else {
-        pendiente += monto
-        if (p.fecha_vencimiento < hoy || estatus === 'Vencido') {
+        pendiente += montoOficial
+        // FILTRAR SOLO VENCIDOS: Estatus pendiente y fecha estrictamente menor a hoy
+        if (p.fecha_vencimiento < hoy && p.fecha_vencimiento !== 'Sin fecha') {
           vencidosC++
-          vencidosM += monto
+          vencidosM += montoOficial
         }
       }
     })
@@ -100,31 +110,78 @@ export default function PagosAdminPage() {
     })
   }
 
-  const marcarComoPagado = async (pago) => {
-    const confirmar = confirm(`¿Deseas registrar el pago de ${pago.alumnoNombre} como Pagado y notificar por WhatsApp?`)
-    if (!confirmar) return
+  // Abrir modal de pago avanzado
+  const abrirModalPago = (pago) => {
+    setPagoSeleccionado(pago)
+    setMontoPagadoReal(pago.monto)
+    setTipoMovimiento('normal')
+    setModalPago(true)
+  }
 
+  // Procesar pago con soporte de adelantos y becas
+  const procesarPagoAvanzado = async (e) => {
+    e.preventDefault()
+    if (!pagoSeleccionado) return
+
+    setGuardandoPago(true)
     const hoy = new Date().toISOString().split('T')[0]
-    const { error } = await supabase
+    const montoCuotaOriginal = Number(pagoSeleccionado.monto)
+    const montoEntregado = tipoMovimiento === 'beca' ? 0 : Number(montoPagadoReal)
+
+    // 1. Actualizar el pago actual como pagado
+    const { error: errUpdate } = await supabase
       .from('pagos')
-      .update({ estatus: 'Pagado', fecha_pago: hoy })
-      .eq('id', pago.id)
+      .update({ 
+        estatus: 'Pagado', 
+        fecha_pago: hoy,
+        monto_real: montoEntregado 
+      })
+      .eq('id', pagoSeleccionado.id)
 
-    if (error) {
-      alert('Error al actualizar pago: ' + error.message)
-    } else {
-      // Lanzar notificación automática por WhatsApp con el mensaje validado
-      const telLimpio = pago.alumnoTelefono ? String(pago.alumnoTelefono).replace(/\D/g, '') : ''
-      if (telLimpio) {
-        const mensaje = `¡Hola *${pago.alumnoNombre}*! Te confirmamos que tu pago por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* para el curso *${pago.cursoNombre}* ha sido registrado y validado con éxito en el sistema.\n\nTu acceso se encuentra 100% al corriente. ¡Muchas gracias y nos vemos en clase!`
-        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
-        window.open(urlWa, '_blank')
-      } else {
-        alert('¡Pago registrado con éxito! (Nota: El alumno no tiene un teléfono registrado para WhatsApp automático).')
-      }
-
-      cargarPagos()
+    if (errUpdate) {
+      setGuardandoPago(false)
+      return alert('Error al registrar el pago: ' + errUpdate.message)
     }
+
+    // 2. Gestionar si pagó de más (Adelanto)
+    if (montoEntregado > montoCuotaOriginal) {
+      const sobrante = montoEntregado - montoCuotaOriginal
+      
+      // Buscar el siguiente pago pendiente de este alumno en este grupo
+      const { data: siguientePago } = await supabase
+        .from('pagos')
+        .select('*')
+        .eq('alumno_id', pagoSeleccionado.alumno_id)
+        .eq('grupo_id', pagoSeleccionado.grupo_id)
+        .eq('estatus', 'Pendiente')
+        .order('fecha_vencimiento', { ascending: true })
+        .limit(1)
+
+      if (siguientePago && siguientePago.length > 0) {
+        const sig = siguientePago[0]
+        const nuevoMontoSig = Math.max(0, Number(sig.monto) - sobrante)
+        
+        await supabase
+          .from('pagos')
+          .update({ monto: nuevoMontoSig })
+          .eq('id', sig.id)
+        
+        alert(`¡Pago registrado! Se detectó un adelanto de $${sobrante}. Se ha descontado automáticamente al siguiente pago pendiente del alumno.`)
+      }
+    }
+
+    // 3. Notificación WhatsApp
+    const telLimpio = pagoSeleccionado.alumnoTelefono ? String(pagoSeleccionado.alumnoTelefono).replace(/\D/g, '') : ''
+    if (telLimpio) {
+      const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos que tu pago por *$${montoEntregado.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}* ha sido registrado con éxito. ¡Gracias!`
+      const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
+      window.open(urlWa, '_blank')
+    }
+
+    setModalPago(false)
+    setPagoSeleccionado(null)
+    setGuardandoPago(false)
+    cargarPagos()
   }
 
   const abrirModalFecha = (pago) => {
@@ -233,7 +290,7 @@ export default function PagosAdminPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Pagos Pendientes / Vencidos</span>
+                <span className="text-xs font-bold text-slate-400 uppercase">Pagos Vencidos</span>
                 <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{stats.vencidosCount}</h3>
                 <span className="text-[11px] text-slate-400">$ {stats.vencidosMonto.toLocaleString('es-MX')} MXN</span>
               </div>
@@ -251,9 +308,9 @@ export default function PagosAdminPage() {
 
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
               <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Total Cobrado</span>
+                <span className="text-xs font-bold text-slate-400 uppercase">Total Cobrado Real</span>
                 <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
-                <span className="text-[11px] text-slate-400">Ingresos reales</span>
+                <span className="text-[11px] text-slate-400">Ingresos netos (con becas/descuentos)</span>
               </div>
               <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl text-lg">💳</span>
             </div>
@@ -296,7 +353,7 @@ export default function PagosAdminPage() {
                       <th className="py-3 px-6">Estudiante</th>
                       <th className="py-3 px-6">Descripción (Curso / Grupo)</th>
                       <th className="py-3 px-6">Vencimiento</th>
-                      <th className="py-3 px-6">Monto</th>
+                      <th className="py-3 px-6">Monto Oficial</th>
                       <th className="py-3 px-6">Estado</th>
                       <th className="py-3 px-6 text-right">Acción</th>
                     </tr>
@@ -333,6 +390,9 @@ export default function PagosAdminPage() {
                           </td>
                           <td className="py-4 px-6 font-extrabold text-slate-900">
                             $ {Number(p.monto).toLocaleString('es-MX')} MXN
+                            {p.monto_real !== p.monto && estatus === 'Pagado' && (
+                              <div className="text-[10px] text-emerald-600 font-normal">Real cobrado: ${p.monto_real}</div>
+                            )}
                           </td>
                           <td className="py-4 px-6">
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
@@ -344,7 +404,7 @@ export default function PagosAdminPage() {
                               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">✓ Pagado</span>
                             ) : (
                               <button 
-                                onClick={() => marcarComoPagado(p)}
+                                onClick={() => abrirModalPago(p)}
                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm"
                               >
                                 Registrar pago
@@ -362,6 +422,62 @@ export default function PagosAdminPage() {
 
         </div>
       </main>
+
+      {/* MODAL REGISTRAR PAGO AVANZADO (BECAS / ADELANTOS) */}
+      {modalPago && pagoSeleccionado && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Registrar Pago</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Estudiante: <strong className="text-slate-700">{pagoSeleccionado.alumnoNombre}</strong></p>
+              <p className="text-xs text-slate-500 mt-1">Cuota oficial programada: <strong className="text-indigo-600">${pagoSeleccionado.monto}</strong></p>
+            </div>
+
+            <form onSubmit={procesarPagoAvanzado} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Tipo de Movimiento</label>
+                <select 
+                  value={tipoMovimiento} 
+                  onChange={(e) => {
+                    setTipoMovimiento(e.target.value)
+                    if(e.target.value === 'beca') setMontoPagadoReal(0)
+                    else setMontoPagadoReal(pagoSeleccionado.monto)
+                  }}
+                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
+                >
+                  <option value="normal">Pago Normal / Adelanto</option>
+                  <option value="beca">Beca / Cortesía (100% Descuento)</option>
+                  <option value="descuento">Pago Parcial / Con Descuento Específico</option>
+                </select>
+              </div>
+
+              {tipoMovimiento !== 'beca' && (
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Real Pagado por el Alumno ($)</label>
+                  <input 
+                    type="number" 
+                    required
+                    value={montoPagadoReal}
+                    onChange={(e) => setMontoPagadoReal(e.target.value)}
+                    className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-bold text-slate-800"
+                    placeholder="Ej. 200 o 300 si pagó adelantado"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    * Si ingresas una cantidad mayor a la cuota, el sobrante se abonará automáticamente al siguiente pago del alumno.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setModalPago(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
+                <button type="submit" disabled={guardandoPago} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
+                  {guardandoPago ? 'Procesando...' : 'Confirmar y Notificar WA'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL REPROGRAMAR FECHA */}
       {modalFecha && pagoSeleccionado && (
