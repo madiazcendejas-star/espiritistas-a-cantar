@@ -117,6 +117,24 @@ function DetalleContenido() {
     }
   }
 
+  // FUNCIÓN PARA REENVIAR ACCESOS POR WHATSAPP
+  const reenviarAccesosWhatsApp = () => {
+    const telefono = alumno.telefono || alumno.Telefono || ''
+    const telLimpio = telefono ? String(telefono).replace(/\D/g, '') : ''
+
+    if (!telLimpio) {
+      return alert('Este estudiante no tiene un número de teléfono registrado para enviar los accesos.')
+    }
+
+    const nombreAl = alumno.nombre || alumno.Nombre || 'Estudiante'
+    const passwordUser = alumno.password || alumno.Password || telefono || 'Tu teléfono'
+
+    const mensajeAccesos = `¡Hola *${nombreAl}*! Te saludamos de *Espiritistas a Cantar*. Aquí tienes nuevamente tus datos de acceso al portal:\n\n🔗 *Enlace:* https://espiritistasacantar.com/alumno\n👤 *Usuario:* ${telefono}\n🔑 *Contraseña:* ${passwordUser}\n\nEn el portal podrás consultar tus cursos, pagos y próximos avisos. ¡Cualquier duda, estamos para apoyarte!`
+
+    const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeAccesos)}`
+    window.open(urlWa, '_blank')
+  }
+
   const eliminarAlumno = async () => {
     if (!confirm('¿Estás seguro de eliminar este estudiante y todo su expediente? Esta acción no se puede deshacer.')) return
     
@@ -141,7 +159,6 @@ function DetalleContenido() {
   const iniciales = nombreAlumno.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
   const edadStr = calcularEdad(alumno.fecha_nacimiento || alumno.Fecha_nacimiento)
 
-  // Filtrar solo las inscripciones verdaderamente activas para los accesos y estatus
   const inscripcionesActivas = inscripciones.filter(i => (i.estatus || 'activa') === 'activa')
   
   const pagosPendientesLista = pagos.filter(p => p.estatus !== 'Pagado')
@@ -184,12 +201,15 @@ function DetalleContenido() {
             <span className="text-xs font-bold text-slate-700">Expediente del Estudiante</span>
           </div>
           
-          <button 
-            onClick={() => alert(`Inscribiendo a ${nombreAlumno}...`)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-semibold shadow-sm transition"
-          >
-            Inscribir a {nombreAlumno.split(' ')[0]}
-          </button>
+          <div className="flex items-center gap-3">
+            {/* BOTÓN NUEVO PARA REENVIAR ACCESOS */}
+            <button 
+              onClick={reenviarAccesosWhatsApp}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2"
+            >
+              <span>💬</span> Reenviar accesos por WhatsApp
+            </button>
+          </div>
         </header>
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-6">
