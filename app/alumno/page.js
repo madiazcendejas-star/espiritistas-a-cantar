@@ -68,6 +68,7 @@ export default function AlumnoPortalPage() {
   const [inscripciones, setInscripciones] = useState([])
   const [grupos, setGrupos] = useState([])
   const [cursos, setCursos] = useState([])
+  const [cursosProximos, setCursosProximos] = useState([]) // NUEVO ESTADO PARA CURSOS RECOMENDADOS
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
   const [sesionesGrupo, setSesionesGrupo] = useState([])
@@ -81,8 +82,11 @@ export default function AlumnoPortalPage() {
   // NAVEGACIÓN Y MENÚS DEL ALUMNO ('cursos', 'pagos', 'tandas', 'perfil')
   const [menuActivo, setMenuActivo] = useState('cursos')
 
-  // CURSO SELECCIONADO PARA VER SU CURSO
+  // CURSO SELECCIONADO PARA VER SU CLASE ACTIVA
   const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
+
+  // CURSO SELECCIONADO PARA EL POP-UP DE RECOMENDADOS (NUEVO)
+  const [cursoPopup, setCursoPopup] = useState(null)
 
   // Estado para cambiar contraseña
   const [modalPass, setModalPass] = useState(false)
@@ -171,6 +175,10 @@ export default function AlumnoPortalPage() {
 
     const { data: crs } = await supabase.from('cursos').select('*')
     setCursos(crs || [])
+
+    // CARGAR CURSOS PRÓXIMOS MARCADOS DESDE EL ADMIN
+    const { data: prox } = await supabase.from('cursos').select('*').eq('proximo', true)
+    setCursosProximos(prox || [])
 
     const { data: pgs } = await supabase.from('pagos').select('*').eq('alumno_id', alumnoId)
     setPagos(pgs || [])
@@ -643,76 +651,124 @@ export default function AlumnoPortalPage() {
             <>
               {/* VISTA 2: MENÚ "MIS CURSOS" */}
               {menuActivo === 'cursos' && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                    <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases, grabaciones y materiales.</p>
+                <div className="space-y-12">
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases, grabaciones y materiales.</p>
+                    </div>
+
+                    {inscripciones.length === 0 ? (
+                      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+                        <span className="text-3xl">📚</span>
+                        <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones registradas</h3>
+                        <p className="text-xs text-slate-400">Comunícate con administración para que te asigne a tu curso o taller.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {inscripciones.map((ins) => {
+                          const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
+                          const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
+                          const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
+                          const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
+                          const tipoModalidad = grupoObj?.tipo_modalidad || 'en_linea'
+                          const imagenCurso = cursoObj?.imagen || cursoObj?.imagen_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop'
+                          
+                          const estatusIns = ins.estatus || 'activa'
+                          const estaEnBaja = estatusIns === 'baja'
+                          const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
+                          const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
+
+                          const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
+                          const sesionesGrupoItem = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(ins.grupo_id))
+
+                          return (
+                            <div 
+                              key={ins.id} 
+                              onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, tipoModalidad, recursos: recursosGrupo, sesiones: sesionesGrupoItem, estaEnBaja, tienePagoVencido })}
+                              className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
+                            >
+                              <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                                <img 
+                                  src={imagenCurso} 
+                                  alt={nombreCurso} 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                                />
+                                <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">
+                                  {nombreGrupo}
+                                </div>
+                                <div className="absolute top-3 right-3 bg-indigo-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
+                                  {tipoModalidad === 'presencial' ? '📍 Presencial' : tipoModalidad === 'hibrido' ? '🔀 Híbrido' : '💻 En Línea'}
+                                </div>
+                              </div>
+
+                              <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
+                                <div className="space-y-1">
+                                  <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
+                                  <p className="text-xs text-slate-500">{sesionesGrupoItem.length} sesiones · {recursosGrupo.length} materiales</p>
+                                </div>
+
+                                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-indigo-600">Ingresar al curso →</span>
+                                  {estaEnBaja ? (
+                                    <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Baja</span>
+                                  ) : tienePagoVencido ? (
+                                    <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Pago Pendiente</span>
+                                  ) : (
+                                    <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl font-semibold">Activo</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
-                  {inscripciones.length === 0 ? (
-                    <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
-                      <span className="text-3xl">📚</span>
-                      <h3 className="text-sm font-bold text-slate-800">No tienes inscripciones registradas</h3>
-                      <p className="text-xs text-slate-400">Comunícate con administración para que te asigne a tu curso o taller.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {inscripciones.map((ins) => {
-                        const grupoObj = grupos.find(g => Number(g.id) === Number(ins.grupo_id))
-                        const cursoObj = cursos.find(c => Number(c.id) === Number(grupoObj?.curso_id))
-                        const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'Curso Académico'
-                        const nombreGrupo = grupoObj?.nombre_grupo || 'Grupo General'
-                        const tipoModalidad = grupoObj?.tipo_modalidad || 'en_linea'
-                        const imagenCurso = cursoObj?.imagen || cursoObj?.imagen_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=600&auto=format&fit=crop'
-                        
-                        const estatusIns = ins.estatus || 'activa'
-                        const estaEnBaja = estatusIns === 'baja'
-                        const pagosDelGrupo = pagos.filter(p => Number(p.grupo_id) === Number(ins.grupo_id))
-                        const tienePagoVencido = pagosDelGrupo.some(p => p.estatus === 'Vencido' || (p.estatus === 'Pendiente' && new Date(p.fecha_vencimiento) < new Date()))
+                  {/* NUEVA SECCIÓN: CURSOS QUE PODRÍAN INTERESARTE (PRÓXIMOS SELECCIONADOS DESDE EL ADMIN) */}
+                  {cursosProximos.length > 0 && (
+                    <div className="space-y-6 pt-6 border-t border-slate-200">
+                      <div>
+                        <h2 className="text-lg font-extrabold text-slate-900">Cursos que podrían interesarte</h2>
+                        <p className="text-xs text-slate-500 mt-0.5">Explora nuestros próximos programas y aparta tu lugar.</p>
+                      </div>
 
-                        const recursosGrupo = recursos.filter(r => Number(r.grupo_id) === Number(ins.grupo_id))
-                        const sesionesGrupoItem = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(ins.grupo_id))
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {cursosProximos.map((cur) => {
+                          const nombreCur = cur.Nombre_curso || cur.nombre_curso || 'Curso Próximo'
+                          const imagenCur = cur.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
+                          const precioCur = Number(cur.precio || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })
 
-                        return (
-                          <div 
-                            key={ins.id} 
-                            onClick={() => setCursoSeleccionado({ nombreCurso, nombreGrupo, tipoModalidad, recursos: recursosGrupo, sesiones: sesionesGrupoItem, estaEnBaja, tienePagoVencido })}
-                            className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-xl transition cursor-pointer flex flex-col justify-between group"
-                          >
-                            <div className="relative h-48 w-full overflow-hidden bg-slate-100">
-                              <img 
-                                src={imagenCurso} 
-                                alt={nombreCurso} 
-                                className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                              />
-                              <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase">
-                                {nombreGrupo}
+                          return (
+                            <div key={cur.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs flex flex-col justify-between">
+                              <div>
+                                <div className="relative h-48 w-full overflow-hidden bg-slate-100">
+                                  <img 
+                                    src={imagenCur} 
+                                    alt={nombreCur} 
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="p-6 space-y-2">
+                                  <h3 className="text-base font-extrabold text-slate-900">{nombreCur}</h3>
+                                  <p className="text-xs text-slate-500 line-clamp-2">{cur.descripcion || 'Próximamente disponible en nuestra academia.'}</p>
+                                </div>
                               </div>
-                              <div className="absolute top-3 right-3 bg-indigo-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
-                                {tipoModalidad === 'presencial' ? '📍 Presencial' : tipoModalidad === 'hibrido' ? '🔀 Híbrido' : '💻 En Línea'}
+
+                              <div className="p-6 pt-0 flex items-center justify-between">
+                                <span className="text-base font-black text-slate-900">${precioCur} MXN</span>
+                                <button 
+                                  onClick={() => setCursoPopup(cur)}
+                                  className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-sm transition"
+                                >
+                                  Más información del curso
+                                </button>
                               </div>
                             </div>
-
-                            <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-                              <div className="space-y-1">
-                                <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
-                                <p className="text-xs text-slate-500">{sesionesGrupoItem.length} sesiones · {recursosGrupo.length} materiales</p>
-                              </div>
-
-                              <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                                <span className="text-xs font-bold text-indigo-600">Ingresar al curso →</span>
-                                {estaEnBaja ? (
-                                  <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Baja</span>
-                                ) : tienePagoVencido ? (
-                                  <span className="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-xl font-semibold">Pago Pendiente</span>
-                                ) : (
-                                  <span className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-xl font-semibold">Activo</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -880,6 +936,46 @@ export default function AlumnoPortalPage() {
 
         </div>
       </main>
+
+      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (NUEVO) */}
+      {cursoPopup && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 relative max-h-[90vh] overflow-y-auto">
+            
+            <button 
+              onClick={() => setCursoPopup(null)}
+              className="absolute top-6 right-6 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center transition"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-4">
+              <img 
+                src={cursoPopup.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'} 
+                alt="Banner curso" 
+                className="w-full h-56 object-cover rounded-2xl"
+              />
+              <h2 className="text-2xl font-black text-slate-900">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
+              <p className="text-sm text-slate-600 leading-relaxed">{cursoPopup.descripcion || 'Sin descripción detallada disponible.'}</p>
+            </div>
+
+            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase text-slate-400 block">Inversión del Curso</span>
+                <span className="text-2xl font-black text-slate-900">${Number(cursoPopup.precio || 0).toLocaleString('es-MX')} MXN</span>
+              </div>
+
+              <button 
+                onClick={() => alert(`Para inscribirte a "${cursoPopup.Nombre_curso}", comunícate con la administración de la academia.`)}
+                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-6 py-3.5 rounded-2xl text-xs font-bold shadow-md transition"
+              >
+                Compre ahora / Inscribirme
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* MODAL PARA SUBIR O CAMBIAR COMPROBANTE */}
       {pagoSeleccionado && (
