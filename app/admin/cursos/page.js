@@ -15,7 +15,9 @@ export default function CursosAdminPage() {
   const [modalCurso, setModalCurso] = useState(false)
   const [guardando, setGuardando] = useState(false)
   
-  // Añadimos la propiedad modalidad con un valor por defecto ('en_linea')
+  // Añadimos el estado para la imagen archivo que se va a subir
+  const [imagenArchivo, setImagenArchivo] = useState(null)
+  
   const [formCurso, setFormCurso] = useState({ 
     Nombre_curso: '', 
     descripcion: '', 
@@ -43,17 +45,40 @@ export default function CursosAdminPage() {
     e.preventDefault()
     setGuardando(true)
 
+    let urlImagenFinal = 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
+
+    // Si seleccionaste una imagen desde tu dispositivo, la subimos a Supabase Storage
+    if (imagenArchivo) {
+      const nombreArchivo = `${Date.now()}_${imagenArchivo.name.replace(/\s+/g, '_')}`
+      const { error: uploadError } = await supabase.storage
+        .from('cursos')
+        .upload(nombreArchivo, imagenArchivo)
+
+      if (uploadError) {
+        setGuardando(false)
+        return alert('Error al subir la imagen: ' + uploadError.message)
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('cursos')
+        .getPublicUrl(nombreArchivo)
+
+      urlImagenFinal = publicUrlData.publicUrl
+    }
+
     const { data, error } = await supabase.from('cursos').insert([{
       Nombre_curso: formCurso.Nombre_curso.trim(),
       descripcion: formCurso.descripcion.trim(),
       precio: Number(formCurso.precio) || 0,
-      modalidad: formCurso.modalidad
+      modalidad: formCurso.modalidad,
+      imagen: urlImagenFinal // Guardamos la URL pública lista para el portal del alumno
     }]).select()
 
     if (error) {
       alert('Error al crear curso: ' + error.message)
     } else {
       setModalCurso(false)
+      setImagenArchivo(null)
       setFormCurso({ Nombre_curso: '', descripcion: '', precio: '', modalidad: 'en_linea' })
       if (data && data[0]) {
         router.push(`/admin/cursos/${data[0].id}`)
@@ -235,6 +260,18 @@ export default function CursosAdminPage() {
                   className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
                 />
               </div>
+
+              {/* SECCIÓN NUEVA: SUBIR IMAGEN DESDE EL SISTEMA */}
+              <div>
+                <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Imagen de Portada (Curso)</label>
+                <input 
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setImagenArchivo(e.target.files[0])}
+                  className="w-full p-2.5 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Modalidad del Curso *</label>
                 <select
@@ -262,12 +299,14 @@ export default function CursosAdminPage() {
                   type="number"
                   value={formCurso.precio}
                   onChange={(e) => setFormCurso({ ...formCurso, precio: e.target.value })}
-                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-500 focus:bg-white"
+                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:border-indigo-600 focus:bg-white"
                 />
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={() => setModalCurso(false)} className="px-5 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-2xl">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20">Guardar</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20">
+                  {guardando ? 'Subiendo e inscribiendo...' : 'Guardar'}
+                </button>
               </div>
             </form>
           </div>
