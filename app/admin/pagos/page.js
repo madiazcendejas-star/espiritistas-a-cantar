@@ -52,7 +52,7 @@ export default function PagosAdminPage() {
           alumno_id: p.alumno_id,
           grupo_id: p.grupo_id,
           monto: Number(p.monto) || 0,
-          monto_real: p.monto_real !== null ? Number(p.monto_real) : (Number(p.monto) || 0),
+          monto_real: (p.monto_real !== null && p.monto_real !== undefined) ? Number(p.monto_real) : (Number(p.monto) || 0),
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
           estatus: p.estatus || 'Pendiente',
           alumnoNombre: al?.nombre || al?.Nombre || 'Estudiante',
@@ -78,20 +78,20 @@ export default function PagosAdminPage() {
     let pendiente = 0
     let totalGeneral = listaPagos.length
 
-    const hoy = new Date().toISOString().split('T')[0]
+    const hoyStr = new Date().toISOString().split('T')[0]
 
     listaPagos.forEach(p => {
       const montoOficial = Number(p.monto) || 0
       const montoReal = p.monto_real !== undefined ? Number(p.monto_real) : montoOficial
       const estatus = p.estatus || 'Pendiente'
+      
+      const esVencido = estatus === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
 
       if (estatus === 'Pagado') {
-        // Para los ingresos reales, sumamos lo que *realmente* pagó (ej. si hubo beca o descuento)
         cobrado += montoReal
       } else {
         pendiente += montoOficial
-        // FILTRAR SOLO VENCIDOS: Estatus pendiente y fecha estrictamente menor a hoy
-        if (p.fecha_vencimiento < hoy && p.fecha_vencimiento !== 'Sin fecha') {
+        if (esVencido) {
           vencidosC++
           vencidosM += montoOficial
         }
@@ -110,7 +110,6 @@ export default function PagosAdminPage() {
     })
   }
 
-  // Abrir modal de pago avanzado
   const abrirModalPago = (pago) => {
     setPagoSeleccionado(pago)
     setMontoPagadoReal(pago.monto)
@@ -118,7 +117,6 @@ export default function PagosAdminPage() {
     setModalPago(true)
   }
 
-  // Procesar pago con soporte de adelantos y becas
   const procesarPagoAvanzado = async (e) => {
     e.preventDefault()
     if (!pagoSeleccionado) return
@@ -128,7 +126,6 @@ export default function PagosAdminPage() {
     const montoCuotaOriginal = Number(pagoSeleccionado.monto)
     const montoEntregado = tipoMovimiento === 'beca' ? 0 : Number(montoPagadoReal)
 
-    // 1. Actualizar el pago actual como pagado
     const { error: errUpdate } = await supabase
       .from('pagos')
       .update({ 
@@ -143,11 +140,9 @@ export default function PagosAdminPage() {
       return alert('Error al registrar el pago: ' + errUpdate.message)
     }
 
-    // 2. Gestionar si pagó de más (Adelanto)
     if (montoEntregado > montoCuotaOriginal) {
       const sobrante = montoEntregado - montoCuotaOriginal
       
-      // Buscar el siguiente pago pendiente de este alumno en este grupo
       const { data: siguientePago } = await supabase
         .from('pagos')
         .select('*')
@@ -170,7 +165,6 @@ export default function PagosAdminPage() {
       }
     }
 
-    // 3. Notificación WhatsApp
     const telLimpio = pagoSeleccionado.alumnoTelefono ? String(pagoSeleccionado.alumnoTelefono).replace(/\D/g, '') : ''
     if (telLimpio) {
       const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos que tu pago por *$${montoEntregado.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}* ha sido registrado con éxito. ¡Gracias!`
@@ -182,6 +176,16 @@ export default function PagosAdminPage() {
     setPagoSeleccionado(null)
     setGuardandoPago(false)
     cargarPagos()
+  }
+
+  const enviarRecordatorioWhatsApp = (pago) => {
+    const telLimpio = pago.alumnoTelefono ? String(pago.alumnoTelefono).replace(/\D/g, '') : ''
+    if (!telLimpio) {
+      return alert('Este alumno no tiene un número de teléfono registrado para WhatsApp.')
+    }
+    const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de Espíritas a Cantar. Te recordamos que tienes un pago vencido por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* correspondiente al curso *${pago.cursoNombre}* (vencimiento: ${pago.fecha_vencimiento}). Por favor, confírmanos tu comprobante por este medio para mantener tu acceso al corriente. ¡Gracias!`
+    const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
+    window.open(urlWa, '_blank')
   }
 
   const abrirModalFecha = (pago) => {
@@ -361,6 +365,8 @@ export default function PagosAdminPage() {
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {pagosFiltrados.map((p) => {
                       const estatus = p.estatus || 'Pendiente'
+                      const hoyStr = new Date().toISOString().split('T')[0]
+                      const estaVencido = estatus === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
 
                       return (
                         <tr key={p.id} className="hover:bg-slate-50 transition">
@@ -395,20 +401,37 @@ export default function PagosAdminPage() {
                             )}
                           </td>
                           <td className="py-4 px-6">
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${estatus === 'Pagado' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                              {estatus}
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              estatus === 'Pagado' 
+                                ? 'bg-emerald-50 text-emerald-600' 
+                                : estaVencido 
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                                  : 'bg-amber-50 text-amber-600'
+                            }`}>
+                              {estaVencido ? '⚠️ Vencido' : estatus}
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right">
                             {estatus === 'Pagado' ? (
                               <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl">✓ Pagado</span>
                             ) : (
-                              <button 
-                                onClick={() => abrirModalPago(p)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm"
-                              >
-                                Registrar pago
-                              </button>
+                              <div className="flex items-center justify-end gap-2">
+                                {estaVencido && (
+                                  <button 
+                                    onClick={() => enviarRecordatorioWhatsApp(p)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm flex items-center gap-1"
+                                    title="Enviar recordatorio de pago por WhatsApp"
+                                  >
+                                    💬 Recordar WA
+                                  </button>
+                                )}
+                                <button 
+                                  onClick={() => abrirModalPago(p)}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm"
+                                >
+                                  Registrar pago
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
