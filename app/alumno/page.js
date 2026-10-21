@@ -68,7 +68,7 @@ export default function AlumnoPortalPage() {
   const [inscripciones, setInscripciones] = useState([])
   const [grupos, setGrupos] = useState([])
   const [cursos, setCursos] = useState([])
-  const [cursosProximos, setCursosProximos] = useState([]) // NUEVO ESTADO PARA CURSOS RECOMENDADOS
+  const [cursosProximos, setCursosProximos] = useState([])
   const [pagos, setPagos] = useState([])
   const [recursos, setRecursos] = useState([])
   const [sesionesGrupo, setSesionesGrupo] = useState([])
@@ -85,7 +85,7 @@ export default function AlumnoPortalPage() {
   // CURSO SELECCIONADO PARA VER SU CLASE ACTIVA
   const [cursoSeleccionado, setCursoSeleccionado] = useState(null)
 
-  // CURSO SELECCIONADO PARA EL POP-UP DE RECOMENDADOS (NUEVO)
+  // CURSO SELECCIONADO PARA EL POP-UP DE RECOMENDADOS
   const [cursoPopup, setCursoPopup] = useState(null)
 
   // Estado para cambiar contraseña
@@ -937,7 +937,7 @@ export default function AlumnoPortalPage() {
         </div>
       </main>
 
-      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (NUEVO) */}
+      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (ACTUALIZADO CON WHATSAPP) */}
       {cursoPopup && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -953,24 +953,32 @@ export default function AlumnoPortalPage() {
               <img 
                 src={cursoPopup.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'} 
                 alt="Banner curso" 
-                className="w-full h-56 object-cover rounded-2xl"
+                className="w-full h-56 object-cover rounded-2xl border border-slate-100 shadow-xs"
               />
-              <h2 className="text-2xl font-black text-slate-900">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
-              <p className="text-sm text-slate-600 leading-relaxed">{cursoPopup.descripcion || 'Sin descripción detallada disponible.'}</p>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Próximo Lanzamiento</span>
+                <h2 className="text-2xl font-black text-slate-900 mt-2">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                {cursoPopup.descripcion || 'Sin descripción detallada disponible.'}
+              </p>
             </div>
 
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+            <div className="p-6 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-bold uppercase text-slate-400 block">Inversión del Curso</span>
-                <span className="text-2xl font-black text-slate-900">${Number(cursoPopup.precio || 0).toLocaleString('es-MX')} MXN</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Inversión Especial</span>
+                <span className="text-2xl font-black text-white">${Number(cursoPopup.precio || 0).toLocaleString('es-MX')} MXN</span>
               </div>
 
-              <button 
-                onClick={() => alert(`Para inscribirte a "${cursoPopup.Nombre_curso}", comunícate con la administración de la academia.`)}
-                className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white px-6 py-3.5 rounded-2xl text-xs font-bold shadow-md transition"
+              {/* BOTÓN INTELIGENTE DIRECTO A WHATSAPP CON MENSAJE PERSONALIZADO */}
+              <a 
+                href={`https://wa.me/525650426741?text=${encodeURIComponent(`Hola, deseo inscribirme al curso: ${cursoPopup.Nombre_curso || cursoPopup.nombre_curso}`)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3.5 rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2"
               >
-                Compre ahora / Inscribirme
-              </button>
+                <span>💬</span> Inscribirme por WhatsApp
+              </a>
             </div>
 
           </div>
