@@ -345,7 +345,7 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
-          {/* PESTAÑA DE IMÁGENES FUNCIONAL */}
+          {/* PESTAÑA DE IMÁGENES CORREGIDA */}
           {pestanaActiva === 'imagenes' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs max-w-xl">
               <div>
@@ -363,7 +363,7 @@ export default function DetalleCursoPage() {
                   />
                 </div>
 
-                <form onSubmit={suberImagenCurso} className="space-y-4 pt-2 border-t border-slate-100">
+                <form onSubmit={subirImagenCurso} className="space-y-4 pt-2 border-t border-slate-100">
                   <div>
                     <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Seleccionar nueva imagen desde tu equipo</label>
                     <input 
