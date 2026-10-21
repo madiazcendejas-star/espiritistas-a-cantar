@@ -66,14 +66,19 @@ export default function DetalleCursoPage() {
     setGuardando(false)
   }
 
-  // FUNCIÓN PARA SUBIR LA IMAGEN DESDE LA PESTAÑA 'IMÁGENES'
+  // FUNCIÓN PARA SUBIR LA IMAGEN LIMPIANDO ACENTOS Y ESPACIOS
   const subirImagenCurso = async (e) => {
     e.preventDefault()
     if (!imagenArchivo) return alert('Selecciona una imagen primero.')
 
     setSubiendoImagen(true)
 
-    const nombreArchivo = `${Date.now()}_${imagenArchivo.name.replace(/\s+/g, '_')}`
+    const nombreLimpio = imagenArchivo.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+
+    const nombreArchivo = `${Date.now()}_${nombreLimpio}`
     const { error: uploadError } = await supabase.storage
       .from('cursos')
       .upload(nombreArchivo, imagenArchivo)
@@ -89,7 +94,6 @@ export default function DetalleCursoPage() {
 
     const urlPublica = publicUrlData.publicUrl
 
-    // Guardar la URL en la columna 'imagen' de la tabla 'cursos'
     const { error: updateError } = await supabase
       .from('cursos')
       .update({ imagen: urlPublica })
@@ -345,7 +349,6 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
-          {/* PESTAÑA DE IMÁGENES CORREGIDA */}
           {pestanaActiva === 'imagenes' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs max-w-xl">
               <div>
