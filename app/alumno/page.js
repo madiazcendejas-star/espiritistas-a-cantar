@@ -741,14 +741,10 @@ export default function AlumnoPortalPage() {
                           
                           // LÓGICA DINÁMICA: Buscar el grupo más próximo para este curso madre
                           const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(cur.id))
-                          // Ordenar por la fecha más cercana (si tienen campo fecha_inicio o similar, ajusta según tu esquema)
                           const grupoProximo = gruposDelCurso.sort((a, b) => new Date(a.fecha_inicio || a.created_at) - new Date(b.fecha_inicio || b.created_at))[0]
 
                           const precioGrupo = grupoProximo?.precio || cur.precio || 0
                           const precioCur = Number(precioGrupo).toLocaleString('es-MX', { minimumFractionDigits: 2 })
-                          const fechaProxima = grupoProximo?.fecha_inicio 
-                            ? {new Date(grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'medium', timeZone: 'UTC' })}
-                            : (grupoProximo?.nombre_grupo || 'Próxima fecha por definir')
 
                           return (
                             <div key={cur.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs flex flex-col justify-between">
@@ -794,7 +790,7 @@ export default function AlumnoPortalPage() {
 
                   {pagos.length === 0 ? (
                     <div className="text-center py-16 text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                      No tienes cuotas ou pagos registrados actualmente.
+                      No tienes cuotas o pagos registrados actualmente.
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -947,7 +943,7 @@ export default function AlumnoPortalPage() {
         </div>
       </main>
 
-      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (CONECTADO AL GRUPO MÁS PRÓXIMO) */}
+      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO */}
       {cursoPopup && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -970,7 +966,7 @@ export default function AlumnoPortalPage() {
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Próximo Lanzamiento</span>
                   {cursoPopup._grupoProximo?.fecha_inicio && (
                     <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
-                      📅 Inicia: {new Date(cursoPopup._grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'medium' })}
+                      📅 Inicia: {new Date(cursoPopup._grupoProximo.fecha_inicio).toLocaleDateString('es-MX', { dateStyle: 'medium', timeZone: 'UTC' })}
                     </span>
                   )}
                   {cursoPopup._grupoProximo?.tipo_modalidad && (
@@ -1012,7 +1008,7 @@ export default function AlumnoPortalPage() {
                 </span>
               </div>
 
-              {/* BOTÓN DIRECTO A WHATSAPP CON MENSAJE PRECARGADO INDICANDO EL GRUPO */}
+              {/* BOTÓN DIRECTO A WHATSAPP CON MENSAJE PRECARGADO */}
               <a 
                 href={`https://wa.me/525650426741?text=${encodeURIComponent(`Hola, deseo inscribirme al curso: ${cursoPopup.Nombre_curso || cursoPopup.nombre_curso} (${cursoPopup._grupoProximo?.nombre_grupo || 'Próximo grupo'})`)}`}
                 target="_blank"
