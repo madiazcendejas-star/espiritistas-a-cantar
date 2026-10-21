@@ -655,7 +655,7 @@ export default function AlumnoPortalPage() {
                   <div className="space-y-6">
                     <div>
                       <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases, grabaciones y materiales.</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder à tus clases, grabaciones y materiales.</p>
                     </div>
 
                     {inscripciones.length === 0 ? (
@@ -937,7 +937,7 @@ export default function AlumnoPortalPage() {
         </div>
       </main>
 
-      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (ACTUALIZADO CON WHATSAPP) */}
+      {/* POP-UP / MODAL DE INFORMACIÓN DEL CURSO PRÓXIMO (ACTUALIZADO CON DURACIÓN, MODALIDAD, APRENDERÁS Y WHATSAPP) */}
       {cursoPopup && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 relative max-h-[90vh] overflow-y-auto">
@@ -956,12 +956,31 @@ export default function AlumnoPortalPage() {
                 className="w-full h-56 object-cover rounded-2xl border border-slate-100 shadow-xs"
               />
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Próximo Lanzamiento</span>
-                <h2 className="text-2xl font-black text-slate-900 mt-2">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">Próximo Lanzamiento</span>
+                  {cursoPopup.duracion && <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">⏱️ {cursoPopup.duracion}</span>}
+                  {cursoPopup.modalidad && <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-700 bg-purple-50 px-3 py-1 rounded-full">💻 {cursoPopup.modalidad.toUpperCase()}</span>}
+                </div>
+                <h2 className="text-2xl font-black text-slate-900">{cursoPopup.Nombre_curso || cursoPopup.nombre_curso}</h2>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                {cursoPopup.descripcion || 'Sin descripción detallada disponible.'}
-              </p>
+
+              {/* Descripción */}
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold uppercase text-slate-400">Acerca del curso</h4>
+                <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  {cursoPopup.descripcion || 'Sin descripción detallada disponible.'}
+                </p>
+              </div>
+
+              {/* Lo que aprenderás */}
+              {cursoPopup.lo_que_aprenderas && (
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold uppercase text-slate-400">Lo que aprenderás</h4>
+                  <div className="text-sm text-slate-700 leading-relaxed bg-indigo-50/40 p-4 rounded-2xl border border-indigo-100 whitespace-pre-line font-medium">
+                    {cursoPopup.lo_que_aprenderas}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-6 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -970,7 +989,7 @@ export default function AlumnoPortalPage() {
                 <span className="text-2xl font-black text-white">${Number(cursoPopup.precio || 0).toLocaleString('es-MX')} MXN</span>
               </div>
 
-              {/* BOTÓN INTELIGENTE DIRECTO A WHATSAPP CON MENSAJE PERSONALIZADO */}
+              {/* BOTÓN DIRECTO A WHATSAPP CON MENSAJE PRECARGADO */}
               <a 
                 href={`https://wa.me/525650426741?text=${encodeURIComponent(`Hola, deseo inscribirme al curso: ${cursoPopup.Nombre_curso || cursoPopup.nombre_curso}`)}`}
                 target="_blank"
