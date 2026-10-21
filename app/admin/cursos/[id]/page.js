@@ -14,7 +14,14 @@ export default function DetalleCursoPage() {
   const [loading, setLoading] = useState(true)
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
 
-  const [formEdicion, setFormEdicion] = useState({ Nombre_curso: '', descripcion: '', precio: '', visible_web: true })
+  // Añadimos 'proximo' al estado del formulario de edición
+  const [formEdicion, setFormEdicion] = useState({ 
+    Nombre_curso: '', 
+    descripcion: '', 
+    precio: '', 
+    visible_web: true,
+    proximo: false 
+  })
   const [guardando, setGuardando] = useState(false)
 
   // Estado para la subida de imagen directa desde el equipo
@@ -36,7 +43,8 @@ export default function DetalleCursoPage() {
         Nombre_curso: resCurso.Nombre_curso || resCurso.nombre_curso || '',
         descripcion: resCurso.descripcion || '',
         precio: resCurso.precio || '',
-        visible_web: resCurso.visible_web ?? true
+        visible_web: resCurso.visible_web ?? true,
+        proximo: resCurso.proximo ?? false // Cargamos el valor desde Supabase
       })
     }
     if (resGrupos) setGrupos(resGrupos)
@@ -47,13 +55,15 @@ export default function DetalleCursoPage() {
     e.preventDefault()
     setGuardando(true)
 
+    // Guardamos la configuración incluyendo el estatus de 'proximo'
     const { error } = await supabase
       .from('cursos')
       .update({
         Nombre_curso: formEdicion.Nombre_curso.trim(),
         descripcion: formEdicion.descripcion.trim(),
         precio: Number(formEdicion.precio) || 0,
-        visible_web: formEdicion.visible_web
+        visible_web: formEdicion.visible_web,
+        proximo: formEdicion.proximo // Guardamos la selección
       })
       .eq('id', cursoId)
 
@@ -175,13 +185,24 @@ export default function DetalleCursoPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* CONTROLES SUPERIORES (VISIBLE WEB Y CURSO PRÓXIMO) */}
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-2xl">
               <span className="text-xs font-bold text-slate-700">Visible en la web</span>
               <input 
                 type="checkbox" 
                 checked={formEdicion.visible_web}
                 onChange={(e) => setFormEdicion({ ...formEdicion, visible_web: e.target.checked })}
+                className="w-4 h-4 accent-indigo-600 cursor-pointer"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100">
+              <span className="text-xs font-bold text-indigo-900">🌟 Curso Próximo</span>
+              <input 
+                type="checkbox" 
+                checked={formEdicion.proximo}
+                onChange={(e) => setFormEdicion({ ...formEdicion, proximo: e.target.checked })}
                 className="w-4 h-4 accent-indigo-600 cursor-pointer"
               />
             </div>
