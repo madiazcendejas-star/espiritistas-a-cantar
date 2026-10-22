@@ -53,12 +53,18 @@ export default function PagosAdminPage() {
         const estatusAlumno = al?.estatus || al?.Estatus || (al?.activo === false ? 'Baja' : 'Activo')
         const esBaja = String(estatusAlumno).toLowerCase().includes('baja') || al?.activo === false
 
-        const estatusOriginal = p.estatus || 'Pendiente'
-        const estatusFinal = esBaja && estatusOriginal !== 'Pagado' ? 'Cancelado' : estatusOriginal
-        const esVencido = estatusFinal === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
-
         const montoOficial = Number(p.monto) || 0
         const montoRealAcumulado = p.monto_real !== null && p.monto_real !== undefined ? Number(p.monto_real) : 0
+
+        // REGLA INQUEBRANTABLE: Si el monto acumulado es menor al oficial, EL ESTATUS ES PENDIENTE (SÍ O SÍ)
+        let estatusFinal = p.estatus || 'Pendiente'
+        if (esBaja && estatusFinal !== 'Pagado') {
+          estatusFinal = 'Cancelado'
+        } else if (montoRealAcumulado > 0 && montoRealAcumulado < montoOficial) {
+          estatusFinal = 'Pendiente' 
+        }
+
+        const esVencido = estatusFinal === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
 
         return {
           id: p.id,
@@ -99,7 +105,6 @@ export default function PagosAdminPage() {
       const montoOficial = Number(p.monto) || 0
       const montoReal = Number(p.monto_real) || 0
 
-      // Sumamos estrictamente lo que ya se abonó/cobró al total cobrado real
       cobrado += montoReal
 
       if (p.estatus !== 'Pagado') {
@@ -148,7 +153,7 @@ export default function PagosAdminPage() {
     const acumuladoAnterior = Number(pagoSeleccionado.monto_real) || 0
     const nuevoAcumuladoReal = tipoMovimiento === 'beca' ? montoCuotaOriginal : (acumuladoAnterior + abonoActual)
 
-    // CORRECCIÓN CLAVE: Solo se marca como 'Pagado' si el acumulado cubre o rebasa el monto oficial
+    // Solo se marca como 'Pagado' si el acumulado cubre o rebasa el total de la cuota
     let nuevoEstatus = 'Pendiente'
     if (tipoMovimiento === 'beca' || nuevoAcumuladoReal >= montoCuotaOriginal) {
       nuevoEstatus = 'Pagado'
@@ -168,7 +173,6 @@ export default function PagosAdminPage() {
       return alert('Error al registrar el pago: ' + errUpdate.message)
     }
 
-    // Si pagó de más respecto al total de la cuota, el sobrante se abona al siguiente pago
     if (nuevoAcumuladoReal > montoCuotaOriginal) {
       const sobrante = nuevoAcumuladoReal - montoCuotaOriginal
       
