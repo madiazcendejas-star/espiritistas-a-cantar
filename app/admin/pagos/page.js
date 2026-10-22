@@ -99,10 +99,10 @@ export default function PagosAdminPage() {
       const montoOficial = Number(p.monto) || 0
       const montoReal = Number(p.monto_real) || 0
 
-      if (p.estatus === 'Pagado') {
-        cobrado += montoReal > 0 ? montoReal : montoOficial
-      } else {
-        // Si hay abono parcial, sumamos al pendiente solo lo que resta por pagar
+      // Sumamos estrictamente lo que ya se abonó/cobró al total cobrado real
+      cobrado += montoReal
+
+      if (p.estatus !== 'Pagado') {
         const restoPendiente = Math.max(0, montoOficial - montoReal)
         pendiente += restoPendiente
 
@@ -130,7 +130,6 @@ export default function PagosAdminPage() {
       return alert('No se puede registrar pago a un alumno que se encuentra dado de baja.')
     }
     setPagoSeleccionado(pago)
-    // Si ya tenía un abono previo, sugerimos el restante o el total faltante
     const restoFaltante = Math.max(0, pago.monto - pago.monto_real)
     setMontoPagadoReal(restoFaltante > 0 ? restoFaltante : pago.monto)
     setTipoMovimiento('normal')
@@ -145,12 +144,11 @@ export default function PagosAdminPage() {
     const hoy = new Date().toISOString().split('T')[0]
     const montoCuotaOriginal = Number(pagoSeleccionado.monto)
     
-    // Si es beca, el monto abonado en esta exhibición cubre el total o se registra como 0 con estatus pagado
     const abonoActual = tipoMovimiento === 'beca' ? montoCuotaOriginal : Number(montoPagadoReal)
     const acumuladoAnterior = Number(pagoSeleccionado.monto_real) || 0
     const nuevoAcumuladoReal = tipoMovimiento === 'beca' ? montoCuotaOriginal : (acumuladoAnterior + abonoActual)
 
-    // Determinamos si con este abono se liquida el pago por completo o sigue parcial
+    // CORRECCIÓN CLAVE: Solo se marca como 'Pagado' si el acumulado cubre o rebasa el monto oficial
     let nuevoEstatus = 'Pendiente'
     if (tipoMovimiento === 'beca' || nuevoAcumuladoReal >= montoCuotaOriginal) {
       nuevoEstatus = 'Pagado'
@@ -170,7 +168,7 @@ export default function PagosAdminPage() {
       return alert('Error al registrar el pago: ' + errUpdate.message)
     }
 
-    // Si pagó de más (sobrepasa la cuota), el sobrante se puede ir al siguiente pago
+    // Si pagó de más respecto al total de la cuota, el sobrante se abona al siguiente pago
     if (nuevoAcumuladoReal > montoCuotaOriginal) {
       const sobrante = nuevoAcumuladoReal - montoCuotaOriginal
       
@@ -198,7 +196,7 @@ export default function PagosAdminPage() {
 
     const telLimpio = pagoSeleccionado.alumnoTelefono ? String(pagoSeleccionado.alumnoTelefono).replace(/\D/g, '') : ''
     if (telLimpio) {
-      const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos la recepción de tu abono por *$${abonoActual.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}*. Estado actual: ${nuevoEstatus === 'Pagado' ? '¡Liquidado al 100%!' : 'Abono parcial registrado'}. ¡Gracias!`
+      const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos la recepción de tu abono por *$${abonoActual.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}*. Estado actual: ${nuevoEstatus === 'Pagado' ? '¡Liquidado al 100%!' : `Abono parcial registrado (Resta: $${montoCuotaOriginal - nuevoAcumuladoReal})`}. ¡Gracias!`
       const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
       window.open(urlWa, '_blank')
     }
@@ -283,7 +281,6 @@ export default function PagosAdminPage() {
     cargarPagos()
   }
 
-  // Filtrado combinado por búsqueda de texto y botones de estado
   const pagosFiltrados = pagos.filter(p => {
     const termino = busqueda.toLowerCase()
     const coincideTexto = p.alumnoNombre.toLowerCase().includes(termino) ||
@@ -293,8 +290,11 @@ export default function PagosAdminPage() {
 
     if (!coincideTexto) return false
 
+    const montoRealAbonado = p.monto_real || 0
+    const tieneAbonoParcial = montoRealAbonado > 0 && montoRealAbonado < p.monto
+
     if (filtroEstado === 'vencidos') return p.estaVencido
-    if (filtroEstado === 'pendiente') return p.estatus === 'Pendiente' && !p.estaVencido
+    if (filtroEstado === 'pendiente') return (p.estatus === 'Pendiente' || tieneAbonoParcial) && !p.estaVencido
     if (filtroEstado === 'pagado') return p.estatus === 'Pagado'
     if (filtroEstado === 'cancelado') return p.estatus === 'Cancelado'
 
@@ -360,7 +360,7 @@ export default function PagosAdminPage() {
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase">Total Cobrado Real</span>
                 <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
-                <span className="text-[11px] text-slate-400">Ingresos netos (con abonos/becas)</span>
+                <span className="text-[11px] text-slate-400">Ingresos netos (con abonos)</span>
               </div>
               <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl text-lg">💳</span>
             </div>
@@ -394,7 +394,7 @@ export default function PagosAdminPage() {
                 onClick={() => setFiltroEstado('pendiente')}
                 className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pendiente' ? 'bg-amber-600 text-white shadow-sm' : 'bg-white text-amber-600 border border-amber-200 hover:bg-amber-50'}`}
               >
-                ⏳ Al corriente ({pagos.filter(p => p.estatus === 'Pendiente' && !p.estaVencido).length})
+                ⏳ Pendientes / Parciales ({pagos.filter(p => (p.estatus === 'Pendiente' || (p.monto_real > 0 && p.monto_real < p.monto)) && !p.estaVencido).length})
               </button>
               <button 
                 onClick={() => setFiltroEstado('pagado')}
@@ -485,12 +485,12 @@ export default function PagosAdminPage() {
                           <td className="py-4 px-6 font-extrabold text-slate-900">
                             $ {Number(montoOficial).toLocaleString('es-MX')} MXN
                             {tieneAbonoParcial && (
-                              <div className="text-[10px] text-amber-600 font-semibold">
+                              <div className="text-[10px] text-amber-600 font-semibold mt-0.5">
                                 Abonado: ${montoRealAbonado} | Resta: ${montoOficial - montoRealAbonado}
                               </div>
                             )}
-                            {estatus === 'Pagado' && montoRealAbonado > 0 && montoRealAbonado !== montoOficial && (
-                              <div className="text-[10px] text-emerald-600 font-normal">Real cobrado: ${montoRealAbonado}</div>
+                            {estatus === 'Pagado' && montoRealAbonado > 0 && (
+                              <div className="text-[10px] text-emerald-600 font-normal mt-0.5">Total cobrado: ${montoRealAbonado}</div>
                             )}
                           </td>
                           <td className="py-4 px-6">
@@ -558,11 +558,11 @@ export default function PagosAdminPage() {
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Registrar Pago / Abono</h3>
+              <h3 className="text-base font-bold text-slate-900">Registrar Abono o Pago</h3>
               <p className="text-xs text-slate-400 mt-0.5">Estudiante: <strong className="text-slate-700">{pagoSeleccionado.alumnoNombre}</strong></p>
               <p className="text-xs text-slate-500 mt-1">Cuota total programada: <strong className="text-indigo-600">${pagoSeleccionado.monto}</strong></p>
               {pagoSeleccionado.monto_real > 0 && (
-                <p className="text-xs text-amber-600 mt-0.5">Ya tiene abonado: <strong>${pagoSeleccionado.monto_real}</strong> (Resta: ${pagoSeleccionado.monto - pagoSeleccionado.monto_real})</p>
+                <p className="text-xs text-amber-600 mt-0.5">Ya tiene abonado: <strong>${pagoSeleccionado.monto_real}</strong> (Resta por pagar: <strong>${pagoSeleccionado.monto - pagoSeleccionado.monto_real}</strong>)</p>
               )}
             </div>
 
@@ -581,7 +581,7 @@ export default function PagosAdminPage() {
                   }}
                   className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 >
-                  <option value="normal">Abono o Pago Normal</option>
+                  <option value="normal">Abono o Pago</option>
                   <option value="beca">Beca / Cortesía (Liquidar 100%)</option>
                 </select>
               </div>
@@ -595,10 +595,10 @@ export default function PagosAdminPage() {
                     value={montoPagadoReal}
                     onChange={(e) => setMontoPagadoReal(e.target.value)}
                     className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-bold text-slate-800"
-                    placeholder="Ej. 100 para abono parcial o el total"
+                    placeholder="Ej. 200"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    * Si el abono es menor a la cuota, el estado pasará a <strong>Abono Parcial</strong> y podrás completarlo después. Si cubre el total o más, se marcará como <strong>Pagado</strong>.
+                    * Si el abono no cubre el total, el estado se quedará en <strong>Abono Parcial</strong> permitiéndote registrar más abonos después hasta que se complete.
                   </p>
                 </div>
               )}
@@ -606,7 +606,7 @@ export default function PagosAdminPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalPago(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
                 <button type="submit" disabled={guardandoPago} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardandoPago ? 'Procesando...' : 'Confirmar Abono y Notificar WA'}
+                  {guardandoPago ? 'Procesando...' : 'Guardar Abono y Notificar WA'}
                 </button>
               </div>
             </form>
