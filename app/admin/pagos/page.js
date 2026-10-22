@@ -16,7 +16,7 @@ export default function PagosAdminPage() {
   const [desplazarResto, setDesplazarResto] = useState(true)
   const [guardandoFecha, setGuardandoFecha] = useState(false)
 
-  // Modal para registrar pago avanzado (Adelantos, Becas, Descuentos)
+  // Modal para registrar pago avanzado (Abonos parciales, Becas, Adelantos)
   const [modalPago, setModalPago] = useState(false)
   const [montoPagadoReal, setMontoPagadoReal] = useState('')
   const [tipoMovimiento, setTipoMovimiento] = useState('normal')
@@ -50,22 +50,22 @@ export default function PagosAdminPage() {
         const gr = resGrupos.find(g => Number(g.id) === Number(p.grupo_id))
         const cur = gr ? resCursos.find(c => Number(c.id) === Number(gr.curso_id)) : (p.curso_id ? resCursos.find(c => Number(c.id) === Number(p.curso_id)) : null)
 
-        // Validar si el alumno está dado de baja (buscando en estatus o activo)
         const estatusAlumno = al?.estatus || al?.Estatus || (al?.activo === false ? 'Baja' : 'Activo')
         const esBaja = String(estatusAlumno).toLowerCase().includes('baja') || al?.activo === false
 
         const estatusOriginal = p.estatus || 'Pendiente'
-        
-        // Si el alumno está de baja, el pago pendiente pasa automáticamente a estatus "Cancelado" / inactivo para cobro
         const estatusFinal = esBaja && estatusOriginal !== 'Pagado' ? 'Cancelado' : estatusOriginal
         const esVencido = estatusFinal === 'Pendiente' && p.fecha_vencimiento && p.fecha_vencimiento < hoyStr
+
+        const montoOficial = Number(p.monto) || 0
+        const montoRealAcumulado = p.monto_real !== null && p.monto_real !== undefined ? Number(p.monto_real) : 0
 
         return {
           id: p.id,
           alumno_id: p.alumno_id,
           grupo_id: p.grupo_id,
-          monto: Number(p.monto) || 0,
-          monto_real: (p.monto_real !== null && p.monto_real !== undefined) ? Number(p.monto_real) : (Number(p.monto) || 0),
+          monto: montoOficial,
+          monto_real: montoRealAcumulado,
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
           estatus: estatusFinal,
           estaBaja: esBaja,
@@ -94,19 +94,21 @@ export default function PagosAdminPage() {
     let totalGeneral = listaPagos.filter(p => p.estatus !== 'Cancelado').length
 
     listaPagos.forEach(p => {
-      // Ignorar totalmente los pagos de alumnos dados de baja en las métricas de cobro
       if (p.estatus === 'Cancelado') return
 
       const montoOficial = Number(p.monto) || 0
-      const montoReal = p.monto_real !== undefined ? Number(p.monto_real) : montoOficial
+      const montoReal = Number(p.monto_real) || 0
 
       if (p.estatus === 'Pagado') {
-        cobrado += montoReal
+        cobrado += montoReal > 0 ? montoReal : montoOficial
       } else {
-        pendiente += montoOficial
+        // Si hay abono parcial, sumamos al pendiente solo lo que resta por pagar
+        const restoPendiente = Math.max(0, montoOficial - montoReal)
+        pendiente += restoPendiente
+
         if (p.estaVencido) {
           vencidosC++
-          vencidosM += montoOficial
+          vencidosM += restoPendiente
         }
       }
     })
@@ -128,7 +130,9 @@ export default function PagosAdminPage() {
       return alert('No se puede registrar pago a un alumno que se encuentra dado de baja.')
     }
     setPagoSeleccionado(pago)
-    setMontoPagadoReal(pago.monto)
+    // Si ya tenía un abono previo, sugerimos el restante o el total faltante
+    const restoFaltante = Math.max(0, pago.monto - pago.monto_real)
+    setMontoPagadoReal(restoFaltante > 0 ? restoFaltante : pago.monto)
     setTipoMovimiento('normal')
     setModalPago(true)
   }
@@ -140,14 +144,24 @@ export default function PagosAdminPage() {
     setGuardandoPago(true)
     const hoy = new Date().toISOString().split('T')[0]
     const montoCuotaOriginal = Number(pagoSeleccionado.monto)
-    const montoEntregado = tipoMovimiento === 'beca' ? 0 : Number(montoPagadoReal)
+    
+    // Si es beca, el monto abonado en esta exhibición cubre el total o se registra como 0 con estatus pagado
+    const abonoActual = tipoMovimiento === 'beca' ? montoCuotaOriginal : Number(montoPagadoReal)
+    const acumuladoAnterior = Number(pagoSeleccionado.monto_real) || 0
+    const nuevoAcumuladoReal = tipoMovimiento === 'beca' ? montoCuotaOriginal : (acumuladoAnterior + abonoActual)
+
+    // Determinamos si con este abono se liquida el pago por completo o sigue parcial
+    let nuevoEstatus = 'Pendiente'
+    if (tipoMovimiento === 'beca' || nuevoAcumuladoReal >= montoCuotaOriginal) {
+      nuevoEstatus = 'Pagado'
+    }
 
     const { error: errUpdate } = await supabase
       .from('pagos')
       .update({ 
-        estatus: 'Pagado', 
+        estatus: nuevoEstatus, 
         fecha_pago: hoy,
-        monto_real: montoEntregado 
+        monto_real: nuevoAcumuladoReal 
       })
       .eq('id', pagoSeleccionado.id)
 
@@ -156,8 +170,9 @@ export default function PagosAdminPage() {
       return alert('Error al registrar el pago: ' + errUpdate.message)
     }
 
-    if (montoEntregado > montoCuotaOriginal) {
-      const sobrante = montoEntregado - montoCuotaOriginal
+    // Si pagó de más (sobrepasa la cuota), el sobrante se puede ir al siguiente pago
+    if (nuevoAcumuladoReal > montoCuotaOriginal) {
+      const sobrante = nuevoAcumuladoReal - montoCuotaOriginal
       
       const { data: siguientePago } = await supabase
         .from('pagos')
@@ -177,13 +192,13 @@ export default function PagosAdminPage() {
           .update({ monto: nuevoMontoSig })
           .eq('id', sig.id)
         
-        alert(`¡Pago registrado! Se detectó un adelanto de $${sobrante}. Se ha descontado automáticamente al siguiente pago pendiente del alumno.`)
+        alert(`¡Pago registrado! Se detectó un excedente de $${sobrante} abonado al siguiente ciclo.`)
       }
     }
 
     const telLimpio = pagoSeleccionado.alumnoTelefono ? String(pagoSeleccionado.alumnoTelefono).replace(/\D/g, '') : ''
     if (telLimpio) {
-      const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos que tu pago por *$${montoEntregado.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}* ha sido registrado con éxito. ¡Gracias!`
+      const mensaje = `¡Hola *${pagoSeleccionado.alumnoNombre}*! Te confirmamos la recepción de tu abono por *$${abonoActual.toLocaleString('es-MX')} MXN* para el curso *${pagoSeleccionado.cursoNombre}*. Estado actual: ${nuevoEstatus === 'Pagado' ? '¡Liquidado al 100%!' : 'Abono parcial registrado'}. ¡Gracias!`
       const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
       window.open(urlWa, '_blank')
     }
@@ -202,7 +217,8 @@ export default function PagosAdminPage() {
     if (!telLimpio) {
       return alert('Este alumno no tiene un número de teléfono registrado para WhatsApp.')
     }
-    const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de Espíritas a Cantar. Te recordamos que tienes un pago vencido por la cantidad de *$${pago.monto.toLocaleString('es-MX')} MXN* correspondiente al curso *${pago.cursoNombre}* (vencimiento: ${pago.fecha_vencimiento}). Por favor, confírmanos tu comprobante por este medio para mantener tu acceso al corriente. ¡Gracias!`
+    const restoDeuda = Math.max(0, pago.monto - (pago.monto_real || 0))
+    const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de Espíritas a Cantar. Te recordamos que tienes un saldo pendiente por la cantidad de *$${restoDeuda.toLocaleString('es-MX')} MXN* correspondiente al curso *${pago.cursoNombre}* (vencimiento: ${pago.fecha_vencimiento}). Por favor, confírmanos tu comprobante por este medio. ¡Gracias!`
     const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
     window.open(urlWa, '_blank')
   }
@@ -344,7 +360,7 @@ export default function PagosAdminPage() {
               <div>
                 <span className="text-xs font-bold text-slate-400 uppercase">Total Cobrado Real</span>
                 <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
-                <span className="text-[11px] text-slate-400">Ingresos netos (con becas/descuentos)</span>
+                <span className="text-[11px] text-slate-400">Ingresos netos (con abonos/becas)</span>
               </div>
               <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl text-lg">💳</span>
             </div>
@@ -433,6 +449,9 @@ export default function PagosAdminPage() {
                       const estatus = p.estatus
                       const estaVencido = p.estaVencido
                       const esBaja = p.estaBaja
+                      const montoOficial = p.monto
+                      const montoRealAbonado = p.monto_real || 0
+                      const tieneAbonoParcial = montoRealAbonado > 0 && montoRealAbonado < montoOficial
 
                       return (
                         <tr key={p.id} className={`hover:bg-slate-50 transition ${esBaja ? 'opacity-70 bg-slate-50/50' : ''}`}>
@@ -464,9 +483,14 @@ export default function PagosAdminPage() {
                             )}
                           </td>
                           <td className="py-4 px-6 font-extrabold text-slate-900">
-                            $ {Number(p.monto).toLocaleString('es-MX')} MXN
-                            {p.monto_real !== p.monto && estatus === 'Pagado' && (
-                              <div className="text-[10px] text-emerald-600 font-normal">Real cobrado: ${p.monto_real}</div>
+                            $ {Number(montoOficial).toLocaleString('es-MX')} MXN
+                            {tieneAbonoParcial && (
+                              <div className="text-[10px] text-amber-600 font-semibold">
+                                Abonado: ${montoRealAbonado} | Resta: ${montoOficial - montoRealAbonado}
+                              </div>
+                            )}
+                            {estatus === 'Pagado' && montoRealAbonado > 0 && montoRealAbonado !== montoOficial && (
+                              <div className="text-[10px] text-emerald-600 font-normal">Real cobrado: ${montoRealAbonado}</div>
                             )}
                           </td>
                           <td className="py-4 px-6">
@@ -475,11 +499,21 @@ export default function PagosAdminPage() {
                                 ? 'bg-emerald-50 text-emerald-600' 
                                 : estatus === 'Cancelado'
                                   ? 'bg-slate-200 text-slate-600'
-                                  : estaVencido 
-                                    ? 'bg-rose-50 text-rose-600 border border-rose-200' 
-                                    : 'bg-amber-50 text-amber-600'
+                                  : tieneAbonoParcial
+                                    ? 'bg-indigo-50 text-indigo-600 border border-indigo-200'
+                                    : estaVencido 
+                                      ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                                      : 'bg-amber-50 text-amber-600'
                             }`}>
-                              {estatus === 'Cancelado' ? '🚫 Cancelado (Baja)' : estaVencido ? '⚠️ Vencido' : estatus}
+                              {estatus === 'Cancelado' 
+                                ? '🚫 Cancelado (Baja)' 
+                                : estatus === 'Pagado' 
+                                  ? '✓ Pagado' 
+                                  : tieneAbonoParcial 
+                                    ? '🔄 Abono Parcial' 
+                                    : estaVencido 
+                                      ? '⚠️ Vencido' 
+                                      : estatus}
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right">
@@ -502,7 +536,7 @@ export default function PagosAdminPage() {
                                   onClick={() => abrirModalPago(p)}
                                   className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl text-[10px] font-semibold transition shadow-sm"
                                 >
-                                  Registrar pago
+                                  {tieneAbonoParcial ? 'Completar pago' : 'Registrar pago'}
                                 </button>
                               </div>
                             )}
@@ -519,14 +553,17 @@ export default function PagosAdminPage() {
         </div>
       </main>
 
-      {/* MODAL REGISTRAR PAGO AVANZADO (BECAS / ADELANTOS) */}
+      {/* MODAL REGISTRAR PAGO / ABONO PARCIAL */}
       {modalPago && pagoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl border border-slate-200 space-y-5">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Registrar Pago</h3>
+              <h3 className="text-base font-bold text-slate-900">Registrar Pago / Abono</h3>
               <p className="text-xs text-slate-400 mt-0.5">Estudiante: <strong className="text-slate-700">{pagoSeleccionado.alumnoNombre}</strong></p>
-              <p className="text-xs text-slate-500 mt-1">Cuota oficial programada: <strong className="text-indigo-600">${pagoSeleccionado.monto}</strong></p>
+              <p className="text-xs text-slate-500 mt-1">Cuota total programada: <strong className="text-indigo-600">${pagoSeleccionado.monto}</strong></p>
+              {pagoSeleccionado.monto_real > 0 && (
+                <p className="text-xs text-amber-600 mt-0.5">Ya tiene abonado: <strong>${pagoSeleccionado.monto_real}</strong> (Resta: ${pagoSeleccionado.monto - pagoSeleccionado.monto_real})</p>
+              )}
             </div>
 
             <form onSubmit={procesarPagoAvanzado} className="space-y-4">
@@ -537,29 +574,31 @@ export default function PagosAdminPage() {
                   onChange={(e) => {
                     setTipoMovimiento(e.target.value)
                     if(e.target.value === 'beca') setMontoPagadoReal(0)
-                    else setMontoPagadoReal(pagoSeleccionado.monto)
+                    else {
+                      const resto = Math.max(0, pagoSeleccionado.monto - (pagoSeleccionado.monto_real || 0))
+                      setMontoPagadoReal(resto > 0 ? resto : pagoSeleccionado.monto)
+                    }
                   }}
                   className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600"
                 >
-                  <option value="normal">Pago Normal / Adelanto</option>
-                  <option value="beca">Beca / Cortesía (100% Descuento)</option>
-                  <option value="descuento">Pago Parcial / Con Descuento Específico</option>
+                  <option value="normal">Abono o Pago Normal</option>
+                  <option value="beca">Beca / Cortesía (Liquidar 100%)</option>
                 </select>
               </div>
 
               {tipoMovimiento !== 'beca' && (
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto Real Pagado por el Alumno ($)</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Monto que entrega el alumno en este abono ($)</label>
                   <input 
                     type="number" 
                     required
                     value={montoPagadoReal}
                     onChange={(e) => setMontoPagadoReal(e.target.value)}
                     className="w-full p-3.5 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-600 font-bold text-slate-800"
-                    placeholder="Ej. 200 o 300 si pagó adelantado"
+                    placeholder="Ej. 100 para abono parcial o el total"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
-                    * Si ingresas una cantidad mayor a la cuota, el sobrante se abonará automáticamente al siguiente pago del alumno.
+                    * Si el abono es menor a la cuota, el estado pasará a <strong>Abono Parcial</strong> y podrás completarlo después. Si cubre el total o más, se marcará como <strong>Pagado</strong>.
                   </p>
                 </div>
               )}
@@ -567,7 +606,7 @@ export default function PagosAdminPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalPago(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
                 <button type="submit" disabled={guardandoPago} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardandoPago ? 'Procesando...' : 'Confirmar y Notificar WA'}
+                  {guardandoPago ? 'Procesando...' : 'Confirmar Abono y Notificar WA'}
                 </button>
               </div>
             </form>
