@@ -7,7 +7,15 @@ export default function PagosAdminPage() {
   const [pagos, setPagos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  
+  // Filtros dinámicos avanzados
   const [filtroEstado, setFiltroEstado] = useState('todos') // 'todos', 'vencidos', 'pendiente', 'pagado', 'cancelado'
+  const [filtroGrupo, setFiltroGrupo] = useState('todos')
+  const [filtroCurso, setFiltroCurso] = useState('todos')
+
+  // Listas únicas extraídas dinámicamente para los selectores de filtros
+  const [gruposDisponibles, setGruposDisponibles] = useState([])
+  const [cursosDisponibles, setCursosDisponibles] = useState([])
 
   // Modal para reprogramar fecha
   const [modalFecha, setModalFecha] = useState(false)
@@ -56,7 +64,6 @@ export default function PagosAdminPage() {
         const montoOficial = Number(p.monto) || 0
         const montoRealAcumulado = p.monto_real !== null && p.monto_real !== undefined ? Number(p.monto_real) : 0
 
-        // REGLA INQUEBRANTABLE: Si el monto acumulado es menor al oficial, EL ESTATUS ES PENDIENTE (SÍ O SÍ)
         let estatusFinal = p.estatus || 'Pendiente'
         if (esBaja && estatusFinal !== 'Pagado') {
           estatusFinal = 'Cancelado'
@@ -70,6 +77,7 @@ export default function PagosAdminPage() {
           id: p.id,
           alumno_id: p.alumno_id,
           grupo_id: p.grupo_id,
+          curso_id: cur?.id || p.curso_id || 'sin-curso',
           monto: montoOficial,
           monto_real: montoRealAcumulado,
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
@@ -85,6 +93,17 @@ export default function PagosAdminPage() {
         }
       })
 
+      // Extraer catálogos únicos dinámicamente para los filtros
+      const gruposUnicos = Array.from(new Set(pagosMapeados.map(p => p.grupoNombre)))
+        .filter(Boolean)
+        .sort()
+      
+      const cursosUnicos = Array.from(new Set(pagosMapeados.map(p => p.cursoNombre)))
+        .filter(Boolean)
+        .sort()
+
+      setGruposDisponibles(gruposUnicos)
+      setCursosDisponibles(cursosUnicos)
       setPagos(pagosMapeados)
       calcularMetricas(pagosMapeados)
     }
@@ -153,7 +172,6 @@ export default function PagosAdminPage() {
     const acumuladoAnterior = Number(pagoSeleccionado.monto_real) || 0
     const nuevoAcumuladoReal = tipoMovimiento === 'beca' ? montoCuotaOriginal : (acumuladoAnterior + abonoActual)
 
-    // Solo se marca como 'Pagado' si el acumulado cubre o rebasa el total de la cuota
     let nuevoEstatus = 'Pendiente'
     if (tipoMovimiento === 'beca' || nuevoAcumuladoReal >= montoCuotaOriginal) {
       nuevoEstatus = 'Pagado'
@@ -285,15 +303,23 @@ export default function PagosAdminPage() {
     cargarPagos()
   }
 
+  // Filtrado dinámico combinado (Texto, Estado, Grupo y Curso)
   const pagosFiltrados = pagos.filter(p => {
     const termino = busqueda.toLowerCase()
     const coincideTexto = p.alumnoNombre.toLowerCase().includes(termino) ||
-                           p.alumnoMatricula.toLowerCase().includes(termino) ||
-                           p.cursoNombre.toLowerCase().includes(termino) ||
-                           p.grupoNombre.toLowerCase().includes(termino)
+                          p.alumnoMatricula.toLowerCase().includes(termino) ||
+                          p.cursoNombre.toLowerCase().includes(termino) ||
+                          p.grupoNombre.toLowerCase().includes(termino)
 
     if (!coincideTexto) return false
 
+    // Filtro por grupo
+    if (filtroGrupo !== 'todos' && p.grupoNombre !== filtroGrupo) return false
+
+    // Filtro por curso
+    if (filtroCurso !== 'todos' && p.cursoNombre !== filtroCurso) return false
+
+    // Filtro por estado
     const montoRealAbonado = p.monto_real || 0
     const tieneAbonoParcial = montoRealAbonado > 0 && montoRealAbonado < p.monto
 
@@ -379,50 +405,87 @@ export default function PagosAdminPage() {
             </div>
           </div>
 
-          {/* BARRA DE BÚSQUEDA Y FILTROS RÁPIDOS */}
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
+          {/* PANEL DE FILTROS DINÁMICOS AVANZADOS */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
+              
+              {/* Buscador de texto */}
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-3 w-full lg:w-96">
+                <span className="text-slate-400 text-sm">🔍</span>
+                <input 
+                  type="text" 
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar alumno, matrícula, curso..." 
+                  className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
+                />
+              </div>
+
+              {/* Selectores dinámicos para Grupo y Curso */}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <div className="flex flex-col gap-1 w-full sm:w-auto">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Filtrar por Grupo</label>
+                  <select 
+                    value={filtroGrupo} 
+                    onChange={(e) => setFiltroGrupo(e.target.value)}
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-indigo-600"
+                  >
+                    <option value="todos">🏛️ Todos los grupos</option>
+                    {gruposDisponibles.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1 w-full sm:w-auto">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Filtrar por Curso</label>
+                  <select 
+                    value={filtroCurso} 
+                    onChange={(e) => setFiltroCurso(e.target.value)}
+                    className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 outline-none focus:border-indigo-600"
+                  >
+                    <option value="todos">📚 Todos los cursos</option>
+                    {cursosDisponibles.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Pestañas de Estatus */}
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100">
               <button 
                 onClick={() => setFiltroEstado('todos')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'todos' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'todos' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
               >
                 📋 Todos ({pagos.length})
               </button>
               <button 
                 onClick={() => setFiltroEstado('vencidos')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'vencidos' ? 'bg-rose-600 text-white shadow-sm' : 'bg-white text-rose-600 border border-rose-200 hover:bg-rose-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'vencidos' ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'}`}
               >
                 ⚠️ Vencidos ({pagos.filter(p => p.estaVencido).length})
               </button>
               <button 
                 onClick={() => setFiltroEstado('pendiente')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pendiente' ? 'bg-amber-600 text-white shadow-sm' : 'bg-white text-amber-600 border border-amber-200 hover:bg-amber-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pendiente' ? 'bg-amber-600 text-white shadow-sm' : 'bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100'}`}
               >
                 ⏳ Pendientes / Parciales ({pagos.filter(p => (p.estatus === 'Pendiente' || (p.monto_real > 0 && p.monto_real < p.monto)) && !p.estaVencido).length})
               </button>
               <button 
                 onClick={() => setFiltroEstado('pagado')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pagado' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-white text-emerald-600 border border-emerald-200 hover:bg-emerald-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'pagado' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100'}`}
               >
                 ✓ Pagados ({pagos.filter(p => p.estatus === 'Pagado').length})
               </button>
               <button 
                 onClick={() => setFiltroEstado('cancelado')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'cancelado' ? 'bg-slate-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filtroEstado === 'cancelado' ? 'bg-slate-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}
               >
                 🚫 Bajas / Cancelados ({pagos.filter(p => p.estatus === 'Cancelado').length})
               </button>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
-              <span className="text-slate-400 text-sm pl-2">🔍</span>
-              <input 
-                type="text" 
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar por estudiante, matrícula, curso o grupo..." 
-                className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
-              />
             </div>
           </div>
 
