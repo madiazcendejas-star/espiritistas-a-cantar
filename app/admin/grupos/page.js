@@ -39,6 +39,10 @@ export default function GruposAdminPage() {
   // Estado para editar capacidad y datos del grupo seleccionado
   const [capacidadEditada, setCapacidadEditada] = useState(15)
 
+  // Estado para la info de WhatsApp del grupo seleccionado
+  const [infoCopiarEditada, setInfoCopiarEditada] = useState('')
+  const [guardandoInfo, setGuardandoInfo] = useState(false)
+
   // Formulario Recurso
   const [formRecurso, setFormRecurso] = useState({ titulo: '', tipo: 'video', url: '' })
 
@@ -131,10 +135,35 @@ export default function GruposAdminPage() {
       alert('Error al actualizar la capacidad: ' + error.message)
     } else {
       alert('¡Capacidad actualizada con éxito!')
-      // Actualizar estado local
       setGrupoSeleccionado({ ...grupoSeleccionado, capacidad: Number(capacidadEditada) })
       cargarDatos()
     }
+  }
+
+  const actualizarInfoCopiar = async (e) => {
+    e.preventDefault()
+    if (!grupoSeleccionado) return
+    setGuardandoInfo(true)
+
+    const { error } = await supabase
+      .from('grupos')
+      .update({ info_copiar: infoCopiarEditada })
+      .eq('id', grupoSeleccionado.id)
+
+    if (error) {
+      alert('Error al guardar la información para WhatsApp: ' + error.message)
+    } else {
+      alert('¡Información para WhatsApp guardada con éxito!')
+      setGrupoSeleccionado({ ...grupoSeleccionado, info_copiar: infoCopiarEditada })
+      cargarDatos()
+    }
+    setGuardandoInfo(false)
+  }
+
+  const copiarAlPortapapeles = (texto) => {
+    if (!texto) return alert('No hay información escrita para copiar.')
+    navigator.clipboard.writeText(texto)
+    alert('¡Copiado al portapapeles! Ya puedes pegarlo en el chat de WhatsApp.')
   }
 
   const eliminarGrupo = async () => {
@@ -201,7 +230,6 @@ export default function GruposAdminPage() {
     if (!error) cargarDatos()
   }
 
-  // Estadísticas globales superiores basadas en la capacidad real de cada grupo
   const totalGrupos = grupos.length
   const totalInscripcionesConfirmadas = inscripciones.filter(i => i.estatus === 'activa' || !i.estatus).length
   const totalInscripcionesPorConfirmar = inscripciones.filter(i => i.estatus === 'Revision' || i.estatus === 'pendiente').length
@@ -330,6 +358,7 @@ export default function GruposAdminPage() {
                   onClick={() => { 
                     setGrupoSeleccionado(g); 
                     setCapacidadEditada(g.capacidad || 15);
+                    setInfoCopiarEditada(g.info_copiar || '');
                     setPestanaActiva('detalles'); 
                     setModalDetalle(true); 
                   }}
@@ -469,14 +498,15 @@ export default function GruposAdminPage() {
               </div>
 
               {/* NAVEGACIÓN POR PESTAÑAS */}
-              <div className="flex gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
+              <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
                 <button onClick={() => setPestanaActiva('detalles')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'detalles' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📄 Detalles</button>
                 <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({confirmados})</button>
                 <button onClick={() => setPestanaActiva('sesiones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'sesiones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🗓️ Sesiones ({sesionesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('materiales')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'materiales' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📚 Materiales ({materialesDelGrupo.length})</button>
+                <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info para WhatsApp</button>
               </div>
 
-              {/* CONTENIDO DE PESTAÑA: DETALLES (Incluye la opción de modificar la capacidad) */}
+              {/* CONTENIDO DE PESTAÑA: DETALLES */}
               {pestanaActiva === 'detalles' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -650,6 +680,46 @@ export default function GruposAdminPage() {
                       ))
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* CONTENIDO DE PESTAÑA: INFO PARA WHATSAPP (PRIVADA) */}
+              {pestanaActiva === 'whatsapp' && (
+                <div className="space-y-4">
+                  <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-1">
+                    <h4 className="text-xs font-bold uppercase text-emerald-900">💬 Copy Informativo para tu Comunidad de WhatsApp</h4>
+                    <p className="text-[11px] text-emerald-700">
+                      Esta información es **estrictamente privada** para ti como administrador. Escribe o pega aquí el texto completo que publicas en WhatsApp (precios, horarios, temario, etc.). Cuando alguien te pida informes, solo haz clic en copiar.
+                    </p>
+                  </div>
+
+                  <form onSubmit={actualizarInfoCopiar} className="space-y-3">
+                    <textarea 
+                      rows="8"
+                      value={infoCopiarEditada}
+                      onChange={(e) => setInfoCopiarEditada(e.target.value)}
+                      placeholder="Ej. 🎶 *¡Inscripciones Abiertas!* 🎶&#10;Curso: Canto Lírico&#10;📅 Inicio: 5 de Noviembre&#10;💵 Costo total: $1,500 MXN..."
+                      className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-emerald-500 font-mono"
+                    ></textarea>
+
+                    <div className="flex flex-col sm:flex-row justify-between gap-3">
+                      <button 
+                        type="button" 
+                        onClick={() => copiarAlPortapapeles(infoCopiarEditada)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm flex items-center justify-center gap-2"
+                      >
+                        📋 Copiar Texto para WhatsApp
+                      </button>
+
+                      <button 
+                        type="submit" 
+                        disabled={guardandoInfo}
+                        className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
+                      >
+                        {guardandoInfo ? 'Guardando...' : '💾 Guardar Cambios'}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               )}
 
