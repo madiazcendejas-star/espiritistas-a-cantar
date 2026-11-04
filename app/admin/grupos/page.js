@@ -10,6 +10,7 @@ export default function GruposAdminPage() {
   const [alumnos, setAlumnos] = useState([])
   const [recursos, setRecursos] = useState([])
   const [sesionesGrupo, setSesionesGrupo] = useState([])
+  const [pagos, setPagos] = useState([]) // NUEVO: Estado de pagos
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [ocultarFinalizados, setOcultarFinalizados] = useState(false)
@@ -21,7 +22,7 @@ export default function GruposAdminPage() {
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario Nuevo Grupo (Con Capacidad Editable)
+  // Formulario Nuevo Grupo
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
@@ -33,11 +34,13 @@ export default function GruposAdminPage() {
     frecuencia: 'mensual',
     fecha_inicio: '',
     fecha_fin: '',
-    horario_texto: 'Lunes y Miércoles 18:00 - 20:00'
+    horario_texto: 'Lunes y Miércoles 18:00 - 20:00',
+    enlace_whatsapp: '' // NUEVO: Enlace de grupo
   })
 
   // Estado para editar capacidad y datos del grupo seleccionado
   const [capacidadEditada, setCapacidadEditada] = useState(15)
+  const [enlaceWhatsappEditado, setEnlaceWhatsappEditado] = useState('') // NUEVO: Estado enlace editado
 
   // Estado para la info de WhatsApp del grupo seleccionado
   const [infoCopiarEditada, setInfoCopiarEditada] = useState('')
@@ -71,6 +74,7 @@ export default function GruposAdminPage() {
     const { data: resAlumnos } = await supabase.from('alumnos').select('*')
     const { data: resRecursos } = await supabase.from('recursos').select('*')
     const { data: resSesiones } = await supabase.from('sesiones_grupo').select('*').order('fecha_hora', { ascending: true })
+    const { data: resPagos } = await supabase.from('pagos').select('*') // Cargar pagos
 
     if (resGrupos) setGrupos(resGrupos)
     if (resCursos) setCursos(resCursos)
@@ -78,6 +82,7 @@ export default function GruposAdminPage() {
     if (resAlumnos) setAlumnos(resAlumnos)
     if (resRecursos) setRecursos(resRecursos)
     if (resSesiones) setSesionesGrupo(resSesiones)
+    if (resPagos) setPagos(resPagos)
     setLoading(false)
   }
 
@@ -96,7 +101,8 @@ export default function GruposAdminPage() {
       frecuencia: formGrupo.frecuencia,
       fecha_inicio: formGrupo.fecha_inicio || null,
       fecha_fin: formGrupo.fecha_fin || null,
-      horario_texto: formGrupo.horario_texto.trim()
+      horario_texto: formGrupo.horario_texto.trim(),
+      enlace_whatsapp: formGrupo.enlace_whatsapp.trim()
     }])
 
     if (error) {
@@ -114,7 +120,8 @@ export default function GruposAdminPage() {
         frecuencia: 'mensual',
         fecha_inicio: '',
         fecha_fin: '',
-        horario_texto: ''
+        horario_texto: '',
+        enlace_whatsapp: ''
       })
       cargarDatos()
       alert('¡Grupo creado exitosamente!')
@@ -136,6 +143,24 @@ export default function GruposAdminPage() {
     } else {
       alert('¡Capacidad actualizada con éxito!')
       setGrupoSeleccionado({ ...grupoSeleccionado, capacidad: Number(capacidadEditada) })
+      cargarDatos()
+    }
+  }
+
+  const actualizarEnlaceWhatsapp = async (e) => {
+    e.preventDefault()
+    if (!grupoSeleccionado) return
+    
+    const { error } = await supabase
+      .from('grupos')
+      .update({ enlace_whatsapp: enlaceWhatsappEditado })
+      .eq('id', grupoSeleccionado.id)
+
+    if (error) {
+      alert('Error al guardar el enlace: ' + error.message)
+    } else {
+      alert('¡Enlace guardado con éxito!')
+      setGrupoSeleccionado({ ...grupoSeleccionado, enlace_whatsapp: enlaceWhatsappEditado })
       cargarDatos()
     }
   }
@@ -163,7 +188,7 @@ export default function GruposAdminPage() {
   const copiarAlPortapapeles = (texto) => {
     if (!texto) return alert('No hay información escrita para copiar.')
     navigator.clipboard.writeText(texto)
-    alert('¡Copiado al portapapeles! Ya puedes pegarlo en el chat de WhatsApp.')
+    alert('¡Copiado al portapapeles! Ya puedes pegarlo.')
   }
 
   const eliminarGrupo = async () => {
@@ -175,6 +200,39 @@ export default function GruposAdminPage() {
       cargarDatos()
       alert('Grupo eliminado.')
     }
+  }
+
+  // NUEVA FUNCIÓN: DAR DE BAJA
+  const darDeBajaAlumno = async (inscripcionId, alumnoId) => {
+    if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno? Perderá el acceso a la plataforma y se cancelarán todos sus cobros futuros.')) return
+    setLoading(true)
+
+    // 1. Cambiar estatus de inscripción
+    const { error: errIns } = await supabase
+      .from('inscripciones')
+      .update({ estatus: 'baja' })
+      .eq('id', inscripcionId)
+
+    if (errIns) {
+      alert('Error al actualizar inscripción: ' + errIns.message)
+      setLoading(false)
+      return
+    }
+
+    // 2. Cancelar pagos futuros (De hoy en adelante)
+    const hoy = new Date().toISOString().split('T')[0]
+    const { data: pagosCancelar } = await supabase.from('pagos').select('*')
+      .eq('alumno_id', alumnoId)
+      .eq('grupo_id', grupoSeleccionado.id)
+      .eq('estatus', 'Pendiente')
+      .gte('fecha_vencimiento', hoy)
+
+    for (let p of (pagosCancelar || [])) {
+      await supabase.from('pagos').update({ estatus: 'Cancelado', monto: 0 }).eq('id', p.id)
+    }
+
+    alert('Alumno dado de baja. Se ha bloqueado su acceso y se han cancelado sus cobros futuros.')
+    cargarDatos()
   }
 
   const agregarSesionAGrupo = async (e) => {
@@ -359,6 +417,7 @@ export default function GruposAdminPage() {
                     setGrupoSeleccionado(g); 
                     setCapacidadEditada(g.capacidad || 15);
                     setInfoCopiarEditada(g.info_copiar || '');
+                    setEnlaceWhatsappEditado(g.enlace_whatsapp || '');
                     setPestanaActiva('detalles'); 
                     setModalDetalle(true); 
                   }}
@@ -500,7 +559,7 @@ export default function GruposAdminPage() {
               {/* NAVEGACIÓN POR PESTAÑAS */}
               <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
                 <button onClick={() => setPestanaActiva('detalles')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'detalles' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📄 Detalles</button>
-                <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({confirmados})</button>
+                <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({inscritosGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('sesiones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'sesiones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🗓️ Sesiones ({sesionesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('materiales')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'materiales' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📚 Materiales ({materialesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info para WhatsApp</button>
@@ -551,7 +610,25 @@ export default function GruposAdminPage() {
                       </form>
                     </div>
 
-                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                    {/* ENLACE DEL GRUPO DE WHATSAPP */}
+                    <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
+                      <h4 className="text-xs font-bold uppercase text-emerald-900">🔗 Enlace de WhatsApp</h4>
+                      <p className="text-[11px] text-emerald-700">Guarda el link de invitación para tenerlo a la mano.</p>
+                      <form onSubmit={actualizarEnlaceWhatsapp} className="flex flex-col sm:flex-row gap-2">
+                        <input 
+                          type="url" 
+                          placeholder="https://chat.whatsapp.com/..."
+                          value={enlaceWhatsappEditado} 
+                          onChange={(e) => setEnlaceWhatsappEditado(e.target.value)} 
+                          className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none focus:border-emerald-500" 
+                        />
+                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap">
+                          Guardar
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 sm:col-span-2">
                       <h4 className="text-xs font-bold uppercase text-slate-500">Información Financiera</h4>
                       <div className="flex justify-between text-xs py-1 border-b border-slate-200">
                         <span className="text-slate-600">Costo total del curso:</span>
@@ -562,7 +639,6 @@ export default function GruposAdminPage() {
                         <span className="font-bold text-slate-900">${Number(grupoSeleccionado.cuota_inscripcion || 0).toLocaleString('es-MX')} MXN</span>
                       </div>
                     </div>
-
                   </div>
 
                   {/* AJUSTE MASIVO DE PAGOS */}
@@ -603,16 +679,79 @@ export default function GruposAdminPage() {
                   {inscritosGrupo.length === 0 ? (
                     <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl">No hay estudiantes inscritos en este grupo todavía.</p>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {inscritosGrupo.map(ins => {
                         const alumno = alumnos.find(a => Number(a.id) === Number(ins.alumno_id))
+                        const estaDeBaja = ins.estatus?.toLowerCase() === 'baja'
+                        
+                        // LÓGICA DE PAGOS PARA ESTE ALUMNO
+                        const pagosAlumno = pagos.filter(p => Number(p.alumno_id) === Number(ins.alumno_id) && Number(p.grupo_id) === Number(grupoSeleccionado.id))
+                        const pagosPendientesVencidos = pagosAlumno.filter(p => p.estatus?.toLowerCase() === 'pendiente' || p.estatus?.toLowerCase() === 'vencido')
+                        
+                        const tienePagosVencidos = pagosPendientesVencidos.some(p => new Date(p.fecha_vencimiento) < new Date())
+                        const tienePagosPendientes = pagosPendientesVencidos.length > 0
+
+                        let badgePago = { text: 'Al corriente', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
+                        if (tienePagosVencidos) {
+                          badgePago = { text: 'Pago Vencido', color: 'bg-rose-100 text-rose-700 border-rose-200' }
+                        } else if (tienePagosPendientes) {
+                           badgePago = { text: 'Pago Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200' }
+                        }
+
+                        // LÓGICA DEL MENSAJE DINÁMICO DE WHATSAPP
+                        const enviarRecordatorio = () => {
+                          if (!alumno?.telefono) return alert('El alumno no tiene teléfono registrado.')
+                          const numFormat = alumno.telefono.replace(/\D/g,'')
+                          const fechaInicio = grupoSeleccionado.fecha_inicio ? new Date(grupoSeleccionado.fecha_inicio) : null
+                          const hoy = new Date()
+                          const datosBanc = "\n\n💳 *Datos de pago:*\nBanco: Banorte\nCLABE: 072180013454340536\nA nombre de: Miguel Ángel Díaz"
+                          
+                          let mensaje = ''
+                          if (fechaInicio && fechaInicio > hoy) {
+                            const diffDias = Math.ceil(Math.abs(fechaInicio - hoy) / (1000 * 60 * 60 * 24))
+                            mensaje = `Hola ${alumno.nombre || alumno.Nombre}, te contactamos de Espiritistas a Cantar. Faltan ${diffDias} días para que inicie el curso "${grupoSeleccionado.nombre_grupo}". No olvides realizar tu pago de inscripción para asegurar tu lugar.${datosBanc}`
+                          } else {
+                            const listaPagos = pagosPendientesVencidos.map(p => p.concepto || `Pago de $${p.monto}`).join(', ')
+                            mensaje = `Hola ${alumno.nombre || alumno.Nombre}, te contactamos de Espiritistas a Cantar. Tienes pendiente el pago de: *${listaPagos}* correspondiente al curso "${grupoSeleccionado.nombre_grupo}". Por favor, realiza tu pago cuanto antes para evitar la suspensión de tu acceso al portal.${datosBanc}`
+                          }
+                          window.open(`https://wa.me/${numFormat}?text=${encodeURIComponent(mensaje)}`, '_blank')
+                        }
+
                         return (
-                          <div key={ins.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex justify-between items-center text-xs">
+                          <div key={ins.id} className={`p-4 rounded-2xl border flex flex-col xl:flex-row justify-between xl:items-center text-xs gap-4 ${estaDeBaja ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-slate-50 border-slate-200'}`}>
                             <div>
                               <strong className="text-slate-900 block text-sm">{alumno?.nombre || alumno?.Nombre || 'Estudiante'}</strong>
                               <span className="text-slate-500">📧 {alumno?.correo || 'Sin correo'} · 📞 {alumno?.telefono || 'Sin teléfono'}</span>
                             </div>
-                            <span className="px-3 py-1 rounded-full text-emerald-700 bg-emerald-50 font-bold">Confirmada</span>
+                            
+                            <div className="flex flex-wrap items-center gap-2">
+                              {estaDeBaja ? (
+                                <span className="px-3 py-1 rounded-full text-slate-500 bg-slate-200 font-bold">BAJA</span>
+                              ) : (
+                                <>
+                                  <span className="px-3 py-1 rounded-full text-indigo-700 bg-indigo-50 font-bold border border-indigo-100">Activa</span>
+                                  <span className={`px-3 py-1 rounded-full font-bold border ${badgePago.color}`}>{badgePago.text}</span>
+                                  
+                                  {/* Botón WhatsApp Recordatorio */}
+                                  {(tienePagosVencidos || tienePagosPendientes) && (
+                                    <button 
+                                      onClick={enviarRecordatorio}
+                                      className="bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1 font-semibold"
+                                    >
+                                      📱 Cobrar
+                                    </button>
+                                  )}
+                                  
+                                  {/* Botón Dar de Baja */}
+                                  <button 
+                                    onClick={() => darDeBajaAlumno(ins.id, alumno.id)}
+                                    className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition border border-rose-200 hover:border-rose-600 font-semibold ml-2"
+                                  >
+                                    Dar de baja
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         )
                       })}
@@ -683,13 +822,13 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: INFO PARA WHATSAPP (PRIVADA) */}
+              {/* CONTENIDO DE PESTAÑA: INFO PARA WHATSAPP */}
               {pestanaActiva === 'whatsapp' && (
                 <div className="space-y-4">
                   <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-1">
-                    <h4 className="text-xs font-bold uppercase text-emerald-900">💬 Copy Informativo para tu Comunidad de WhatsApp</h4>
+                    <h4 className="text-xs font-bold uppercase text-emerald-900">💬 Copy Informativo para tu Comunidad</h4>
                     <p className="text-[11px] text-emerald-700">
-                      Esta información es **estrictamente privada** para ti como administrador. Escribe o pega aquí el texto completo que publicas en WhatsApp (precios, horarios, temario, etc.). Cuando alguien te pida informes, solo haz clic en copiar.
+                      Escribe o pega aquí el texto completo que publicas en WhatsApp (precios, horarios, temario, etc.).
                     </p>
                   </div>
 
@@ -698,7 +837,7 @@ export default function GruposAdminPage() {
                       rows="8"
                       value={infoCopiarEditada}
                       onChange={(e) => setInfoCopiarEditada(e.target.value)}
-                      placeholder="Ej. 🎶 *¡Inscripciones Abiertas!* 🎶&#10;Curso: Canto Lírico&#10;📅 Inicio: 5 de Noviembre&#10;💵 Costo total: $1,500 MXN..."
+                      placeholder="Ej. 🎶 *¡Inscripciones Abiertas!*..."
                       className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-emerald-500 font-mono"
                     ></textarea>
 
@@ -708,7 +847,7 @@ export default function GruposAdminPage() {
                         onClick={() => copiarAlPortapapeles(infoCopiarEditada)}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm flex items-center justify-center gap-2"
                       >
-                        📋 Copiar Texto para WhatsApp
+                        📋 Copiar Texto
                       </button>
 
                       <button 
