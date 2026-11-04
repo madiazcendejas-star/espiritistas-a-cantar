@@ -10,7 +10,8 @@ export default function GruposAdminPage() {
   const [alumnos, setAlumnos] = useState([])
   const [recursos, setRecursos] = useState([])
   const [sesionesGrupo, setSesionesGrupo] = useState([])
-  const [pagos, setPagos] = useState([]) // NUEVO: Estado de pagos
+  const [pagos, setPagos] = useState([])
+  const [valoraciones, setValoraciones] = useState([]) // NUEVO: Estado de valoraciones
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [ocultarFinalizados, setOcultarFinalizados] = useState(false)
@@ -35,12 +36,14 @@ export default function GruposAdminPage() {
     fecha_inicio: '',
     fecha_fin: '',
     horario_texto: 'Lunes y Miércoles 18:00 - 20:00',
-    enlace_whatsapp: '' // NUEVO: Enlace de grupo
+    enlace_whatsapp: ''
   })
 
-  // Estado para editar capacidad y datos del grupo seleccionado
+  // Estado para editar capacidad, fechas y datos del grupo seleccionado
   const [capacidadEditada, setCapacidadEditada] = useState(15)
-  const [enlaceWhatsappEditado, setEnlaceWhatsappEditado] = useState('') // NUEVO: Estado enlace editado
+  const [fechaInicioEditada, setFechaInicioEditada] = useState('')
+  const [fechaFinEditada, setFechaFinEditada] = useState('')
+  const [enlaceWhatsappEditado, setEnlaceWhatsappEditado] = useState('')
 
   // Estado para la info de WhatsApp del grupo seleccionado
   const [infoCopiarEditada, setInfoCopiarEditada] = useState('')
@@ -74,7 +77,8 @@ export default function GruposAdminPage() {
     const { data: resAlumnos } = await supabase.from('alumnos').select('*')
     const { data: resRecursos } = await supabase.from('recursos').select('*')
     const { data: resSesiones } = await supabase.from('sesiones_grupo').select('*').order('fecha_hora', { ascending: true })
-    const { data: resPagos } = await supabase.from('pagos').select('*') // Cargar pagos
+    const { data: resPagos } = await supabase.from('pagos').select('*')
+    const { data: resVal } = await supabase.from('valoraciones').select('*') // Cargar valoraciones
 
     if (resGrupos) setGrupos(resGrupos)
     if (resCursos) setCursos(resCursos)
@@ -83,6 +87,7 @@ export default function GruposAdminPage() {
     if (resRecursos) setRecursos(resRecursos)
     if (resSesiones) setSesionesGrupo(resSesiones)
     if (resPagos) setPagos(resPagos)
+    if (resVal) setValoraciones(resVal)
     setLoading(false)
   }
 
@@ -129,20 +134,29 @@ export default function GruposAdminPage() {
     setGuardando(false)
   }
 
-  const actualizarCapacidadGrupo = async (e) => {
+  const actualizarFechasYCapacidad = async (e) => {
     e.preventDefault()
     if (!grupoSeleccionado) return
 
     const { error } = await supabase
       .from('grupos')
-      .update({ capacidad: Number(capacidadEditada) })
+      .update({ 
+        capacidad: Number(capacidadEditada),
+        fecha_inicio: fechaInicioEditada || null,
+        fecha_fin: fechaFinEditada || null
+      })
       .eq('id', grupoSeleccionado.id)
 
     if (error) {
-      alert('Error al actualizar la capacidad: ' + error.message)
+      alert('Error al actualizar datos del grupo: ' + error.message)
     } else {
-      alert('¡Capacidad actualizada con éxito!')
-      setGrupoSeleccionado({ ...grupoSeleccionado, capacidad: Number(capacidadEditada) })
+      alert('¡Configuración guardada con éxito!')
+      setGrupoSeleccionado({ 
+        ...grupoSeleccionado, 
+        capacidad: Number(capacidadEditada),
+        fecha_inicio: fechaInicioEditada,
+        fecha_fin: fechaFinEditada
+      })
       cargarDatos()
     }
   }
@@ -202,12 +216,10 @@ export default function GruposAdminPage() {
     }
   }
 
-  // NUEVA FUNCIÓN: DAR DE BAJA
   const darDeBajaAlumno = async (inscripcionId, alumnoId) => {
     if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno? Perderá el acceso a la plataforma y se cancelarán todos sus cobros futuros.')) return
     setLoading(true)
 
-    // 1. Cambiar estatus de inscripción
     const { error: errIns } = await supabase
       .from('inscripciones')
       .update({ estatus: 'baja' })
@@ -219,7 +231,6 @@ export default function GruposAdminPage() {
       return
     }
 
-    // 2. Cancelar pagos futuros (De hoy en adelante)
     const hoy = new Date().toISOString().split('T')[0]
     const { data: pagosCancelar } = await supabase.from('pagos').select('*')
       .eq('alumno_id', alumnoId)
@@ -416,6 +427,8 @@ export default function GruposAdminPage() {
                   onClick={() => { 
                     setGrupoSeleccionado(g); 
                     setCapacidadEditada(g.capacidad || 15);
+                    setFechaInicioEditada(g.fecha_inicio || '');
+                    setFechaFinEditada(g.fecha_fin || '');
                     setInfoCopiarEditada(g.info_copiar || '');
                     setEnlaceWhatsappEditado(g.enlace_whatsapp || '');
                     setPestanaActiva('detalles'); 
@@ -428,7 +441,9 @@ export default function GruposAdminPage() {
                       {nombreCurso}
                     </span>
                     <h4 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{g.nombre_grupo}</h4>
-                    <p className="text-xs text-slate-500 truncate">{cursoAsociado?.descripcion || g.horario_texto || 'Sin horario definido'}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {g.fecha_inicio ? `Del ${g.fecha_inicio} al ${g.fecha_fin || 'Indefinido'}` : (cursoAsociado?.descripcion || g.horario_texto || 'Sin horario definido')}
+                    </p>
                   </div>
 
                   <div className="space-y-2 pt-4 border-t border-slate-100">
@@ -537,7 +552,9 @@ export default function GruposAdminPage() {
         const ocupacion = Math.round((confirmados / capacidad) * 100)
         const sesionesDelGrupo = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(grupoSeleccionado.id))
         const materialesDelGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupoSeleccionado.id))
-        const progresoClases = sesionesDelGrupo.length > 0 ? Math.round((sesionesDelGrupo.filter(s => new Date(s.fecha_hora) < new Date()).length / sesionesDelGrupo.length) * 100) : 0
+        
+        // Obtener valoraciones asociadas al curso de este grupo
+        const valoracionesCurso = valoraciones.filter(v => Number(v.curso_id) === Number(grupoSeleccionado.curso_id))
 
         return (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
@@ -562,51 +579,53 @@ export default function GruposAdminPage() {
                 <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({inscritosGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('sesiones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'sesiones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🗓️ Sesiones ({sesionesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('materiales')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'materiales' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📚 Materiales ({materialesDelGrupo.length})</button>
+                <button onClick={() => setPestanaActiva('valoraciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'valoraciones' ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>⭐ Valoraciones ({valoracionesCurso.length})</button>
                 <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info para WhatsApp</button>
               </div>
 
               {/* CONTENIDO DE PESTAÑA: DETALLES */}
               {pestanaActiva === 'detalles' && (
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Inscritos</span>
-                      <div className="text-xl font-extrabold text-slate-900 mt-1">{confirmados}</div>
-                      <span className="text-[10px] text-slate-500">Alumnos activos</span>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Ocupación</span>
-                      <div className="text-xl font-extrabold text-indigo-600 mt-1">{ocupacion}%</div>
-                      <span className="text-[10px] text-slate-500">{confirmados} de {capacidad} cupos</span>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Sesiones</span>
-                      <div className="text-xl font-extrabold text-slate-900 mt-1">{sesionesDelGrupo.length}</div>
-                      <span className="text-[10px] text-slate-500">Clases programadas</span>
-                    </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">Progreso</span>
-                      <div className="text-xl font-extrabold text-emerald-600 mt-1">{progresoClases}%</div>
-                      <span className="text-[10px] text-slate-500">Del ciclo escolar</span>
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     
-                    {/* MODIFICAR CAPACIDAD DEL GRUPO */}
-                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                      <h4 className="text-xs font-bold uppercase text-slate-700">⚙️ Configurar Capacidad del Grupo</h4>
-                      <p className="text-[11px] text-slate-500">Modifica el número máximo de plazas permitidas para este grupo.</p>
-                      <form onSubmit={actualizarCapacidadGrupo} className="flex gap-2">
-                        <input 
-                          type="number" 
-                          min="1"
-                          required 
-                          value={capacidadEditada} 
-                          onChange={(e) => setCapacidadEditada(e.target.value)} 
-                          className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
-                        />
-                        <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap">Actualizar Plazas</button>
+                    {/* CONFIGURAR CAPACIDAD Y FECHAS DEL GRUPO */}
+                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 sm:col-span-2">
+                      <h4 className="text-xs font-bold uppercase text-slate-700">⚙️ Configuración y Fechas del Grupo</h4>
+                      <p className="text-[11px] text-slate-500">Define la capacidad de alumnos y las fechas de inicio y fin (clave para el cierre automático de cursos).</p>
+                      
+                      <form onSubmit={actualizarFechasYCapacidad} className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Capacidad Máxima</label>
+                          <input 
+                            type="number" 
+                            min="1"
+                            required 
+                            value={capacidadEditada} 
+                            onChange={(e) => setCapacidadEditada(e.target.value)} 
+                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
+                          <input 
+                            type="date" 
+                            value={fechaInicioEditada} 
+                            onChange={(e) => setFechaInicioEditada(e.target.value)} 
+                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Fin (Cierre)</label>
+                          <input 
+                            type="date" 
+                            value={fechaFinEditada} 
+                            onChange={(e) => setFechaFinEditada(e.target.value)} 
+                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
+                          />
+                        </div>
+                        <div className="sm:col-span-3 flex justify-end">
+                          <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Guardar Cambios de Configuración</button>
+                        </div>
                       </form>
                     </div>
 
@@ -628,7 +647,7 @@ export default function GruposAdminPage() {
                       </form>
                     </div>
 
-                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 sm:col-span-2">
+                    <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                       <h4 className="text-xs font-bold uppercase text-slate-500">Información Financiera</h4>
                       <div className="flex justify-between text-xs py-1 border-b border-slate-200">
                         <span className="text-slate-600">Costo total del curso:</span>
@@ -672,6 +691,50 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
+              {/* CONTENIDO DE PESTAÑA: VALORACIONES (NUEVO) */}
+              {pestanaActiva === 'valoraciones' && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-bold uppercase text-slate-500">⭐ Reseñas y Estrellas de este Curso</h4>
+                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+                      {valoracionesCurso.length} {valoracionesCurso.length === 1 ? 'reseña' : 'reseñas'}
+                    </span>
+                  </div>
+
+                  {valoracionesCurso.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl">Aún no hay valoraciones registradas para este curso.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {valoracionesCurso.map(val => {
+                        const alumnoQueValoro = alumnos.find(a => Number(a.id) === Number(val.alumno_id))
+                        const nombreAlumnoVal = alumnoQueValoro ? (alumnoQueValoro.nombre || alumnoQueValoro.Nombre) : 'Estudiante'
+                        
+                        return (
+                          <div key={val.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-slate-900 text-xs">{nombreAlumnoVal}</span>
+                              <div className="flex text-amber-400 text-xs">
+                                {[1, 2, 3, 4, 5].map((num) => (
+                                  <span key={num}>{num <= val.estrellas ? '★' : '☆'}</span>
+                                ))}
+                              </div>
+                            </div>
+                            {val.comentario ? (
+                              <p className="text-xs text-slate-600 italic">"{val.comentario}"</p>
+                            ) : (
+                              <p className="text-[11px] text-slate-400 italic">Sin comentario escrito.</p>
+                            )}
+                            <span className="text-[10px] text-slate-400 block pt-1">
+                              {new Date(val.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* CONTENIDO DE PESTAÑA: INSCRIPCIONES */}
               {pestanaActiva === 'inscripciones' && (
                 <div className="space-y-4">
@@ -684,7 +747,6 @@ export default function GruposAdminPage() {
                         const alumno = alumnos.find(a => Number(a.id) === Number(ins.alumno_id))
                         const estaDeBaja = ins.estatus?.toLowerCase() === 'baja'
                         
-                        // LÓGICA DE PAGOS PARA ESTE ALUMNO
                         const pagosAlumno = pagos.filter(p => Number(p.alumno_id) === Number(ins.alumno_id) && Number(p.grupo_id) === Number(grupoSeleccionado.id))
                         const pagosPendientesVencidos = pagosAlumno.filter(p => p.estatus?.toLowerCase() === 'pendiente' || p.estatus?.toLowerCase() === 'vencido')
                         
@@ -698,7 +760,6 @@ export default function GruposAdminPage() {
                            badgePago = { text: 'Pago Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200' }
                         }
 
-                        // LÓGICA DEL MENSAJE DINÁMICO DE WHATSAPP
                         const enviarRecordatorio = () => {
                           if (!alumno?.telefono) return alert('El alumno no tiene teléfono registrado.')
                           const numFormat = alumno.telefono.replace(/\D/g,'')
@@ -732,7 +793,6 @@ export default function GruposAdminPage() {
                                   <span className="px-3 py-1 rounded-full text-indigo-700 bg-indigo-50 font-bold border border-indigo-100">Activa</span>
                                   <span className={`px-3 py-1 rounded-full font-bold border ${badgePago.color}`}>{badgePago.text}</span>
                                   
-                                  {/* Botón WhatsApp Recordatorio */}
                                   {(tienePagosVencidos || tienePagosPendientes) && (
                                     <button 
                                       onClick={enviarRecordatorio}
@@ -742,7 +802,6 @@ export default function GruposAdminPage() {
                                     </button>
                                   )}
                                   
-                                  {/* Botón Dar de Baja */}
                                   <button 
                                     onClick={() => darDeBajaAlumno(ins.id, alumno.id)}
                                     className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition border border-rose-200 hover:border-rose-600 font-semibold ml-2"
