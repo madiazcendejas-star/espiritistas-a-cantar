@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
+import PortalModals from './PortalModals' // <--- Importamos el gestor de modales que creamos
 
 // COMPONENTE AUXILIAR PARA EL BOTÓN INTELIGENTE DE MEET
 function BotonClaseEnVivo({ sesion }) {
@@ -387,6 +388,11 @@ export default function AlumnoPortalPage() {
   return (
     <div className="min-h-screen bg-[#f8fafc] font-sans text-slate-900 text-sm flex">
       
+      {/* ========================================================= */}
+      {/* GESTOR DE POP-UPS (VALORACIÓN Y ACTUALIZACIÓN DE PERFIL)  */}
+      {/* ========================================================= */}
+      {alumno?.id && <PortalModals alumnoId={alumno.id} />}
+
       {/* BARRA LATERAL TIPO UNIVERSIDAD */}
       <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-20 px-6 flex items-center gap-3 border-b border-slate-800/80 bg-[#0f172a]">
@@ -655,7 +661,7 @@ export default function AlumnoPortalPage() {
                   <div className="space-y-6">
                     <div>
                       <h2 className="text-lg font-extrabold text-slate-900">Catálogo de Mis Cursos Activos</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder à tus clases, grabaciones y materiales.</p>
+                      <p className="text-xs text-slate-500 mt-0.5">Haz clic en cualquier curso para acceder a tus clases, grabaciones y materiales.</p>
                     </div>
 
                     {inscripciones.length === 0 ? (
@@ -726,7 +732,7 @@ export default function AlumnoPortalPage() {
                     )}
                   </div>
 
-                  {/* NUEVA SECCIÓN: CURSOS QUE PODRÍAN INTERESARTE (PRÓXIMOS SELECCIONADOS DESDE EL ADMIN) */}
+                  {/* NUEVA SECCIÓN: CURSOS QUE PODRÍAN INTERESARTE */}
                   {cursosProximos.length > 0 && (
                     <div className="space-y-6 pt-6 border-t border-slate-200">
                       <div>
@@ -739,7 +745,6 @@ export default function AlumnoPortalPage() {
                           const nombreCur = cur.Nombre_curso || cur.nombre_curso || 'Curso Próximo'
                           const imagenCur = cur.imagen || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'
                           
-                          // LÓGICA DINÁMICA: Buscar el grupo más próximo para este curso madre
                           const gruposDelCurso = grupos.filter(g => Number(g.curso_id) === Number(cur.id))
                           const grupoProximo = gruposDelCurso.sort((a, b) => new Date(a.fecha_inicio || a.created_at) - new Date(b.fecha_inicio || b.created_at))[0]
 
