@@ -16,7 +16,6 @@ export default function AdminDashboardPage() {
   })
   
   const [clasesHoy, setClasesHoy] = useState([])
-  const [pagosPendientes, setPagosPendientes] = useState([])
   const [cumpleaneros, setCumpleaneros] = useState([])
   const [loading, setLoading] = useState(true)
 
@@ -36,30 +35,33 @@ export default function AdminDashboardPage() {
 
     try {
       const ahora = new Date()
-      const primerDiaMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString()
-      const ultimoDiaMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59).toISOString()
-      const primerDiaAnio = new Date(ahora.getFullYear(), 0, 1).toISOString()
 
-      // 1. Estudiantes (Total y Cumpleaños)
-      const { data: alumnosData } = await supabase
+      // 1. Estudiantes (Total, Bajas y Cumpleaños)
+      const { data: alumnosData, error: errAlumnos } = await supabase
         .from('alumnos')
-        .select('id, nombre, apellidos, telefono, fecha_nacimiento, estatus, estado')
+        .select('*')
+
+      if (errAlumnos) console.error("Error alumnos:", errAlumnos)
 
       const totalActual = alumnosData ? alumnosData.length : 0
-
-      // Calcular próximos cumpleaños (próximos 15 días)
+      let countBajas = 0
       const proximosCumples = []
+
       if (alumnosData) {
         alumnosData.forEach(alumno => {
-          if (alumno.fecha_nacimiento) {
-            const fechaNac = new Date(alumno.fecha_nacimiento)
-            // Ajustar el año al actual para comparar días
+          // Bajas
+          const estatus = (alumno.estatus || alumno.Estatus || alumno.estado || alumno.Estado || '').toLowerCase()
+          if (estatus === 'baja') countBajas++
+
+          // Cumpleaños
+          const fechaNacString = alumno.fecha_nacimiento || alumno.Fecha_nacimiento
+          if (fechaNacString) {
+            const fechaNac = new Date(fechaNacString)
             fechaNac.setFullYear(ahora.getFullYear())
             
             const diffTime = fechaNac - ahora
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
             
-            // Si ya pasó este año, probar con el próximo (para finales de diciembre/enero)
             if (diffDays < 0) {
               fechaNac.setFullYear(ahora.getFullYear() + 1)
             }
@@ -67,8 +69,13 @@ export default function AdminDashboardPage() {
             const newDiff = Math.ceil((fechaNac - ahora) / (1000 * 60 * 60 * 24))
             
             if (newDiff >= 0 && newDiff <= 15) {
+              const nombreReal = alumno.nombre || alumno.Nombre || ''
+              const apellidosReales = alumno.apellidos || alumno.Apellidos || ''
+              
               proximosCumples.push({
                 ...alumno,
+                nombreCompleto: `${nombreReal} ${apellidosReales}`.trim(),
+                telefonoReal: alumno.telefono || alumno.Telefono || alumno.celular || alumno.Celular,
                 diasFaltantes: newDiff,
                 fechaFormateada: fechaNac.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
               })
@@ -83,16 +90,8 @@ export default function AdminDashboardPage() {
         .from('grupos')
         .select('*', { count: 'exact', head: true })
 
-      // 3. Bajas del mes
-      const countBajas = alumnosData?.filter(a => {
-        const estatus = (a.estatus || a.estado || '').toLowerCase()
-        return estatus === 'baja'
-      }).length || 0
-
-      // 4. Inscripciones, Ocupación y Curso Más Popular
-      // Asumimos que podemos llegar al nombre del curso a través del grupo. 
-      // Ajusta la consulta según tus relaciones reales si es necesario.
-      const { data: inscripcionesData } = await supabase
+      // 3. Inscripciones y Curso Más Popular
+      const { data: inscripcionesData, error: errInsc } = await supabase
         .from('inscripciones')
         .select(`
           *,
@@ -103,7 +102,8 @@ export default function AdminDashboardPage() {
             )
           )
         `)
-        .gte('created_at', primerDiaAnio)
+
+      if (errInsc) console.error("Error inscripciones:", errInsc)
 
       let alumnosUnicosConCurso = 0
       let cursoMasPopular = 'Sin datos'
@@ -113,9 +113,14 @@ export default function AdminDashboardPage() {
         const idsUnicos = new Set(inscripcionesData.map(i => i.alumno_id || i.Alumno_id || i.alumnos_id))
         alumnosUnicosConCurso = idsUnicos.size
 
-        // Calcular curso más popular del año
+        // Filtramos inscripciones del año en curso
+        const inscripcionesEsteAnio = inscripcionesData.filter(ins => {
+          const fechaIns = new Date(ins.created_at || ins.fecha || ins.Fecha || ahora)
+          return fechaIns.getFullYear() === ahora.getFullYear()
+        })
+
         const conteoCursos = {}
-        inscripcionesData.forEach(ins => {
+        inscripcionesEsteAnio.forEach(ins => {
           const nombreCurso = ins.grupos?.cursos?.nombre_curso || ins.grupos?.cursos?.Nombre_curso
           if (nombreCurso) {
             conteoCursos[nombreCurso] = (conteoCursos[nombreCurso] || 0) + 1
@@ -130,33 +135,45 @@ export default function AdminDashboardPage() {
         }
       }
 
-      // 5. Pagos (Filtrados ESTE MES)
-      const { data: dataPagos } = await supabase
+      // 4. Pagos (Ingresos y Pendientes del mes en curso)
+      const { data: dataPagos, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
-        .gte('created_at', primerDiaMes)
-        .lte('created_at', ultimoDiaMes)
+
+      if (errPagos) console.error("Error pagos:", errPagos)
 
       let cobrado = 0
       let pendiente = 0
-      let pendientesLista = []
 
       if (dataPagos) {
         dataPagos.forEach(p => {
-          const monto = Number(p.monto || p.Monto || p.cantidad || 0)
-          const estatus = (p.estatus || p.Estatus || p.estado || p.Estado || '').toLowerCase()
-
-          if (estatus === 'pagado' || estatus === 'completado' || estatus === 'paid') {
-            cobrado += monto
+          const fechaRefStr = p.created_at || p.fecha_pago || p.Fecha_pago || p.fecha || p.Fecha
+          let esDeEsteMes = false
+          
+          if (fechaRefStr) {
+             const f = new Date(fechaRefStr)
+             if (f.getMonth() === ahora.getMonth() && f.getFullYear() === ahora.getFullYear()) {
+               esDeEsteMes = true
+             }
           } else {
-            pendiente += monto
-            pendientesLista.push(p)
+             esDeEsteMes = true 
+          }
+
+          if (esDeEsteMes) {
+            const monto = Number(p.monto || p.Monto || p.cantidad || p.Cantidad || 0)
+            const estatus = (p.estatus || p.Estatus || p.estado || p.Estado || '').toLowerCase()
+
+            if (estatus === 'pagado' || estatus === 'completado' || estatus === 'paid') {
+              cobrado += monto
+            } else {
+              pendiente += monto
+            }
           }
         })
       }
 
-      // 6. Hoy en la Academia
-      const { data: sesionesData } = await supabase
+      // 5. Hoy en la Academia
+      const { data: sesionesData, error: errSesiones } = await supabase
         .from('sesiones_grupo')
         .select(`
           *,
@@ -169,6 +186,8 @@ export default function AdminDashboardPage() {
             )
           )
         `)
+        
+      if (errSesiones) console.error("Error sesiones:", errSesiones)
 
       let sesionesHoyFiltradas = []
       if (sesionesData) {
@@ -194,12 +213,11 @@ export default function AdminDashboardPage() {
         cobradoMes: cobrado,
         pendienteMes: pendiente,
         bajasMes: countBajas,
-        cursoPopular: cursoMasPopular,
+        cursoPopular: maxInscripciones > 0 ? cursoMasPopular : 'Sin datos',
         inscripcionesCursoPopular: maxInscripciones
       })
 
       setClasesHoy(sesionesHoyFiltradas)
-      setPagosPendientes(pendientesLista)
       setCumpleaneros(proximosCumples)
 
     } catch (error) {
@@ -209,11 +227,11 @@ export default function AdminDashboardPage() {
     }
   }
 
-  // Helper para crear el link de WhatsApp
   const generarEnlaceWhatsApp = (telefono, nombre) => {
     if (!telefono) return '#'
-    const numeroLimpio = telefono.replace(/\D/g, '')
-    const mensaje = `¡Hola ${nombre}! De parte de toda la familia de Espiritistas a Cantar, te deseamos un muy feliz cumpleaños. 🎂✨ Esperamos que pases un día maravilloso.`
+    const numeroLimpio = String(telefono).replace(/\D/g, '')
+    const primerNombre = nombre ? nombre.split(' ')[0] : 'Alumno'
+    const mensaje = `¡Hola ${primerNombre}! De parte de toda la familia de Espiritistas a Cantar, te deseamos un muy feliz cumpleaños. 🎂✨ Esperamos que pases un día maravilloso.`
     return `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`
   }
 
@@ -361,16 +379,16 @@ export default function AdminDashboardPage() {
                     {cumpleaneros.map((alumno, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-100 transition-colors">
                         <div>
-                          <p className="text-sm font-bold text-slate-900 line-clamp-1">{alumno.nombre} {alumno.apellidos}</p>
+                          <p className="text-sm font-bold text-slate-900 line-clamp-1">{alumno.nombreCompleto}</p>
                           <p className="text-xs text-indigo-600 font-semibold">{alumno.fechaFormateada} 
                             <span className="text-slate-400 font-normal ml-1">
                               ({alumno.diasFaltantes === 0 ? '¡Hoy!' : `en ${alumno.diasFaltantes} días`})
                             </span>
                           </p>
                         </div>
-                        {alumno.telefono ? (
+                        {alumno.telefonoReal ? (
                           <a 
-                            href={generarEnlaceWhatsApp(alumno.telefono, alumno.nombre)}
+                            href={generarEnlaceWhatsApp(alumno.telefonoReal, alumno.nombreCompleto)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366] hover:text-white p-2.5 rounded-xl transition-colors shrink-0"
