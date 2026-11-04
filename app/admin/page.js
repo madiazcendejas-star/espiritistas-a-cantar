@@ -90,43 +90,50 @@ export default function AdminDashboardPage() {
         .from('grupos')
         .select('*', { count: 'exact', head: true })
 
-      // 3. Inscripciones y Curso Más Popular
-      const { data: inscripcionesData, error: errInsc } = await supabase
-        .from('inscripciones')
-        .select(`
-          *,
-          grupos (
-            cursos (
-              nombre_curso,
-              Nombre_curso
-            )
-          )
-        `)
-
-      if (errInsc) console.error("Error inscripciones:", errInsc)
+      // 3. Inscripciones, Grupos y Cursos (Consultas separadas para evitar errores de llaves foráneas)
+      const { data: inscripcionesData } = await supabase.from('inscripciones').select('*')
+      const { data: gruposFullData } = await supabase.from('grupos').select('*')
+      const { data: cursosFullData } = await supabase.from('cursos').select('*')
 
       let alumnosUnicosConCurso = 0
       let cursoMasPopular = 'Sin datos'
       let maxInscripciones = 0
 
       if (inscripcionesData && inscripcionesData.length > 0) {
-        const idsUnicos = new Set(inscripcionesData.map(i => i.alumno_id || i.Alumno_id || i.alumnos_id))
+        // 3.1 Calcular Alumnos Activos (Únicos)
+        const idsUnicos = new Set()
+        inscripcionesData.forEach(ins => {
+          const idAlumno = ins.alumno_id || ins.Alumno_id || ins.alumnos_id || ins.id_alumno
+          if (idAlumno) idsUnicos.add(idAlumno)
+        })
         alumnosUnicosConCurso = idsUnicos.size
 
-        // Filtramos inscripciones del año en curso
+        // 3.2 Calcular Curso Más Popular del Año
         const inscripcionesEsteAnio = inscripcionesData.filter(ins => {
           const fechaIns = new Date(ins.created_at || ins.fecha || ins.Fecha || ahora)
           return fechaIns.getFullYear() === ahora.getFullYear()
         })
 
         const conteoCursos = {}
+        
         inscripcionesEsteAnio.forEach(ins => {
-          const nombreCurso = ins.grupos?.cursos?.nombre_curso || ins.grupos?.cursos?.Nombre_curso
-          if (nombreCurso) {
+          // Encontrar el grupo de esta inscripción
+          const idGrupo = ins.grupo_id || ins.Grupo_id || ins.grupos_id || ins.id_grupo
+          const grupoRelacionado = gruposFullData?.find(g => g.id === idGrupo || g.Id === idGrupo)
+          
+          if (grupoRelacionado) {
+            // Encontrar el curso de este grupo
+            const idCurso = grupoRelacionado.curso_id || grupoRelacionado.Curso_id || grupoRelacionado.cursos_id || grupoRelacionado.id_curso
+            const cursoRelacionado = cursosFullData?.find(c => c.id === idCurso || c.Id === idCurso)
+            
+            // Extraer el nombre
+            const nombreCurso = cursoRelacionado?.nombre_curso || cursoRelacionado?.Nombre_curso || cursoRelacionado?.nombre || 'Curso General'
+            
             conteoCursos[nombreCurso] = (conteoCursos[nombreCurso] || 0) + 1
           }
         })
 
+        // Determinar el ganador
         for (const [curso, cantidad] of Object.entries(conteoCursos)) {
           if (cantidad > maxInscripciones) {
             maxInscripciones = cantidad
