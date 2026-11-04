@@ -29,7 +29,7 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
 
   const verificarPendientesAlCargar = async () => {
     try {
-      // 1. Verificar datos obligatorios en el perfil (Nombre, Nacimiento, Estado o Email)
+      // 1. Obtener datos del alumno
       const { data: alumno } = await supabase
         .from('alumnos')
         .select('*')
@@ -37,18 +37,19 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
         .single()
 
       if (alumno) {
-        const faltaNombre = !alumno.nombre && !alumno.Nombre
-        const faltaNacimiento = !alumno.fecha_nacimiento && !alumno.Fecha_nacimiento
-        const faltaEstado = !alumno.estado && !alumno.Estado
-        const faltaEmail = !alumno.correo && !alumno.Correo && !alumno.email && !alumno.Email
+        const nombreVal = alumno.nombre || alumno.Nombre || ''
+        const nacVal = alumno.fecha_nacimiento || alumno.Fecha_nacimiento || ''
+        const estadoVal = alumno.estado || alumno.Estado || ''
+        const correoVal = alumno.correo || alumno.Correo || alumno.email || alumno.Email || ''
 
-        if (faltaNombre || faltaNacimiento || faltaEstado || faltaEmail) {
+        // Si falta algún dato obligatorio, mostramos primero el modal de perfil
+        if (!nombreVal || !nacVal || !estadoVal || !correoVal) {
           setDatosPerfil({
-            nombre: alumno.nombre || alumno.Nombre || '',
+            nombre: nombreVal,
             apellidos: alumno.apellidos || alumno.Apellidos || '',
-            fecha_nacimiento: alumno.fecha_nacimiento || alumno.Fecha_nacimiento || '',
-            estado: alumno.estado || alumno.Estado || '',
-            email: alumno.correo || alumno.Correo || alumno.email || alumno.Email || ''
+            fecha_nacimiento: nacVal,
+            estado: estadoVal,
+            email: correoVal
           })
           setMostrarModalPerfil(true)
           return 
@@ -69,7 +70,7 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
 
         const cursosValoradosIds = new Set(valoracionesPrevias?.map(v => v.curso_id) || [])
 
-        // Consultamos las sesiones de los grupos para saber cuándo terminan
+        // Consultamos las sesiones de los grupos
         const { data: todasLasSesiones } = await supabase
           .from('sesiones_grupo')
           .select('grupo_id, fecha_hora')
@@ -89,10 +90,8 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
           // Tomamos la fecha de la última sesión programada del grupo
           const ultimaSesionFecha = new Date(sesionesDelGrupo[0].fecha_hora)
 
-          // Si la última sesión ya pasó, el curso se considera completado automáticamente
-          const cursoTerminado = ahora > ultimaSesionFecha
-
-          return cursoTerminado
+          // Si la última sesión ya pasó, el curso se considera completado
+          return ahora > ultimaSesionFecha
         })
 
         if (pendiente) {
@@ -124,6 +123,8 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
 
       if (!error) {
         setMostrarModalValoracion(false)
+      } else {
+        alert('Error al guardar reseña: ' + error.message)
       }
     } catch (err) {
       console.error("Error al enviar valoración:", err)
@@ -151,6 +152,8 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
       if (!error) {
         setMostrarModalPerfil(false)
         verificarPendientesAlCargar()
+      } else {
+        alert('Error al actualizar perfil: ' + error.message)
       }
     } catch (err) {
       console.error("Error al actualizar perfil:", err)
@@ -161,7 +164,7 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
 
   return (
     <>
-      {/* MODAL 1: ACTUALIZACIÓN DE DATOS (SIN TELÉFONO) */}
+      {/* MODAL 1: ACTUALIZACIÓN DE DATOS */}
       {mostrarModalPerfil && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[2rem] max-w-md w-full p-8 shadow-2xl space-y-6 border border-slate-100">
