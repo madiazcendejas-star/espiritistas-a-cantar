@@ -7,11 +7,15 @@ export default function PagosAdminPage() {
   const [pagos, setPagos] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
+  const [nombreMes, setNombreMes] = useState('')
   
   // Filtros dinámicos avanzados
   const [filtroEstado, setFiltroEstado] = useState('todos') // 'todos', 'vencidos', 'pendiente', 'pagado', 'cancelado'
   const [filtroGrupo, setFiltroGrupo] = useState('todos')
   const [filtroCurso, setFiltroCurso] = useState('todos')
+  
+  // Novedad: Filtro por tarjeta (Clic en recuadros)
+  const [filtroTarjeta, setFiltroTarjeta] = useState('ninguno') 
 
   // Listas únicas extraídas dinámicamente para los selectores de filtros
   const [gruposDisponibles, setGruposDisponibles] = useState([])
@@ -24,21 +28,32 @@ export default function PagosAdminPage() {
   const [desplazarResto, setDesplazarResto] = useState(true)
   const [guardandoFecha, setGuardandoFecha] = useState(false)
 
-  // Modal para registrar pago avanzado (Abonos parciales, Becas, Adelantos)
+  // Modal para registrar pago avanzado
   const [modalPago, setModalPago] = useState(false)
   const [montoPagadoReal, setMontoPagadoReal] = useState('')
   const [tipoMovimiento, setTipoMovimiento] = useState('normal')
   const [guardandoPago, setGuardandoPago] = useState(false)
 
+  // Estadísticas ampliadas (Mes Actual e Histórico)
   const [stats, setStats] = useState({
+    // Histórico
     vencidosCount: 0,
     vencidosMonto: 0,
     totalCobrado: 0,
     totalPendiente: 0,
-    tasaCobro: 0
+    tasaCobro: 0,
+    // Mes Actual
+    vencidosMesCount: 0,
+    vencidosMesMonto: 0,
+    cobradoMes: 0,
+    pendienteMes: 0,
   })
 
   useEffect(() => {
+    // Configurar el nombre del mes actual para la UI
+    const mes = new Date().toLocaleString('es-MX', { month: 'long' })
+    setNombreMes(mes.charAt(0).toUpperCase() + mes.slice(1))
+    
     cargarPagos()
   }, [])
 
@@ -81,6 +96,7 @@ export default function PagosAdminPage() {
           monto: montoOficial,
           monto_real: montoRealAcumulado,
           fecha_vencimiento: p.fecha_vencimiento || 'Sin fecha',
+          fecha_pago: p.fecha_pago || null, // Necesario para saber qué se cobró este mes
           estatus: estatusFinal,
           estaBaja: esBaja,
           estaVencido: esVencido,
@@ -93,14 +109,8 @@ export default function PagosAdminPage() {
         }
       })
 
-      // Extraer catálogos únicos dinámicamente para los filtros
-      const gruposUnicos = Array.from(new Set(pagosMapeados.map(p => p.grupoNombre)))
-        .filter(Boolean)
-        .sort()
-      
-      const cursosUnicos = Array.from(new Set(pagosMapeados.map(p => p.cursoNombre)))
-        .filter(Boolean)
-        .sort()
+      const gruposUnicos = Array.from(new Set(pagosMapeados.map(p => p.grupoNombre))).filter(Boolean).sort()
+      const cursosUnicos = Array.from(new Set(pagosMapeados.map(p => p.cursoNombre))).filter(Boolean).sort()
 
       setGruposDisponibles(gruposUnicos)
       setCursosDisponibles(cursosUnicos)
@@ -112,32 +122,57 @@ export default function PagosAdminPage() {
   }
 
   const calcularMetricas = (listaPagos) => {
-    let vencidosC = 0
-    let vencidosM = 0
-    let cobrado = 0
-    let pendiente = 0
-    let totalGeneral = listaPagos.filter(p => p.estatus !== 'Cancelado').length
+    let vencidosC = 0, vencidosM = 0
+    let cobrado = 0, pendiente = 0
+    
+    let vencidosMesC = 0, vencidosMesM = 0
+    let cobradoMes = 0, pendienteMes = 0
+
+    let totalGeneral = 0
+    let pagadosCount = 0
+
+    // Para comparar si pertenece al mes/año actual (Ej. "2026-11")
+    const mesAnioActualStr = new Date().toISOString().slice(0, 7)
 
     listaPagos.forEach(p => {
       if (p.estatus === 'Cancelado') return
 
+      totalGeneral++
       const montoOficial = Number(p.monto) || 0
       const montoReal = Number(p.monto_real) || 0
+      const restoPendiente = Math.max(0, montoOficial - montoReal)
 
+      // Banderas del mes actual
+      const vencimientoEsteMes = p.fecha_vencimiento && p.fecha_vencimiento.startsWith(mesAnioActualStr)
+      const pagoEsteMes = p.fecha_pago && p.fecha_pago.startsWith(mesAnioActualStr)
+
+      // CÁLCULOS HISTÓRICOS (Globales)
       cobrado += montoReal
-
       if (p.estatus !== 'Pagado') {
-        const restoPendiente = Math.max(0, montoOficial - montoReal)
         pendiente += restoPendiente
-
         if (p.estaVencido) {
           vencidosC++
           vencidosM += restoPendiente
         }
+      } else {
+        pagadosCount++
+      }
+
+      // CÁLCULOS DEL MES ACTUAL
+      if (pagoEsteMes) {
+        cobradoMes += montoReal
+      }
+      if (vencimientoEsteMes) {
+        if (p.estatus !== 'Pagado') {
+          pendienteMes += restoPendiente
+        }
+        if (p.estaVencido) {
+          vencidosMesC++
+          vencidosMesM += restoPendiente
+        }
       }
     })
 
-    const pagadosCount = listaPagos.filter(p => p.estatus === 'Pagado').length
     const tasa = totalGeneral > 0 ? ((pagadosCount / totalGeneral) * 100).toFixed(1) : 0
 
     setStats({
@@ -145,14 +180,26 @@ export default function PagosAdminPage() {
       vencidosMonto: vencidosM,
       totalCobrado: cobrado,
       totalPendiente: pendiente,
+      vencidosMesCount: vencidosMesC,
+      vencidosMesMonto: vencidosMesM,
+      cobradoMes: cobradoMes,
+      pendienteMes: pendienteMes,
       tasaCobro: tasa
     })
   }
 
-  const abrirModalPago = (pago) => {
-    if (pago.estaBaja) {
-      return alert('No se puede registrar pago a un alumno que se encuentra dado de baja.')
+  // Interacción de Clic en las Tarjetas
+  const toggleFiltroTarjeta = (filtro) => {
+    if (filtroTarjeta === filtro) {
+      setFiltroTarjeta('ninguno') // Si ya está seleccionado, lo quita
+    } else {
+      setFiltroTarjeta(filtro)
+      setFiltroEstado('todos') // Reinicia la pestaña para que no choquen los filtros
     }
+  }
+
+  const abrirModalPago = (pago) => {
+    if (pago.estaBaja) return alert('No se puede registrar pago a un alumno que se encuentra dado de baja.')
     setPagoSeleccionado(pago)
     const restoFaltante = Math.max(0, pago.monto - pago.monto_real)
     setMontoPagadoReal(restoFaltante > 0 ? restoFaltante : pago.monto)
@@ -230,13 +277,9 @@ export default function PagosAdminPage() {
   }
 
   const enviarRecordatorioWhatsApp = (pago) => {
-    if (pago.estaBaja) {
-      return alert('Este alumno está dado de baja, no se le pueden enviar recordatorios de cobro.')
-    }
+    if (pago.estaBaja) return alert('Este alumno está dado de baja, no se le pueden enviar recordatorios de cobro.')
     const telLimpio = pago.alumnoTelefono ? String(pago.alumnoTelefono).replace(/\D/g, '') : ''
-    if (!telLimpio) {
-      return alert('Este alumno no tiene un número de teléfono registrado para WhatsApp.')
-    }
+    if (!telLimpio) return alert('Este alumno no tiene un número de teléfono registrado para WhatsApp.')
     const restoDeuda = Math.max(0, pago.monto - (pago.monto_real || 0))
     const mensaje = `¡Hola *${pago.alumnoNombre}*! Te saludamos de Espíritas a Cantar. Te recordamos que tienes un saldo pendiente por la cantidad de *$${restoDeuda.toLocaleString('es-MX')} MXN* correspondiente al curso *${pago.cursoNombre}* (vencimiento: ${pago.fecha_vencimiento}). Por favor, confírmanos tu comprobante por este medio. ¡Gracias!`
     const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensaje)}`
@@ -303,7 +346,9 @@ export default function PagosAdminPage() {
     cargarPagos()
   }
 
-  // Filtrado dinámico combinado (Texto, Estado, Grupo y Curso)
+  // Filtrado combinado
+  const mesAnioActualStr = new Date().toISOString().slice(0, 7)
+
   const pagosFiltrados = pagos.filter(p => {
     const termino = busqueda.toLowerCase()
     const coincideTexto = p.alumnoNombre.toLowerCase().includes(termino) ||
@@ -312,23 +357,34 @@ export default function PagosAdminPage() {
                           p.grupoNombre.toLowerCase().includes(termino)
 
     if (!coincideTexto) return false
-
-    // Filtro por grupo
     if (filtroGrupo !== 'todos' && p.grupoNombre !== filtroGrupo) return false
-
-    // Filtro por curso
     if (filtroCurso !== 'todos' && p.cursoNombre !== filtroCurso) return false
 
-    // Filtro por estado
     const montoRealAbonado = p.monto_real || 0
     const tieneAbonoParcial = montoRealAbonado > 0 && montoRealAbonado < p.monto
 
-    if (filtroEstado === 'vencidos') return p.estaVencido
-    if (filtroEstado === 'pendiente') return (p.estatus === 'Pendiente' || tieneAbonoParcial) && !p.estaVencido
-    if (filtroEstado === 'pagado') return p.estatus === 'Pagado'
-    if (filtroEstado === 'cancelado') return p.estatus === 'Cancelado'
+    // Filtro por Estado (Pestañas)
+    if (filtroEstado === 'vencidos' && !p.estaVencido) return false
+    if (filtroEstado === 'pendiente' && !((p.estatus === 'Pendiente' || tieneAbonoParcial) && !p.estaVencido)) return false
+    if (filtroEstado === 'pagado' && p.estatus !== 'Pagado') return false
+    if (filtroEstado === 'cancelado' && p.estatus !== 'Cancelado') return false
 
-    return true // 'todos'
+    // Filtro por Tarjeta Activa (Clic en recuadro)
+    if (filtroTarjeta !== 'ninguno') {
+      const vencimientoEsteMes = p.fecha_vencimiento && p.fecha_vencimiento.startsWith(mesAnioActualStr)
+      const pagoEsteMes = p.fecha_pago && p.fecha_pago.startsWith(mesAnioActualStr)
+
+      // Lógica de filtrado según tarjeta
+      if (filtroTarjeta === 'vencidos_mes' && !(p.estaVencido && vencimientoEsteMes)) return false
+      if (filtroTarjeta === 'pendiente_mes' && !(p.estatus !== 'Pagado' && vencimientoEsteMes)) return false
+      if (filtroTarjeta === 'cobrado_mes' && !(p.monto_real > 0 && pagoEsteMes)) return false
+      
+      if (filtroTarjeta === 'vencidos_historico' && !p.estaVencido) return false
+      if (filtroTarjeta === 'pendiente_historico' && (p.estatus === 'Pagado' || p.estatus === 'Cancelado')) return false
+      if (filtroTarjeta === 'cobrado_historico' && !(p.monto_real > 0)) return false
+    }
+
+    return true
   })
 
   return (
@@ -367,45 +423,109 @@ export default function PagosAdminPage() {
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Pagos Vencidos</span>
-                <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{stats.vencidosCount}</h3>
-                <span className="text-[11px] text-slate-400">$ {stats.vencidosMonto.toLocaleString('es-MX')} MXN</span>
-              </div>
-              <span className="p-3 bg-rose-50 text-rose-600 rounded-2xl text-lg">⚠️</span>
+          {/* SECCIÓN 1: MÉTRICAS DEL MES ACTUAL */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                📅 Resumen de {nombreMes}
+                <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">Click en la tarjeta para filtrar</span>
+              </h3>
+              {filtroTarjeta !== 'ninguno' && filtroTarjeta.includes('_mes') && (
+                <button onClick={() => setFiltroTarjeta('ninguno')} className="text-xs text-rose-500 bg-rose-50 hover:bg-rose-100 px-3 py-1 rounded-full font-bold transition">
+                  Limpiar Filtro ✖
+                </button>
+              )}
             </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Saldo Pendiente Total</span>
-                <h3 className="text-2xl font-extrabold text-amber-600 mt-1">$ {stats.totalPendiente.toLocaleString('es-MX')}</h3>
-                <span className="text-[11px] text-slate-400">Por cobrar</span>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              {/* Tarjeta Vencidos MES */}
+              <div 
+                onClick={() => toggleFiltroTarjeta('vencidos_mes')} 
+                className={`bg-white p-5 rounded-3xl border shadow-xs flex justify-between items-center cursor-pointer transition transform hover:-translate-y-1 ${filtroTarjeta === 'vencidos_mes' ? 'border-rose-500 ring-2 ring-rose-500 ring-offset-2' : 'border-slate-200 hover:border-rose-300'}`}
+              >
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Vencidos del Mes</span>
+                  <h3 className="text-2xl font-extrabold text-rose-600 mt-1">{stats.vencidosMesCount} <span className="text-sm font-medium text-slate-400">pagos</span></h3>
+                  <span className="text-[11px] font-semibold text-slate-600">$ {stats.vencidosMesMonto.toLocaleString('es-MX')} MXN</span>
+                </div>
+                <span className={`p-3 rounded-2xl text-lg ${filtroTarjeta === 'vencidos_mes' ? 'bg-rose-500 text-white' : 'bg-rose-50 text-rose-600'}`}>⚠️</span>
               </div>
-              <span className="p-3 bg-amber-50 text-amber-600 rounded-2xl text-lg">⏳</span>
-            </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Total Cobrado Real</span>
-                <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
-                <span className="text-[11px] text-slate-400">Ingresos netos (con abonos)</span>
+              {/* Tarjeta Pendiente MES */}
+              <div 
+                onClick={() => toggleFiltroTarjeta('pendiente_mes')} 
+                className={`bg-white p-5 rounded-3xl border shadow-xs flex justify-between items-center cursor-pointer transition transform hover:-translate-y-1 ${filtroTarjeta === 'pendiente_mes' ? 'border-amber-500 ring-2 ring-amber-500 ring-offset-2' : 'border-slate-200 hover:border-amber-300'}`}
+              >
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Por Cobrar ({nombreMes})</span>
+                  <h3 className="text-2xl font-extrabold text-amber-600 mt-1">$ {stats.pendienteMes.toLocaleString('es-MX')}</h3>
+                  <span className="text-[11px] font-semibold text-slate-600">Restante del mes</span>
+                </div>
+                <span className={`p-3 rounded-2xl text-lg ${filtroTarjeta === 'pendiente_mes' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-600'}`}>⏳</span>
               </div>
-              <span className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl text-lg">💳</span>
-            </div>
 
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase">Tasa de Cobro</span>
-                <h3 className="text-2xl font-extrabold text-indigo-600 mt-1">{stats.tasaCobro}%</h3>
-                <span className="text-[11px] text-slate-400">Efectividad</span>
+              {/* Tarjeta Cobrado MES */}
+              <div 
+                onClick={() => toggleFiltroTarjeta('cobrado_mes')} 
+                className={`bg-white p-5 rounded-3xl border shadow-xs flex justify-between items-center cursor-pointer transition transform hover:-translate-y-1 ${filtroTarjeta === 'cobrado_mes' ? 'border-emerald-500 ring-2 ring-emerald-500 ring-offset-2' : 'border-slate-200 hover:border-emerald-300'}`}
+              >
+                <div>
+                  <span className="text-xs font-bold text-slate-400 uppercase">Cobrado este Mes</span>
+                  <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">$ {stats.cobradoMes.toLocaleString('es-MX')}</h3>
+                  <span className="text-[11px] font-semibold text-slate-600">Ingresado en {nombreMes}</span>
+                </div>
+                <span className={`p-3 rounded-2xl text-lg ${filtroTarjeta === 'cobrado_mes' ? 'bg-emerald-500 text-white' : 'bg-emerald-50 text-emerald-600'}`}>💵</span>
               </div>
-              <span className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl text-lg">📈</span>
             </div>
           </div>
 
-          {/* PANEL DE FILTROS DINÁMICOS AVANZADOS */}
+          {/* SECCIÓN 2: MÉTRICAS HISTÓRICAS GLOBALES */}
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-sm font-extrabold text-slate-500 uppercase flex items-center gap-2">
+                🌍 Histórico Global
+              </h3>
+              {filtroTarjeta !== 'ninguno' && filtroTarjeta.includes('_historico') && (
+                <button onClick={() => setFiltroTarjeta('ninguno')} className="text-xs text-slate-500 bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-full font-bold transition">
+                  Limpiar Filtro ✖
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div onClick={() => toggleFiltroTarjeta('vencidos_historico')} className={`bg-white p-4 rounded-2xl border shadow-xs flex justify-between items-center cursor-pointer transition ${filtroTarjeta === 'vencidos_historico' ? 'border-rose-500 ring-2 ring-rose-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Vencidos Total</span>
+                  <h3 className="text-lg font-bold text-rose-600">{stats.vencidosCount} <span className="text-xs text-slate-400 font-normal">($ {stats.vencidosMonto.toLocaleString('es-MX')})</span></h3>
+                </div>
+              </div>
+
+              <div onClick={() => toggleFiltroTarjeta('pendiente_historico')} className={`bg-white p-4 rounded-2xl border shadow-xs flex justify-between items-center cursor-pointer transition ${filtroTarjeta === 'pendiente_historico' ? 'border-amber-500 ring-2 ring-amber-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Pendiente Global</span>
+                  <h3 className="text-lg font-bold text-amber-600">$ {stats.totalPendiente.toLocaleString('es-MX')}</h3>
+                </div>
+              </div>
+
+              <div onClick={() => toggleFiltroTarjeta('cobrado_historico')} className={`bg-white p-4 rounded-2xl border shadow-xs flex justify-between items-center cursor-pointer transition ${filtroTarjeta === 'cobrado_historico' ? 'border-emerald-500 ring-2 ring-emerald-500' : 'border-slate-200 hover:bg-slate-50'}`}>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Cobrado Total</span>
+                  <h3 className="text-lg font-bold text-emerald-600">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
+                </div>
+              </div>
+
+              {/* Tasa de cobro (Solo info, sin click) */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 shadow-xs flex justify-between items-center opacity-80 cursor-default">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Efectividad Histórica</span>
+                  <h3 className="text-lg font-bold text-indigo-600">{stats.tasaCobro}%</h3>
+                </div>
+                <span className="text-indigo-400 text-xl">📈</span>
+              </div>
+            </div>
+          </div>
+
+          {/* PANEL DE FILTROS DINÁMICOS AVANZADOS (Texto y Pestañas) */}
           <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
               
@@ -451,7 +571,6 @@ export default function PagosAdminPage() {
                   </select>
                 </div>
               </div>
-
             </div>
 
             {/* Pestañas de Estatus */}
@@ -489,9 +608,13 @@ export default function PagosAdminPage() {
             </div>
           </div>
 
+          {/* TABLA DE RESULTADOS */}
           <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-sm font-bold text-slate-900">Historial de Cuotas y Pagos ({pagosFiltrados.length})</h3>
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="text-sm font-bold text-slate-900">
+                {filtroTarjeta !== 'ninguno' ? 'Resultados del Filtro de Tarjeta' : 'Historial de Cuotas y Pagos'} 
+                <span className="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full text-xs">({pagosFiltrados.length} registros)</span>
+              </h3>
             </div>
             <div className="overflow-x-auto">
               {loading ? (
@@ -501,7 +624,7 @@ export default function PagosAdminPage() {
               ) : (
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase">
+                    <tr className="bg-white border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
                       <th className="py-3 px-6">ID / Matrícula</th>
                       <th className="py-3 px-6">Estudiante</th>
                       <th className="py-3 px-6">Descripción (Curso / Grupo)</th>
@@ -511,7 +634,7 @@ export default function PagosAdminPage() {
                       <th className="py-3 px-6 text-right">Acción</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                  <tbody className="divide-y divide-slate-100 text-xs text-slate-700 bg-white">
                     {pagosFiltrados.map((p) => {
                       const estatus = p.estatus
                       const estaVencido = p.estaVencido
