@@ -6,18 +6,18 @@ import { supabase } from '../../lib/supabase'
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalEstudiantes: 0,
-    crecimientoMatricula: 0,
-    estadoMatricula: 'igual',
+    alumnosConCursoActivo: 0,
     totalGrupos: 0,
-    totalCobrado: 0,
-    totalPendiente: 0,
+    cobradoMes: 0,
+    pendienteMes: 0,
     bajasMes: 0,
-    tasaOcupacion: 0,
-    alumnosConCursoActivo: 0
+    cursoPopular: 'Cargando...',
+    inscripcionesCursoPopular: 0
   })
   
   const [clasesHoy, setClasesHoy] = useState([])
   const [pagosPendientes, setPagosPendientes] = useState([])
+  const [cumpleaneros, setCumpleaneros] = useState([])
   const [loading, setLoading] = useState(true)
 
   const fechaActualTexto = new Date().toLocaleDateString('es-MX', {
@@ -38,25 +38,45 @@ export default function AdminDashboardPage() {
       const ahora = new Date()
       const primerDiaMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString()
       const ultimoDiaMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59).toISOString()
-      const ultimoDiaMesAnterior = new Date(ahora.getFullYear(), ahora.getMonth(), 0, 23, 59, 59).toISOString()
+      const primerDiaAnio = new Date(ahora.getFullYear(), 0, 1).toISOString()
 
-      // 1. Estudiantes Activos
-      const { count: countAlumnos } = await supabase
+      // 1. Estudiantes (Total y Cumpleaños)
+      const { data: alumnosData } = await supabase
         .from('alumnos')
-        .select('*', { count: 'exact', head: true })
+        .select('id, nombre, apellidos, telefono, fecha_nacimiento, estatus, estado')
 
-      const { count: countAlumnosMesPasado } = await supabase
-        .from('alumnos')
-        .select('*', { count: 'exact', head: true })
-        .lte('created_at', ultimoDiaMesAnterior)
+      const totalActual = alumnosData ? alumnosData.length : 0
 
-      const totalActual = countAlumnos || 0
-      const totalAnterior = countAlumnosMesPasado || 0
-      let tendencia = 'igual'
-      let diferenciaMatricula = totalActual - totalAnterior
-
-      if (diferenciaMatricula > 0) tendencia = 'crecio'
-      else if (diferenciaMatricula < 0) tendencia = 'decrecio'
+      // Calcular próximos cumpleaños (próximos 15 días)
+      const proximosCumples = []
+      if (alumnosData) {
+        alumnosData.forEach(alumno => {
+          if (alumno.fecha_nacimiento) {
+            const fechaNac = new Date(alumno.fecha_nacimiento)
+            // Ajustar el año al actual para comparar días
+            fechaNac.setFullYear(ahora.getFullYear())
+            
+            const diffTime = fechaNac - ahora
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+            
+            // Si ya pasó este año, probar con el próximo (para finales de diciembre/enero)
+            if (diffDays < 0) {
+              fechaNac.setFullYear(ahora.getFullYear() + 1)
+            }
+            
+            const newDiff = Math.ceil((fechaNac - ahora) / (1000 * 60 * 60 * 24))
+            
+            if (newDiff >= 0 && newDiff <= 15) {
+              proximosCumples.push({
+                ...alumno,
+                diasFaltantes: newDiff,
+                fechaFormateada: fechaNac.toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+              })
+            }
+          }
+        })
+        proximosCumples.sort((a, b) => a.diasFaltantes - b.diasFaltantes)
+      }
 
       // 2. Grupos
       const { count: countGrupos } = await supabase
@@ -64,38 +84,64 @@ export default function AdminDashboardPage() {
         .select('*', { count: 'exact', head: true })
 
       // 3. Bajas del mes
-      const { count: countBajas } = await supabase
-        .from('alumnos')
-        .select('*', { count: 'exact', head: true })
-        .or('estatus.eq.Baja,estado.eq.Baja')
-        .gte('updated_at', primerDiaMes)
-        .lte('updated_at', ultimoDiaMes)
+      const countBajas = alumnosData?.filter(a => {
+        const estatus = (a.estatus || a.estado || '').toLowerCase()
+        return estatus === 'baja'
+      }).length || 0
 
-      // 4. Inscripciones / Ocupación
+      // 4. Inscripciones, Ocupación y Curso Más Popular
+      // Asumimos que podemos llegar al nombre del curso a través del grupo. 
+      // Ajusta la consulta según tus relaciones reales si es necesario.
       const { data: inscripcionesData } = await supabase
         .from('inscripciones')
-        .select('*')
+        .select(`
+          *,
+          grupos (
+            cursos (
+              nombre_curso,
+              Nombre_curso
+            )
+          )
+        `)
+        .gte('created_at', primerDiaAnio)
 
       let alumnosUnicosConCurso = 0
+      let cursoMasPopular = 'Sin datos'
+      let maxInscripciones = 0
+
       if (inscripcionesData && inscripcionesData.length > 0) {
         const idsUnicos = new Set(inscripcionesData.map(i => i.alumno_id || i.Alumno_id || i.alumnos_id))
         alumnosUnicosConCurso = idsUnicos.size
-      } else {
-        alumnosUnicosConCurso = totalActual
-      }
-      
-      const tasaOcupacionCalc = totalActual > 0 ? Math.round((alumnosUnicosConCurso / totalActual) * 100) : 0
 
-      // 5. Pagos
-      const { data: dataPagos, error: errPagos } = await supabase
+        // Calcular curso más popular del año
+        const conteoCursos = {}
+        inscripcionesData.forEach(ins => {
+          const nombreCurso = ins.grupos?.cursos?.nombre_curso || ins.grupos?.cursos?.Nombre_curso
+          if (nombreCurso) {
+            conteoCursos[nombreCurso] = (conteoCursos[nombreCurso] || 0) + 1
+          }
+        })
+
+        for (const [curso, cantidad] of Object.entries(conteoCursos)) {
+          if (cantidad > maxInscripciones) {
+            maxInscripciones = cantidad
+            cursoMasPopular = curso
+          }
+        }
+      }
+
+      // 5. Pagos (Filtrados ESTE MES)
+      const { data: dataPagos } = await supabase
         .from('pagos')
         .select('*')
+        .gte('created_at', primerDiaMes)
+        .lte('created_at', ultimoDiaMes)
 
       let cobrado = 0
       let pendiente = 0
       let pendientesLista = []
 
-      if (!errPagos && dataPagos) {
+      if (dataPagos) {
         dataPagos.forEach(p => {
           const monto = Number(p.monto || p.Monto || p.cantidad || 0)
           const estatus = (p.estatus || p.Estatus || p.estado || p.Estado || '').toLowerCase()
@@ -109,7 +155,7 @@ export default function AdminDashboardPage() {
         })
       }
 
-      // 6. Hoy en la Academia (Corrección de zona horaria local)
+      // 6. Hoy en la Academia
       const { data: sesionesData } = await supabase
         .from('sesiones_grupo')
         .select(`
@@ -143,18 +189,18 @@ export default function AdminDashboardPage() {
 
       setStats({
         totalEstudiantes: totalActual,
-        crecimientoMatricula: diferenciaMatricula,
-        estadoMatricula: tendencia,
+        alumnosConCursoActivo: alumnosUnicosConCurso,
         totalGrupos: countGrupos || 0,
-        totalCobrado: cobrado,
-        totalPendiente: pendiente,
-        bajasMes: countBajas || 0,
-        tasaOcupacion: tasaOcupacionCalc > 100 ? 100 : tasaOcupacionCalc,
-        alumnosConCursoActivo: alumnosUnicosConCurso
+        cobradoMes: cobrado,
+        pendienteMes: pendiente,
+        bajasMes: countBajas,
+        cursoPopular: cursoMasPopular,
+        inscripcionesCursoPopular: maxInscripciones
       })
 
       setClasesHoy(sesionesHoyFiltradas)
       setPagosPendientes(pendientesLista)
+      setCumpleaneros(proximosCumples)
 
     } catch (error) {
       console.error("Error al cargar métricas:", error)
@@ -163,10 +209,18 @@ export default function AdminDashboardPage() {
     }
   }
 
+  // Helper para crear el link de WhatsApp
+  const generarEnlaceWhatsApp = (telefono, nombre) => {
+    if (!telefono) return '#'
+    const numeroLimpio = telefono.replace(/\D/g, '')
+    const mensaje = `¡Hola ${nombre}! De parte de toda la familia de Espiritistas a Cantar, te deseamos un muy feliz cumpleaños. 🎂✨ Esperamos que pases un día maravilloso.`
+    return `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`
+  }
+
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900 text-sm">
       
-      {/* SIDEBAR CON TODAS LAS FUNCIONES */}
+      {/* SIDEBAR */}
       <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -200,127 +254,155 @@ export default function AdminDashboardPage() {
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
         <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
           <div className="flex flex-col">
-            <h1 className="text-lg font-extrabold text-slate-900">Inicio</h1>
-            <span className="text-xs text-slate-500 capitalize">Espiritistas a Cantar • {fechaActualTexto}</span>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Portal de Inicio</h1>
+            <span className="text-xs text-slate-500 font-medium capitalize">{fechaActualTexto}</span>
           </div>
           
           <div className="flex items-center gap-4">
-            <a href="/admin/estudiantes/nuevo" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition shadow-sm flex items-center gap-2">
+            <a href="/admin/estudiantes/nuevo" className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition shadow-sm flex items-center gap-2">
               <span>➕</span> Nuevo Alumno
             </a>
-            <a href="/admin/inscripciones/nueva" className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition shadow-sm flex items-center gap-2">
+            <a href="/admin/inscripciones/nueva" className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold transition shadow-sm flex items-center gap-2">
               <span>📋</span> Nueva Inscripción
             </a>
           </div>
         </header>
 
-        <div className="p-10 max-w-[1700px] mx-auto w-full space-y-10">
+        <div className="p-8 max-w-[1700px] mx-auto w-full space-y-8">
           
-          {/* TARJETAS DE MÉTRICAS DINÁMICAS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
+          {/* PRIMERA FILA: MÉTRICAS GENERALES */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
             
-            {/* Estudiantes Activos */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex flex-col justify-between lg:col-span-2">
-              <div className="flex justify-between items-start">
-                <div>
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Estudiantes Activos</span>
-                  <h3 className="text-3xl font-extrabold text-slate-900 mt-2">{stats.totalEstudiantes}</h3>
+            {/* Alumnos Activos / Totales */}
+            <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center lg:col-span-2 relative overflow-hidden">
+              <div className="absolute -right-4 -top-4 text-slate-50 text-9xl opacity-50 select-none">🎓</div>
+              <div className="relative z-10">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Estudiantes</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <h3 className="text-4xl font-black text-indigo-600 tracking-tighter">{stats.alumnosConCursoActivo}</h3>
+                  <span className="text-xl font-bold text-slate-400">/ {stats.totalEstudiantes}</span>
                 </div>
-                <span className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl text-xl">🎓</span>
-              </div>
-              <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">vs mes anterior:</span>
-                <span className={`font-bold px-2.5 py-1 rounded-full flex items-center gap-1 ${
-                  stats.estadoMatricula === 'crecio' ? 'bg-emerald-50 text-emerald-600' :
-                  stats.estadoMatricula === 'decrecio' ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {stats.estadoMatricula === 'crecio' && `📈 Creció (+${stats.crecimientoMatricula})`}
-                  {stats.estadoMatricula === 'decrecio' && `📉 Decreció (${stats.crecimientoMatricula})`}
-                  {stats.estadoMatricula === 'igual' && `➖ Se mantuvo (${stats.crecimientoMatricula})`}
-                </span>
+                <p className="text-xs text-slate-500 font-medium mt-1">Activos vs Registrados en DB</p>
               </div>
             </div>
 
             {/* Grupos */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Grupos</span>
-                <h3 className="text-3xl font-extrabold text-slate-900 mt-2">{stats.totalGrupos}</h3>
-              </div>
-              <span className="p-4 bg-purple-50 text-purple-600 rounded-2xl text-xl">🏛️</span>
+            <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Grupos</span>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tighter mt-1">{stats.totalGrupos}</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Activos actualmente</p>
             </div>
 
-            {/* Total Cobrado */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Cobrado</span>
-                <h3 className="text-2xl font-extrabold text-emerald-600 mt-2">$ {stats.totalCobrado.toLocaleString('es-MX')}</h3>
-              </div>
-              <span className="p-4 bg-emerald-50 text-emerald-600 rounded-2xl text-xl">💳</span>
+            {/* Ingresos del Mes */}
+            <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
+              <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Ingresos del Mes</span>
+              <h3 className="text-2xl font-black text-emerald-600 tracking-tight mt-1">
+                ${stats.cobradoMes.toLocaleString('es-MX')}
+              </h3>
+              <p className="text-xs text-emerald-600/70 font-medium mt-1">Pagado este mes</p>
             </div>
 
-            {/* Saldo Pendiente */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Pendiente</span>
-                <h3 className="text-2xl font-extrabold text-rose-600 mt-2">$ {stats.totalPendiente.toLocaleString('es-MX')}</h3>
-              </div>
-              <span className="p-4 bg-rose-50 text-rose-600 rounded-2xl text-xl">⚠️</span>
+            {/* Por Cobrar del Mes */}
+            <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
+              <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">Por Cobrar</span>
+              <h3 className="text-2xl font-black text-rose-600 tracking-tight mt-1">
+                ${stats.pendienteMes.toLocaleString('es-MX')}
+              </h3>
+              <p className="text-xs text-rose-600/70 font-medium mt-1">Pendiente este mes</p>
             </div>
 
-            {/* Bajas del Mes */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs flex justify-between items-center">
-              <div>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Bajas del Mes</span>
-                <h3 className="text-3xl font-extrabold text-amber-600 mt-2">{stats.bajasMes}</h3>
-              </div>
-              <span className="p-4 bg-amber-50 text-amber-600 rounded-2xl text-xl">🔻</span>
+            {/* Bajas del mes */}
+            <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bajas Mensuales</span>
+              <h3 className="text-3xl font-black text-slate-800 tracking-tighter mt-1">{stats.bajasMes}</h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">Alumnos dados de baja</p>
             </div>
-
           </div>
 
-          {/* SEGUNDA FILA: TASA DE OCUPACIÓN Y HOY EN LA ACADEMIA */}
+          {/* SEGUNDA FILA: CURSO POPULAR, HOY EN LA ACADEMIA, CUMPLEAÑOS */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* TASA DE OCUPACIÓN */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-5">
-              <h3 className="text-base font-bold text-slate-900">Tasa de Ocupación Académica</h3>
-              <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-600 font-semibold">Alumnos cursando programa:</span>
-                  <span className="font-bold text-slate-900 text-base">{stats.alumnosConCursoActivo} / {stats.totalEstudiantes}</span>
-                </div>
-                <div className="w-full bg-slate-200 h-4 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-indigo-600 h-full rounded-full transition-all duration-500" 
-                    style={{ width: `${Math.min(stats.tasaOcupacion, 100)}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between items-center text-sm pt-1">
-                  <span className="text-slate-500 font-medium">Eficiencia de ocupación:</span>
-                  <span className="font-extrabold text-indigo-600 text-base">{stats.tasaOcupacion}%</span>
+            {/* Columna Izquierda: Curso Popular y Cumpleaños */}
+            <div className="space-y-8">
+              
+              {/* Curso Más Popular */}
+              <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-[1.5rem] shadow-sm text-white relative overflow-hidden">
+                <div className="absolute right-0 bottom-0 text-white/5 text-8xl transform translate-x-4 translate-y-4">🏆</div>
+                <div className="relative z-10 space-y-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-widest bg-indigo-950/50 px-3 py-1 rounded-full">Tendencia Anual</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-300">Curso más popular del año</p>
+                    <h3 className="text-2xl font-black text-white leading-tight mt-1">{stats.cursoPopular}</h3>
+                  </div>
+                  <div className="inline-block bg-indigo-600/40 border border-indigo-500/30 px-4 py-2 rounded-xl backdrop-blur-sm">
+                    <span className="font-extrabold text-lg text-white">{stats.inscripcionesCursoPopular}</span>
+                    <span className="text-xs font-medium text-indigo-200 ml-2">inscripciones totales</span>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Mide cuántos de tus estudiantes totales se encuentran activos cursando algún programa o grupo en este momento.
-              </p>
+
+              {/* Próximos Cumpleaños */}
+              <div className="bg-white p-8 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-base font-extrabold text-slate-900">🎂 Próximos Cumpleaños</h3>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Próx. 15 días</span>
+                </div>
+                
+                {loading ? (
+                  <div className="text-center py-6 text-sm text-slate-400">Buscando festejados...</div>
+                ) : cumpleaneros.length === 0 ? (
+                  <div className="text-center py-10 text-sm text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    No hay cumpleaños próximos.
+                  </div>
+                ) : (
+                  <div className="space-y-3 flex-1 overflow-y-auto max-h-[300px] pr-2">
+                    {cumpleaneros.map((alumno, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-100 transition-colors">
+                        <div>
+                          <p className="text-sm font-bold text-slate-900 line-clamp-1">{alumno.nombre} {alumno.apellidos}</p>
+                          <p className="text-xs text-indigo-600 font-semibold">{alumno.fechaFormateada} 
+                            <span className="text-slate-400 font-normal ml-1">
+                              ({alumno.diasFaltantes === 0 ? '¡Hoy!' : `en ${alumno.diasFaltantes} días`})
+                            </span>
+                          </p>
+                        </div>
+                        {alumno.telefono ? (
+                          <a 
+                            href={generarEnlaceWhatsApp(alumno.telefono, alumno.nombre)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366] hover:text-white p-2.5 rounded-xl transition-colors shrink-0"
+                            title="Enviar felicitación por WhatsApp"
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564c.173.087.289.129.332.202.043.073.043.423-.101.827z"/></svg>
+                          </a>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">Sin número</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* HOY EN LA ACADEMIA */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-5 lg:col-span-2">
-              <div className="flex justify-between items-center">
-                <h3 className="text-base font-bold text-slate-900">📅 Hoy en la Academia</h3>
-                <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3.5 py-1.5 rounded-full capitalize">{fechaActualTexto}</span>
+            {/* Columna Derecha: Hoy en la Academia */}
+            <div className="bg-white p-8 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col lg:col-span-2">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-base font-extrabold text-slate-900">📅 Hoy en la Academia</h3>
+                <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full uppercase tracking-wider">{fechaActualTexto}</span>
               </div>
 
               {loading ? (
-                <div className="text-center py-10 text-sm text-slate-400">Cargando actividades del día...</div>
+                <div className="flex-1 flex items-center justify-center text-sm text-slate-400">Cargando actividades del día...</div>
               ) : clasesHoy.length === 0 ? (
-                <div className="text-center py-12 text-sm text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <div className="flex-1 flex items-center justify-center text-sm text-slate-400 bg-slate-50 rounded-3xl border border-dashed border-slate-200 p-10 text-center">
                   No hay clases o sesiones programadas para el día de hoy.
                 </div>
               ) : (
-                <div className="space-y-4 max-h-[250px] overflow-y-auto">
+                <div className="space-y-4 overflow-y-auto pr-2">
                   {clasesHoy.map((sesion) => {
                     const nombreCurso = sesion.grupos?.cursos?.Nombre_curso || sesion.grupos?.cursos?.nombre_curso || 'Curso Académico'
                     const nombreGrupo = sesion.grupos?.nombre_grupo || 'Grupo'
@@ -328,20 +410,22 @@ export default function AdminDashboardPage() {
                     const horaSesion = new Date(sesion.fecha_hora).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 
                     return (
-                      <div key={sesion.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                        <div className="space-y-0.5">
+                      <div key={sesion.id} className="p-5 rounded-[1.25rem] bg-slate-50 hover:bg-slate-100 border border-slate-100 transition-colors flex justify-between items-center group">
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-indigo-600 uppercase">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
-                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                              modalidad === 'presencial' ? 'bg-purple-50 text-purple-700' : 'bg-emerald-50 text-emerald-700'
+                            <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">Sesión {sesion.numero_sesion}: {sesion.titulo_sesion}</span>
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                              modalidad === 'presencial' ? 'bg-purple-100 text-purple-700' : 'bg-emerald-100 text-emerald-700'
                             }`}>
                               {modalidad === 'presencial' ? '📍 Presencial' : '💻 En Línea'}
                             </span>
                           </div>
-                          <h4 className="text-sm font-extrabold text-slate-900">{nombreCurso} • <span className="text-slate-600 font-medium">{nombreGrupo}</span></h4>
-                          <p className="text-xs text-slate-500">🕒 Hora: {horaSesion} hrs {modalidad === 'presencial' ? `• Salón: ${sesion.enlace_meet || 'Principal'}` : ''}</p>
+                          <h4 className="text-base font-extrabold text-slate-900 tracking-tight">{nombreCurso} <span className="text-slate-400 font-medium mx-1">•</span> <span className="text-slate-600 font-semibold">{nombreGrupo}</span></h4>
+                          <p className="text-xs text-slate-500 font-medium">🕒 {horaSesion} hrs {modalidad === 'presencial' ? `• Salón: ${sesion.enlace_meet || 'Principal'}` : ''}</p>
                         </div>
-                        <span className="bg-indigo-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-xs">Programada</span>
+                        <span className="bg-white text-slate-900 border border-slate-200 text-[11px] font-bold px-4 py-2 rounded-xl shadow-sm group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all">
+                          Programada
+                        </span>
                       </div>
                     )
                   })}
@@ -350,52 +434,8 @@ export default function AdminDashboardPage() {
             </div>
 
           </div>
-
-          {/* TERCERA FILA: CUOTAS PENDIENTES */}
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-xs space-y-6">
-            <div className="flex justify-between items-center">
-              <h3 className="text-base font-bold text-slate-900">Cuotas Pendientes y Vencidas</h3>
-              <span className="text-xs font-semibold text-rose-600 bg-rose-50 px-3.5 py-1.5 rounded-full">En tiempo real</span>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-14 text-sm text-slate-400">Sincronizando datos de pagos...</div>
-            ) : pagosPendientes.length === 0 ? (
-              <div className="text-center py-14 text-sm text-slate-400">🎉 ¡Excelente! No hay pagos pendientes en este momento.</div>
-            ) : (
-              <div className="space-y-4">
-                {pagosPendientes.map((p, idx) => {
-                  const montoCuota = Number(p.monto || p.Monto || p.cantidad || 0)
-                  const fechaVence = p.fecha_vencimiento || p.Fecha_vencimiento || p.vencimiento || 'Sin fecha'
-
-                  return (
-                    <div key={idx} className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-slate-900">Cuota #{p.id}</span>
-                          <span className="text-xs bg-slate-200 text-slate-700 px-2 py-0.5 rounded font-mono">Alumno ID: {p.alumno_id || p.Alumno_id || p.alumnos_id}</span>
-                        </div>
-                        <p className="text-xs text-slate-500">Vence: {fechaVence}</p>
-                      </div>
-                      <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                        <span className="text-sm font-extrabold text-rose-600">$ {montoCuota.toLocaleString('es-MX')} MXN</span>
-                        <a 
-                          href={`/admin/estudiantes/detalle?id=${p.alumno_id || p.Alumno_id || p.alumnos_id || ''}`}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition shadow-sm"
-                        >
-                          Revisar
-                        </a>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
         </div>
       </main>
-
     </div>
   )
 }
