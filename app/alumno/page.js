@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import PortalModals from './PortalModals' // <--- Importamos el gestor de modales que creamos
+import PortalModals from './PortalModals'
 
 // COMPONENTE AUXILIAR PARA EL BOTÓN INTELIGENTE DE MEET
 function BotonClaseEnVivo({ sesion }) {
@@ -174,8 +174,24 @@ export default function AlumnoPortalPage() {
     const { data: grp } = await supabase.from('grupos').select('*')
     setGrupos(grp || [])
 
+    // CARGAR CURSOS CON CÁLCULO DE ESTRELLAS Y VALORACIONES
     const { data: crs } = await supabase.from('cursos').select('*')
-    setCursos(crs || [])
+    const { data: valData } = await supabase.from('valoraciones').select('curso_id, estrellas')
+
+    const cursosConEstrellas = (crs || []).map(curso => {
+      const valoracionesCurso = valData?.filter(v => Number(v.curso_id) === Number(curso.id)) || []
+      const total = valoracionesCurso.length
+      const suma = valoracionesCurso.reduce((acc, curr) => acc + curr.estrellas, 0)
+      const promedio = total > 0 ? (suma / total).toFixed(1) : 0
+
+      return {
+        ...curso,
+        promedioEstrellas: Number(promedio),
+        totalValoraciones: total
+      }
+    })
+
+    setCursos(cursosConEstrellas || [])
 
     // CARGAR CURSOS PRÓXIMOS MARCADOS DESDE EL ADMIN
     const { data: prox } = await supabase.from('cursos').select('*').eq('proximo', true)
@@ -709,8 +725,29 @@ export default function AlumnoPortalPage() {
                               </div>
 
                               <div className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-                                <div className="space-y-1">
+                                <div className="space-y-2">
                                   <h3 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{nombreCurso}</h3>
+                                  
+                                  {/* ESTRELLAS Y VALORACIÓN PROMEDIO */}
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="flex text-amber-400 text-xs">
+                                      {[1, 2, 3, 4, 5].map((num) => {
+                                        const promedio = cursoObj?.promedioEstrellas || 0
+                                        return (
+                                          <span key={num}>
+                                            {num <= Math.round(promedio) ? '★' : '☆'}
+                                          </span>
+                                        )
+                                      })}
+                                    </div>
+                                    <span className="text-xs font-black text-slate-800">
+                                      {cursoObj?.promedioEstrellas > 0 ? cursoObj.promedioEstrellas : 'Nuevo'}
+                                    </span>
+                                    {cursoObj?.totalValoraciones > 0 && (
+                                      <span className="text-[10px] text-slate-400 font-medium">({cursoObj.totalValoraciones})</span>
+                                    )}
+                                  </div>
+
                                   <p className="text-xs text-slate-500">{sesionesGrupoItem.length} sesiones · {recursosGrupo.length} materiales</p>
                                 </div>
 
