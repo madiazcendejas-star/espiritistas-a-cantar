@@ -40,7 +40,7 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
         const faltaNombre = !alumno.nombre && !alumno.Nombre
         const faltaNacimiento = !alumno.fecha_nacimiento && !alumno.Fecha_nacimiento
         const faltaEstado = !alumno.estado && !alumno.Estado
-        const faltaEmail = !alumno.email && !alumno.Email
+        const faltaEmail = !alumno.correo && !alumno.Correo && !alumno.email && !alumno.Email
 
         if (faltaNombre || faltaNacimiento || faltaEstado || faltaEmail) {
           setDatosPerfil({
@@ -48,17 +48,17 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
             apellidos: alumno.apellidos || alumno.Apellidos || '',
             fecha_nacimiento: alumno.fecha_nacimiento || alumno.Fecha_nacimiento || '',
             estado: alumno.estado || alumno.Estado || '',
-            email: alumno.email || alumno.Email || ''
+            email: alumno.correo || alumno.Correo || alumno.email || alumno.Email || ''
           })
           setMostrarModalPerfil(true)
           return 
         }
       }
 
-      // 2. Verificar cursos completados sin valorar
+      // 2. Verificar cursos terminados automáticamente (Basado en la última sesión del grupo)
       const { data: inscripciones } = await supabase
         .from('inscripciones')
-        .select('*, grupos(curso_id, cursos(id, nombre_curso, Nombre_curso))')
+        .select('*, grupos(id, curso_id, fecha_fin, cursos(id, nombre_curso, Nombre_curso))')
         .eq('alumno_id', alumnoId)
 
       if (inscripciones && inscripciones.length > 0) {
@@ -69,10 +69,30 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
 
         const cursosValoradosIds = new Set(valoracionesPrevias?.map(v => v.curso_id) || [])
 
+        // Consultamos las sesiones de los grupos para saber cuándo terminan
+        const { data: todasLasSesiones } = await supabase
+          .from('sesiones_grupo')
+          .select('grupo_id, fecha_hora')
+          .order('fecha_hora', { ascending: false })
+
+        const ahora = new Date()
+
         const pendiente = inscripciones.find(ins => {
-          const estatusInscripcion = (ins.estatus || ins.estado || '').toLowerCase()
           const cursoId = ins.grupos?.cursos?.id || ins.grupos?.curso_id
-          return (estatusInscripcion === 'completado' || estatusInscripcion === 'terminado') && cursoId && !cursosValoradosIds.has(cursoId)
+          if (!cursoId || cursosValoradosIds.has(cursoId)) return false
+
+          // Buscamos las sesiones de este grupo específico
+          const sesionesDelGrupo = todasLasSesiones?.filter(s => Number(s.grupo_id) === Number(ins.grupo_id)) || []
+          
+          if (sesionesDelGrupo.length === 0) return false
+
+          // Tomamos la fecha de la última sesión programada del grupo
+          const ultimaSesionFecha = new Date(sesionesDelGrupo[0].fecha_hora)
+
+          // Si la última sesión ya pasó, el curso se considera completado automáticamente
+          const cursoTerminado = ahora > ultimaSesionFecha
+
+          return cursoTerminado
         })
 
         if (pendiente) {
@@ -124,7 +144,7 @@ export default function PortalAlumnoModalManager({ alumnoId }) {
           apellidos: datosPerfil.apellidos,
           fecha_nacimiento: datosPerfil.fecha_nacimiento,
           estado: datosPerfil.estado,
-          email: datosPerfil.email
+          correo: datosPerfil.email
         })
         .eq('id', alumnoId)
 
