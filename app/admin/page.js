@@ -90,7 +90,7 @@ export default function AdminDashboardPage() {
         .from('grupos')
         .select('*', { count: 'exact', head: true })
 
-      // 3. Inscripciones, Grupos y Cursos (Consultas separadas para evitar errores de llaves foráneas)
+      // 3. Inscripciones, Grupos y Cursos
       const { data: inscripcionesData } = await supabase.from('inscripciones').select('*')
       const { data: gruposFullData } = await supabase.from('grupos').select('*')
       const { data: cursosFullData } = await supabase.from('cursos').select('*')
@@ -100,7 +100,6 @@ export default function AdminDashboardPage() {
       let maxInscripciones = 0
 
       if (inscripcionesData && inscripcionesData.length > 0) {
-        // 3.1 Calcular Alumnos Activos (Únicos)
         const idsUnicos = new Set()
         inscripcionesData.forEach(ins => {
           const idAlumno = ins.alumno_id || ins.Alumno_id || ins.alumnos_id || ins.id_alumno
@@ -108,7 +107,6 @@ export default function AdminDashboardPage() {
         })
         alumnosUnicosConCurso = idsUnicos.size
 
-        // 3.2 Calcular Curso Más Popular del Año
         const inscripcionesEsteAnio = inscripcionesData.filter(ins => {
           const fechaIns = new Date(ins.created_at || ins.fecha || ins.Fecha || ahora)
           return fechaIns.getFullYear() === ahora.getFullYear()
@@ -117,23 +115,19 @@ export default function AdminDashboardPage() {
         const conteoCursos = {}
         
         inscripcionesEsteAnio.forEach(ins => {
-          // Encontrar el grupo de esta inscripción
           const idGrupo = ins.grupo_id || ins.Grupo_id || ins.grupos_id || ins.id_grupo
           const grupoRelacionado = gruposFullData?.find(g => g.id === idGrupo || g.Id === idGrupo)
           
           if (grupoRelacionado) {
-            // Encontrar el curso de este grupo
             const idCurso = grupoRelacionado.curso_id || grupoRelacionado.Curso_id || grupoRelacionado.cursos_id || grupoRelacionado.id_curso
             const cursoRelacionado = cursosFullData?.find(c => c.id === idCurso || c.Id === idCurso)
             
-            // Extraer el nombre
             const nombreCurso = cursoRelacionado?.nombre_curso || cursoRelacionado?.Nombre_curso || cursoRelacionado?.nombre || 'Curso General'
             
             conteoCursos[nombreCurso] = (conteoCursos[nombreCurso] || 0) + 1
           }
         })
 
-        // Determinar el ganador
         for (const [curso, cantidad] of Object.entries(conteoCursos)) {
           if (cantidad > maxInscripciones) {
             maxInscripciones = cantidad
@@ -142,7 +136,7 @@ export default function AdminDashboardPage() {
         }
       }
 
-      // 4. Pagos (Ingresos y Pendientes del mes en curso)
+      // 4. Pagos
       const { data: dataPagos, error: errPagos } = await supabase
         .from('pagos')
         .select('*')
@@ -245,7 +239,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900 text-sm">
       
-      {/* SIDEBAR */}
+      {/* SIDEBAR CON PROSPECTOS INTEGRADOS */}
       <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
         <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -260,6 +254,7 @@ export default function AdminDashboardPage() {
         <nav className="flex-1 py-6 px-4 space-y-1.5 overflow-y-auto text-sm font-medium">
           <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Gestión Escolar</div>
           <a href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-sm">🏠 Inicio</a>
+          <a href="/admin/prospectos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎯 Prospectos (CRM)</a>
           <a href="/admin/estudiantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🎓 Estudiantes</a>
           <a href="/admin/cursos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
           <a href="/admin/grupos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
@@ -298,7 +293,6 @@ export default function AdminDashboardPage() {
           {/* PRIMERA FILA: MÉTRICAS GENERALES */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-5">
             
-            {/* Alumnos Activos / Totales */}
             <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center lg:col-span-2 relative overflow-hidden">
               <div className="absolute -right-4 -top-4 text-slate-50 text-9xl opacity-50 select-none">🎓</div>
               <div className="relative z-10">
@@ -311,14 +305,12 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Grupos */}
             <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Grupos</span>
               <h3 className="text-3xl font-black text-slate-800 tracking-tighter mt-1">{stats.totalGrupos}</h3>
               <p className="text-xs text-slate-500 font-medium mt-1">Activos actualmente</p>
             </div>
 
-            {/* Ingresos del Mes */}
             <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
               <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">Ingresos del Mes</span>
               <h3 className="text-2xl font-black text-emerald-600 tracking-tight mt-1">
@@ -327,7 +319,6 @@ export default function AdminDashboardPage() {
               <p className="text-xs text-emerald-600/70 font-medium mt-1">Pagado este mes</p>
             </div>
 
-            {/* Por Cobrar del Mes */}
             <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
               <span className="text-[11px] font-bold text-rose-400 uppercase tracking-wider">Por Cobrar</span>
               <h3 className="text-2xl font-black text-rose-600 tracking-tight mt-1">
@@ -336,7 +327,6 @@ export default function AdminDashboardPage() {
               <p className="text-xs text-rose-600/70 font-medium mt-1">Pendiente este mes</p>
             </div>
 
-            {/* Bajas del mes */}
             <div className="bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col justify-center">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Bajas Mensuales</span>
               <h3 className="text-3xl font-black text-slate-800 tracking-tighter mt-1">{stats.bajasMes}</h3>
@@ -344,13 +334,11 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* SEGUNDA FILA: CURSO POPULAR, HOY EN LA ACADEMIA, CUMPLEAÑOS */}
+          {/* SEGUNDA FILA */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Columna Izquierda: Curso Popular y Cumpleaños */}
             <div className="space-y-8">
               
-              {/* Curso Más Popular */}
               <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-8 rounded-[1.5rem] shadow-sm text-white relative overflow-hidden">
                 <div className="absolute right-0 bottom-0 text-white/5 text-8xl transform translate-x-4 translate-y-4">🏆</div>
                 <div className="relative z-10 space-y-4">
@@ -368,7 +356,6 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Próximos Cumpleaños */}
               <div className="bg-white p-8 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-base font-extrabold text-slate-900">🎂 Próximos Cumpleaños</h3>
@@ -413,7 +400,6 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Columna Derecha: Hoy en la Academia */}
             <div className="bg-white p-8 rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col lg:col-span-2">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-base font-extrabold text-slate-900">📅 Hoy en la Academia</h3>
