@@ -1,47 +1,19 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, Suspense } from 'react'
 import { supabase } from '../../lib/supabase'
 
 function GraciasContent() {
-  const searchParams = useSearchParams()
-  const sessionId = searchParams.get('session_id')
-
-  const [loading, setLoading] = useState(true)
   const [email, setEmail] = useState('')
   const [nombre, setNombre] = useState('')
   const [password, setPassword] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
   const [activando, setActivando] = useState(false)
 
-  useEffect(() => {
-    async function fetchStripeSession() {
-      if (!sessionId) {
-        setLoading(false)
-        return
-      }
-
-      try {
-        const response = await fetch(`/api/checkout-session?session_id=${sessionId}`)
-        const data = await response.json()
-
-        if (data.email) setEmail(data.email)
-        if (data.nombre) setNombre(data.nombre)
-      } catch (err) {
-        console.error('Error al obtener datos de Stripe:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStripeSession()
-  }, [sessionId])
-
   const handleActivarCuenta = async (e) => {
     e.preventDefault()
-    if (!email) {
-      return setErrorMsg('Esperando correo de Stripe. Por favor recarga la página si tarda un momento.')
+    if (!email || !email.includes('@')) {
+      return setErrorMsg('Por favor ingresa un correo electrónico válido.')
     }
     if (!password || password.length < 6) {
       return setErrorMsg('La contraseña debe tener al menos 6 caracteres.')
@@ -51,6 +23,7 @@ function GraciasContent() {
       setActivando(true)
       setErrorMsg('')
 
+      // 1. Crear el usuario en Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -61,6 +34,7 @@ function GraciasContent() {
 
       if (authError) throw authError
 
+      // 2. Guardar o actualizar en la tabla 'alumnos'
       const { error: dbError } = await supabase
         .from('alumnos')
         .upsert([
@@ -75,6 +49,7 @@ function GraciasContent() {
         console.error('Error guardando en tabla alumnos:', dbError)
       }
 
+      // 3. Iniciar sesión automáticamente y redirigir al portal
       await supabase.auth.signInWithPassword({ email, password })
       window.location.href = '/mis-cursos'
 
@@ -82,14 +57,6 @@ function GraciasContent() {
       setErrorMsg(err.message || 'Ocurrió un error al activar tu cuenta.')
       setActivando(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="text-slate-400 text-center">
-        <p className="text-xs tracking-widest uppercase animate-pulse">Verificando tu compra...</p>
-      </div>
-    )
   }
 
   return (
@@ -101,14 +68,14 @@ function GraciasContent() {
         </div>
         <h1 className="text-xl font-black text-white">¡Pago completado con éxito!</h1>
         <p className="text-xs text-slate-400">
-          {nombre ? `¡Hola, ${nombre}! Tu` : 'Tu'} compra se ha procesado correctamente. Define tu contraseña para acceder de inmediato a tus clases.
+          Tu compra se ha procesado correctamente. Define tu nombre, correo y contraseña para acceder de inmediato a tus clases.
         </p>
       </div>
 
       <form onSubmit={handleActivarCuenta} className="space-y-4">
         <div>
           <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            Tu Nombre
+            Tu Nombre *
           </label>
           <input 
             type="text" 
@@ -122,16 +89,17 @@ function GraciasContent() {
 
         <div>
           <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            Tu Correo (Registrado en Stripe)
+            Tu Correo Electrónico (Tu Usuario de Acceso) *
           </label>
           <input 
             type="email" 
-            disabled
+            required
             value={email}
-            placeholder="Cargando correo de Stripe..."
-            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-slate-300 cursor-not-allowed outline-none"
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tucorreo@gmail.com"
+            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-white outline-none focus:border-rose-600 transition"
           />
-          <span className="text-[10px] text-slate-500 mt-1 block">Este correo viene directamente de tu pago y es tu usuario de acceso.</span>
+          <span className="text-[10px] text-slate-500 mt-1 block">Este será tu usuario para entrar al portal.</span>
         </div>
 
         <div>
@@ -156,10 +124,10 @@ function GraciasContent() {
 
         <button 
           type="submit"
-          disabled={activando || !email}
-          className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition cursor-pointer"
+          disabled={activando}
+          className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition cursor-pointer"
         >
-          {activando ? 'Activando tu cuenta...' : (!email ? 'Cargando datos de pago...' : '🚀 Activar mi cuenta y entrar')}
+          {activando ? 'Activando tu cuenta...' : '🚀 Activar mi cuenta y entrar'}
         </button>
       </form>
 
