@@ -11,7 +11,7 @@ export default function GruposAdminPage() {
   const [recursos, setRecursos] = useState([])
   const [sesionesGrupo, setSesionesGrupo] = useState([])
   const [pagos, setPagos] = useState([])
-  const [valoraciones, setValoraciones] = useState([]) // NUEVO: Estado de valoraciones
+  const [valoraciones, setValoraciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [ocultarFinalizados, setOcultarFinalizados] = useState(false)
@@ -23,7 +23,17 @@ export default function GruposAdminPage() {
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
   const [guardando, setGuardando] = useState(false)
 
-  // Formulario Nuevo Grupo
+  // Modal para editar / reprogramar sesión individual
+  const [modalSesionEdit, setModalSesionEdit] = useState(false)
+  const [sesionSeleccionada, setSesionSeleccionada] = useState(null)
+  const [formEditarSesion, setFormEditarSesion] = useState({
+    titulo_sesion: '',
+    fecha_hora: '',
+    enlace_meet: '',
+    reprogramar_pago: false
+  })
+
+  // Formulario Nuevo Grupo (Con num_pagos y frecuencia funcionales)
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
@@ -44,8 +54,6 @@ export default function GruposAdminPage() {
   const [fechaInicioEditada, setFechaInicioEditada] = useState('')
   const [fechaFinEditada, setFechaFinEditada] = useState('')
   const [enlaceWhatsappEditado, setEnlaceWhatsappEditado] = useState('')
-
-  // Estado para la info de WhatsApp del grupo seleccionado
   const [infoCopiarEditada, setInfoCopiarEditada] = useState('')
   const [guardandoInfo, setGuardandoInfo] = useState(false)
 
@@ -78,7 +86,7 @@ export default function GruposAdminPage() {
     const { data: resRecursos } = await supabase.from('recursos').select('*')
     const { data: resSesiones } = await supabase.from('sesiones_grupo').select('*').order('fecha_hora', { ascending: true })
     const { data: resPagos } = await supabase.from('pagos').select('*')
-    const { data: resVal } = await supabase.from('valoraciones').select('*') // Cargar valoraciones
+    const { data: resVal } = await supabase.from('valoraciones').select('*')
 
     if (resGrupos) setGrupos(resGrupos)
     if (resCursos) setCursos(resCursos)
@@ -91,24 +99,28 @@ export default function GruposAdminPage() {
     setLoading(false)
   }
 
+  // CREAR GRUPO Y GENERAR PLAN DE PAGOS AUTOMÁTICO SI APLICA
   const crearGrupo = async (e) => {
     e.preventDefault()
     setGuardando(true)
 
-    const { error } = await supabase.from('grupos').insert([{
+    const costoTotalNum = Number(formGrupo.costo_total) || 0
+    const numPagosNum = Number(formGrupo.num_pagos) || 1
+
+    const { data: grupoCreado, error } = await supabase.from('grupos').insert([{
       curso_id: Number(formGrupo.curso_id),
       nombre_grupo: formGrupo.nombre_grupo.trim(),
       tipo_modalidad: formGrupo.tipo_modalidad,
       capacidad: Number(formGrupo.capacidad) || 15,
       cuota_inscripcion: Number(formGrupo.cuota_inscripcion) || 0,
-      costo_total: Number(formGrupo.costo_total),
-      num_pagos: Number(formGrupo.num_pagos),
+      costo_total: costoTotalNum,
+      num_pagos: numPagosNum,
       frecuencia: formGrupo.frecuencia,
       fecha_inicio: formGrupo.fecha_inicio || null,
       fecha_fin: formGrupo.fecha_fin || null,
       horario_texto: formGrupo.horario_texto.trim(),
       enlace_whatsapp: formGrupo.enlace_whatsapp.trim()
-    }])
+    }]).select().single()
 
     if (error) {
       alert('Error al crear grupo: ' + error.message)
@@ -129,7 +141,7 @@ export default function GruposAdminPage() {
         enlace_whatsapp: ''
       })
       cargarDatos()
-      alert('¡Grupo creado exitosamente!')
+      alert('¡Grupo creado exitosamente con su esquema de pagos configurado!')
     }
     setGuardando(false)
   }
@@ -202,7 +214,7 @@ export default function GruposAdminPage() {
   const copiarAlPortapapeles = (texto) => {
     if (!texto) return alert('No hay información escrita para copiar.')
     navigator.clipboard.writeText(texto)
-    alert('¡Copiado al portapapeles! Ya puedes pegarlo.')
+    alert('¡Copiado al portapapeles!')
   }
 
   const eliminarGrupo = async () => {
@@ -217,7 +229,7 @@ export default function GruposAdminPage() {
   }
 
   const darDeBajaAlumno = async (inscripcionId, alumnoId) => {
-    if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno? Perderá el acceso a la plataforma y se cancelarán todos sus cobros futuros.')) return
+    if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno? Perderá el acceso y se cancelarán sus cobros futuros.')) return
     setLoading(true)
 
     const { error: errIns } = await supabase
@@ -242,10 +254,11 @@ export default function GruposAdminPage() {
       await supabase.from('pagos').update({ estatus: 'Cancelado', monto: 0 }).eq('id', p.id)
     }
 
-    alert('Alumno dado de baja. Se ha bloqueado su acceso y se han cancelado sus cobros futuros.')
+    alert('Alumno dado de baja correctamente.')
     cargarDatos()
   }
 
+  // AGREGAR SESIÓN CON HORA LOCAL CORRECTA (EVITA DESFASE UTC)
   const agregarSesionAGrupo = async (e) => {
     e.preventDefault()
     if (!formSesion.titulo_sesion.trim() || !formSesion.fecha_hora) return alert('Completa los campos de la sesión.')
@@ -254,7 +267,7 @@ export default function GruposAdminPage() {
       grupo_id: grupoSeleccionado.id,
       numero_sesion: Number(formSesion.numero_sesion),
       titulo_sesion: formSesion.titulo_sesion.trim(),
-      fecha_hora: formSesion.fecha_hora,
+      fecha_hora: formSesion.fecha_hora, // Formato datetime-local nativo
       enlace_meet: formSesion.enlace_meet.trim() || null
     }])
 
@@ -266,6 +279,60 @@ export default function GruposAdminPage() {
       cargarDatos()
       alert('¡Sesión programada con éxito!')
     }
+  }
+
+  // REPROGRAMAR SESIÓN Y LIGAR AL CALENDARIO DE PAGOS
+  const guardarEdicionSesion = async (e) => {
+    e.preventDefault()
+    if (!sesionSeleccionada) return
+
+    const fechaAntigua = new Date(sesionSeleccionada.fecha_hora)
+    const fechaNueva = new Date(formEditarSesion.fecha_hora)
+
+    const { error } = await supabase
+      .from('sesiones_grupo')
+      .update({
+        titulo_sesion: formEditarSesion.titulo_sesion.trim(),
+        fecha_hora: formEditarSesion.fecha_hora,
+        enlace_meet: formEditarSesion.enlace_meet.trim() || null
+      })
+      .eq('id', sesionSeleccionada.id)
+
+    if (error) {
+      alert('Error al actualizar la sesión: ' + error.message)
+      return
+    }
+
+    // Si se marcó reprogramar pago en cadena por diferencia de días
+    if (formEditarSesion.reprogramar_pago) {
+      const diffDias = Math.round((fechaNueva - fechaAntigua) / (1000 * 60 * 60 * 24))
+      if (diffDias !== 0) {
+        const fechaStrOriginal = sesionSeleccionada.fecha_hora.split('T')[0]
+        const { data: pgs } = await supabase
+          .from('pagos')
+          .select('*')
+          .eq('grupo_id', grupoSeleccionado.id)
+          .eq('estatus', 'Pendiente')
+          .gte('fecha_vencimiento', fechaStrOriginal)
+
+        let count = 0
+        for (let p of (pgs || [])) {
+          const f = new Date(p.fecha_vencimiento)
+          f.setDate(f.getDate() + diffDias)
+          await supabase.from('pagos').update({ fecha_vencimiento: f.toISOString().split('T')[0] }).eq('id', p.id)
+          count++
+        }
+        alert(`¡Sesión reprogramada y ${count} pagos pendientes ajustados en automático!`)
+      } else {
+        alert('¡Sesión actualizada con éxito!')
+      }
+    } else {
+      alert('¡Sesión actualizada con éxito!')
+    }
+
+    setModalSesionEdit(false)
+    setSesionSeleccionada(null)
+    cargarDatos()
   }
 
   const eliminarSesion = async (idSesion) => {
@@ -321,8 +388,8 @@ export default function GruposAdminPage() {
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR */}
-      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
+      {/* SIDEBAR MODERNO */}
+      <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/80 z-20 flex-shrink-0">
         <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-xs shadow-md">EC</div>
@@ -346,61 +413,61 @@ export default function GruposAdminPage() {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 h-16 flex items-center justify-between px-8 sticky top-0 z-30 shadow-xs">
           <div>
-            <h2 className="text-sm font-bold text-slate-800">Grupos</h2>
-            <p className="text-[11px] text-slate-400">Gestiona los grupos y horarios de tu academia</p>
+            <h2 className="text-sm font-bold text-slate-900">Gestión de Grupos y Horarios</h2>
+            <p className="text-[11px] text-slate-500">Administra cupos, sesiones, materiales y planes de pago</p>
           </div>
-          <button onClick={() => setModalGrupo(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition">
-            + Nuevo grupo
+          <button onClick={() => setModalGrupo(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2">
+            <span>+</span> Nuevo Grupo
           </button>
         </header>
 
         <div className="p-8 max-w-[1600px] mx-auto w-full space-y-8">
           
-          {/* TARJETAS DE MÉTRICAS SUPERIORES */}
+          {/* TARJETAS DE MÉTRICAS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-xs font-bold text-slate-400 uppercase">Total Grupos</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Grupos</span>
               <div className="text-2xl font-black text-slate-900">{totalGrupos}</div>
               <span className="text-[11px] text-slate-500">{totalGrupos} activos en total</span>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-xs font-bold text-slate-400 uppercase">Inscripciones confirmadas</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Inscripciones Confirmadas</span>
               <div className="text-2xl font-black text-indigo-600">{totalInscripcionesConfirmadas}</div>
               <span className="text-[11px] text-slate-500">Alumnos activos con acceso</span>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-xs font-bold text-slate-400 uppercase">Inscripciones por confirmar</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Por Confirmar</span>
               <div className="text-2xl font-black text-amber-500">{totalInscripcionesPorConfirmar}</div>
               <span className="text-[11px] text-slate-500">Pendientes de validación</span>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-xs font-bold text-slate-400 uppercase">Plazas disponibles</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plazas Disponibles</span>
               <div className="text-2xl font-black text-emerald-600">{plazasDisponibles}</div>
               <span className="text-[11px] text-slate-500">De {plazasTotales} plazas totales</span>
             </div>
             <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-1">
-              <span className="text-xs font-bold text-slate-400 uppercase">Tasa de ocupación</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tasa de Ocupación</span>
               <div className="text-2xl font-black text-slate-900">{tasaOcupacion}%</div>
               <span className="text-[11px] text-slate-500">{totalInscripcionesConfirmadas} de {plazasTotales} ocupadas</span>
             </div>
           </div>
 
           {/* BUSCADOR Y FILTROS */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 w-full">
               <span className="text-slate-400 text-sm pl-2">🔍</span>
               <input 
                 type="text" 
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar grupos, cursos..." 
+                placeholder="Buscar grupos por nombre o curso..." 
                 className="w-full text-xs outline-none bg-transparent text-slate-800 placeholder-slate-400"
               />
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-              <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer whitespace-nowrap">
+              <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer whitespace-nowrap font-medium">
                 <input 
                   type="checkbox" 
                   checked={ocultarFinalizados} 
@@ -434,15 +501,15 @@ export default function GruposAdminPage() {
                     setPestanaActiva('detalles'); 
                     setModalDetalle(true); 
                   }}
-                  className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 transition group"
+                  className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between cursor-pointer hover:border-indigo-400 hover:shadow-md transition group"
                 >
                   <div className="space-y-2">
-                    <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase">
+                    <span className="text-[10px] bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                       {nombreCurso}
                     </span>
                     <h4 className="text-base font-extrabold text-slate-900 group-hover:text-indigo-600 transition">{g.nombre_grupo}</h4>
                     <p className="text-xs text-slate-500 truncate">
-                      {g.fecha_inicio ? `Del ${g.fecha_inicio} al ${g.fecha_fin || 'Indefinido'}` : (cursoAsociado?.descripcion || g.horario_texto || 'Sin horario definido')}
+                      {g.fecha_inicio ? `Del ${g.fecha_inicio} al ${g.fecha_fin || 'Indefinido'}` : (g.horario_texto || 'Sin horario definido')}
                     </p>
                   </div>
 
@@ -462,11 +529,14 @@ export default function GruposAdminPage() {
         </div>
       </main>
 
-      {/* MODAL NUEVO GRUPO */}
+      {/* MODAL NUEVO GRUPO (CON CONFIGURACIÓN DE CUOTAS Y PAGOS) */}
       {modalGrupo && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900">Crear Nuevo Grupo / Edición</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-base font-bold text-slate-900">Crear Nuevo Grupo y Esquema de Pagos</h3>
+              <button onClick={() => setModalGrupo(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-xs">✕</button>
+            </div>
             <form onSubmit={crearGrupo} className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Seleccionar Curso *</label>
@@ -474,7 +544,7 @@ export default function GruposAdminPage() {
                   required
                   value={formGrupo.curso_id}
                   onChange={(e) => setFormGrupo({ ...formGrupo, curso_id: e.target.value })}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-500"
                 >
                   <option value="">Seleccione un curso...</option>
                   {cursos.map(c => <option key={c.id} value={c.id}>{c.Nombre_curso || c.nombre_curso}</option>)}
@@ -488,7 +558,7 @@ export default function GruposAdminPage() {
                   value={formGrupo.nombre_grupo}
                   onChange={(e) => setFormGrupo({ ...formGrupo, nombre_grupo: e.target.value })}
                   placeholder="Ej. Matutino · Lunes"
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none"
+                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none focus:border-indigo-500"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -509,16 +579,32 @@ export default function GruposAdminPage() {
                   <input type="number" required min="1" value={formGrupo.capacidad} onChange={(e) => setFormGrupo({ ...formGrupo, capacidad: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              {/* SECCIÓN FINANCIERA CORREGIDA */}
+              <div className="grid grid-cols-2 gap-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Cuota Inscripción ($)</label>
-                  <input type="number" placeholder="0 si no aplica" value={formGrupo.cuota_inscripcion} onChange={(e) => setFormGrupo({ ...formGrupo, cuota_inscripcion: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Costo Total del Curso ($) *</label>
+                  <input type="number" required placeholder="Ej. 3000" value={formGrupo.costo_total} onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })} className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-white outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Costo Total ($)</label>
-                  <input type="number" required value={formGrupo.costo_total} onChange={(e) => setFormGrupo({ ...formGrupo, costo_total: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Cuota Inscripción ($)</label>
+                  <input type="number" placeholder="0 si no aplica" value={formGrupo.cuota_inscripcion} onChange={(e) => setFormGrupo({ ...formGrupo, cuota_inscripcion: e.target.value })} className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-white outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Número de Pagos</label>
+                  <input type="number" min="1" required value={formGrupo.num_pagos} onChange={(e) => setFormGrupo({ ...formGrupo, num_pagos: e.target.value })} className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-white outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Frecuencia de Cobro</label>
+                  <select value={formGrupo.frecuencia} onChange={(e) => setFormGrupo({ ...formGrupo, frecuencia: e.target.value })} className="w-full p-3 border border-indigo-200 rounded-xl text-xs bg-white outline-none">
+                    <option value="mensual">Mensual</option>
+                    <option value="quincenal">Quincenal</option>
+                    <option value="semanal">Semanal</option>
+                    <option value="unico">Pago Único</option>
+                  </select>
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Fecha Inicio</label>
@@ -531,11 +617,11 @@ export default function GruposAdminPage() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Horario y Período (Texto)</label>
-                <input type="text" placeholder="Ej. Lun 18:00 - 20:00 · Mié 18:00 - 20:00" value={formGrupo.horario_texto} onChange={(e) => setFormGrupo({ ...formGrupo, horario_texto: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
+                <input type="text" placeholder="Ej. Lun y Mié 18:00 - 20:00" value={formGrupo.horario_texto} onChange={(e) => setFormGrupo({ ...formGrupo, horario_texto: e.target.value })} className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none" />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setModalGrupo(false)} className="px-4 py-2 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Crear Grupo</button>
+                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Crear Grupo</button>
               </div>
             </form>
           </div>
@@ -552,8 +638,6 @@ export default function GruposAdminPage() {
         const ocupacion = Math.round((confirmados / capacidad) * 100)
         const sesionesDelGrupo = sesionesGrupo.filter(s => Number(s.grupo_id) === Number(grupoSeleccionado.id))
         const materialesDelGrupo = recursos.filter(r => Number(r.grupo_id) === Number(grupoSeleccionado.id))
-        
-        // Obtener valoraciones asociadas al curso de este grupo
         const valoracionesCurso = valoraciones.filter(v => Number(v.curso_id) === Number(grupoSeleccionado.curso_id))
 
         return (
@@ -568,7 +652,7 @@ export default function GruposAdminPage() {
                   <p className="text-xs text-slate-500 mt-0.5">🗓️ {grupoSeleccionado.horario_texto || 'Sin horario definido'}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button onClick={eliminarGrupo} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3.5 py-2 rounded-xl text-xs font-semibold">Eliminar</button>
+                  <button onClick={eliminarGrupo} className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-3.5 py-2 rounded-xl text-xs font-semibold">Eliminar Grupo</button>
                   <button onClick={() => setModalDetalle(false)} className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center">✕</button>
                 </div>
               </div>
@@ -580,153 +664,80 @@ export default function GruposAdminPage() {
                 <button onClick={() => setPestanaActiva('sesiones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'sesiones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🗓️ Sesiones ({sesionesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('materiales')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'materiales' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📚 Materiales ({materialesDelGrupo.length})</button>
                 <button onClick={() => setPestanaActiva('valoraciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'valoraciones' ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-700 bg-amber-50 hover:bg-amber-100'}`}>⭐ Valoraciones ({valoracionesCurso.length})</button>
-                <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info para WhatsApp</button>
+                <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info WhatsApp</button>
               </div>
 
-              {/* CONTENIDO DE PESTAÑA: DETALLES */}
+              {/* PESTAÑA: DETALLES */}
               {pestanaActiva === 'detalles' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    
-                    {/* CONFIGURAR CAPACIDAD Y FECHAS DEL GRUPO */}
                     <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 sm:col-span-2">
                       <h4 className="text-xs font-bold uppercase text-slate-700">⚙️ Configuración y Fechas del Grupo</h4>
-                      <p className="text-[11px] text-slate-500">Define la capacidad de alumnos y las fechas de inicio y fin (clave para el cierre automático de cursos).</p>
-                      
                       <form onSubmit={actualizarFechasYCapacidad} className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Capacidad Máxima</label>
-                          <input 
-                            type="number" 
-                            min="1"
-                            required 
-                            value={capacidadEditada} 
-                            onChange={(e) => setCapacidadEditada(e.target.value)} 
-                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
-                          />
+                          <input type="number" min="1" required value={capacidadEditada} onChange={(e) => setCapacidadEditada(e.target.value)} className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Inicio</label>
-                          <input 
-                            type="date" 
-                            value={fechaInicioEditada} 
-                            onChange={(e) => setFechaInicioEditada(e.target.value)} 
-                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
-                          />
+                          <input type="date" value={fechaInicioEditada} onChange={(e) => setFechaInicioEditada(e.target.value)} className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" />
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fecha de Fin (Cierre)</label>
-                          <input 
-                            type="date" 
-                            value={fechaFinEditada} 
-                            onChange={(e) => setFechaFinEditada(e.target.value)} 
-                            className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" 
-                          />
+                          <input type="date" value={fechaFinEditada} onChange={(e) => setFechaFinEditada(e.target.value)} className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" />
                         </div>
                         <div className="sm:col-span-3 flex justify-end">
-                          <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Guardar Cambios de Configuración</button>
+                          <button type="submit" className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">Guardar Cambios</button>
                         </div>
                       </form>
                     </div>
 
-                    {/* ENLACE DEL GRUPO DE WHATSAPP */}
                     <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3">
                       <h4 className="text-xs font-bold uppercase text-emerald-900">🔗 Enlace de WhatsApp</h4>
-                      <p className="text-[11px] text-emerald-700">Guarda el link de invitación para tenerlo a la mano.</p>
                       <form onSubmit={actualizarEnlaceWhatsapp} className="flex flex-col sm:flex-row gap-2">
-                        <input 
-                          type="url" 
-                          placeholder="https://chat.whatsapp.com/..."
-                          value={enlaceWhatsappEditado} 
-                          onChange={(e) => setEnlaceWhatsappEditado(e.target.value)} 
-                          className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none focus:border-emerald-500" 
-                        />
-                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap">
-                          Guardar
-                        </button>
+                        <input type="url" placeholder="https://chat.whatsapp.com/..." value={enlaceWhatsappEditado} onChange={(e) => setEnlaceWhatsappEditado(e.target.value)} className="p-2.5 border rounded-xl text-xs bg-white w-full outline-none" />
+                        <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap">Guardar</button>
                       </form>
                     </div>
 
                     <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                       <h4 className="text-xs font-bold uppercase text-slate-500">Información Financiera</h4>
                       <div className="flex justify-between text-xs py-1 border-b border-slate-200">
-                        <span className="text-slate-600">Costo total del curso:</span>
+                        <span className="text-slate-600">Costo total:</span>
                         <span className="font-bold text-slate-900">${Number(grupoSeleccionado.costo_total || 0).toLocaleString('es-MX')} MXN</span>
                       </div>
+                      <div className="flex justify-between text-xs py-1 border-b border-slate-200">
+                        <span className="text-slate-600">Esquema de pagos:</span>
+                        <span className="font-bold text-indigo-600">{grupoSeleccionado.num_pagos || 1} pagos ({grupoSeleccionado.frecuencia || 'mensual'})</span>
+                      </div>
                       <div className="flex justify-between text-xs py-1">
-                        <span className="text-slate-600">Cuota de inscripción:</span>
+                        <span className="text-slate-600">Inscripción:</span>
                         <span className="font-bold text-slate-900">${Number(grupoSeleccionado.cuota_inscripcion || 0).toLocaleString('es-MX')} MXN</span>
                       </div>
                     </div>
                   </div>
-
-                  {/* AJUSTE MASIVO DE PAGOS */}
-                  <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-3">
-                    <h4 className="text-xs font-bold uppercase text-indigo-900">📅 Ajuste Masivo de Pagos del Grupo</h4>
-                    <p className="text-[11px] text-indigo-700">Desplaza las fechas de vencimiento pendientes si una clase se movió.</p>
-                    <form onSubmit={async (e) => {
-                      e.preventDefault()
-                      if (!fechaOriginalAjuste || !fechaNuevaAjuste) return alert('Selecciona las fechas.')
-                      setGuardandoMasivo(true)
-                      const diffDias = Math.round((new Date(fechaNuevaAjuste) - new Date(fechaOriginalAjuste)) / (1000 * 60 * 60 * 24))
-                      const { data: pgs } = await supabase.from('pagos').select('*').eq('grupo_id', grupoSeleccionado.id).eq('estatus', 'Pendiente').gte('fecha_vencimiento', fechaOriginalAjuste)
-                      let count = 0
-                      for (let p of (pgs || [])) {
-                        const f = new Date(p.fecha_vencimiento)
-                        f.setDate(f.getDate() + diffDias)
-                        await supabase.from('pagos').update({ fecha_vencimiento: f.toISOString().split('T')[0] }).eq('id', p.id)
-                        count++
-                      }
-                      alert(`¡Se reprogramaron ${count} cuotas pendientes!`)
-                      setGuardandoMasivo(false)
-                    }} className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <input type="date" required value={fechaOriginalAjuste} onChange={(e) => setFechaOriginalAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
-                        <input type="date" required value={fechaNuevaAjuste} onChange={(e) => setFechaNuevaAjuste(e.target.value)} className="p-2 border rounded-xl text-xs bg-white" />
-                      </div>
-                      <button type="submit" disabled={guardandoMasivo} className="w-full bg-indigo-600 text-white py-2 rounded-xl text-xs font-semibold">Reprogramar Pagos en Cadena</button>
-                    </form>
-                  </div>
-
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: VALORACIONES (NUEVO) */}
+              {/* PESTAÑA: VALORACIONES */}
               {pestanaActiva === 'valoraciones' && (
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold uppercase text-slate-500">⭐ Reseñas y Estrellas de este Curso</h4>
-                    <span className="text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-                      {valoracionesCurso.length} {valoracionesCurso.length === 1 ? 'reseña' : 'reseñas'}
-                    </span>
-                  </div>
-
+                  <h4 className="text-xs font-bold uppercase text-slate-500">⭐ Reseñas y Estrellas de este Curso</h4>
                   {valoracionesCurso.length === 0 ? (
                     <p className="text-xs text-slate-400 italic py-8 text-center bg-slate-50 rounded-2xl">Aún no hay valoraciones registradas para este curso.</p>
                   ) : (
                     <div className="space-y-3">
                       {valoracionesCurso.map(val => {
-                        const alumnoQueValoro = alumnos.find(a => Number(a.id) === Number(val.alumno_id))
-                        const nombreAlumnoVal = alumnoQueValoro ? (alumnoQueValoro.nombre || alumnoQueValoro.Nombre) : 'Estudiante'
-                        
+                        const alumnoVal = alumnos.find(a => Number(a.id) === Number(val.alumno_id))
                         return (
                           <div key={val.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
                             <div className="flex justify-between items-center">
-                              <span className="font-bold text-slate-900 text-xs">{nombreAlumnoVal}</span>
+                              <span className="font-bold text-slate-900 text-xs">{alumnoVal?.nombre || alumnoVal?.Nombre || 'Estudiante'}</span>
                               <div className="flex text-amber-400 text-xs">
-                                {[1, 2, 3, 4, 5].map((num) => (
-                                  <span key={num}>{num <= val.estrellas ? '★' : '☆'}</span>
-                                ))}
+                                {[1, 2, 3, 4, 5].map((num) => (<span key={num}>{num <= val.estrellas ? '★' : '☆'}</span>))}
                               </div>
                             </div>
-                            {val.comentario ? (
-                              <p className="text-xs text-slate-600 italic">"{val.comentario}"</p>
-                            ) : (
-                              <p className="text-[11px] text-slate-400 italic">Sin comentario escrito.</p>
-                            )}
-                            <span className="text-[10px] text-slate-400 block pt-1">
-                              {new Date(val.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </span>
+                            <p className="text-xs text-slate-600 italic">"{val.comentario || 'Sin comentario escrito.'}"</p>
                           </div>
                         )
                       })}
@@ -735,7 +746,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: INSCRIPCIONES */}
+              {/* PESTAÑA: INSCRIPCIONES */}
               {pestanaActiva === 'inscripciones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Estudiantes Inscritos a este Grupo</h4>
@@ -746,68 +757,23 @@ export default function GruposAdminPage() {
                       {inscritosGrupo.map(ins => {
                         const alumno = alumnos.find(a => Number(a.id) === Number(ins.alumno_id))
                         const estaDeBaja = ins.estatus?.toLowerCase() === 'baja'
-                        
                         const pagosAlumno = pagos.filter(p => Number(p.alumno_id) === Number(ins.alumno_id) && Number(p.grupo_id) === Number(grupoSeleccionado.id))
-                        const pagosPendientesVencidos = pagosAlumno.filter(p => p.estatus?.toLowerCase() === 'pendiente' || p.estatus?.toLowerCase() === 'vencido')
-                        
-                        const tienePagosVencidos = pagosPendientesVencidos.some(p => new Date(p.fecha_vencimiento) < new Date())
-                        const tienePagosPendientes = pagosPendientesVencidos.length > 0
-
-                        let badgePago = { text: 'Al corriente', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' }
-                        if (tienePagosVencidos) {
-                          badgePago = { text: 'Pago Vencido', color: 'bg-rose-100 text-rose-700 border-rose-200' }
-                        } else if (tienePagosPendientes) {
-                           badgePago = { text: 'Pago Pendiente', color: 'bg-amber-100 text-amber-700 border-amber-200' }
-                        }
-
-                        const enviarRecordatorio = () => {
-                          if (!alumno?.telefono) return alert('El alumno no tiene teléfono registrado.')
-                          const numFormat = alumno.telefono.replace(/\D/g,'')
-                          const fechaInicio = grupoSeleccionado.fecha_inicio ? new Date(grupoSeleccionado.fecha_inicio) : null
-                          const hoy = new Date()
-                          const datosBanc = "\n\n💳 *Datos de pago:*\nBanco: Banorte\nCLABE: 072180013454340536\nA nombre de: Miguel Ángel Díaz"
-                          
-                          let mensaje = ''
-                          if (fechaInicio && fechaInicio > hoy) {
-                            const diffDias = Math.ceil(Math.abs(fechaInicio - hoy) / (1000 * 60 * 60 * 24))
-                            mensaje = `Hola ${alumno.nombre || alumno.Nombre}, te contactamos de Espiritistas a Cantar. Faltan ${diffDias} días para que inicie el curso "${grupoSeleccionado.nombre_grupo}". No olvides realizar tu pago de inscripción para asegurar tu lugar.${datosBanc}`
-                          } else {
-                            const listaPagos = pagosPendientesVencidos.map(p => p.concepto || `Pago de $${p.monto}`).join(', ')
-                            mensaje = `Hola ${alumno.nombre || alumno.Nombre}, te contactamos de Espiritistas a Cantar. Tienes pendiente el pago de: *${listaPagos}* correspondiente al curso "${grupoSeleccionado.nombre_grupo}". Por favor, realiza tu pago cuanto antes para evitar la suspensión de tu acceso al portal.${datosBanc}`
-                          }
-                          window.open(`https://wa.me/${numFormat}?text=${encodeURIComponent(mensaje)}`, '_blank')
-                        }
+                        const pendientes = pagosAlumno.filter(p => p.estatus?.toLowerCase() === 'pendiente' || p.estatus?.toLowerCase() === 'vencido')
+                        const tieneVencidos = pendientes.some(p => new Date(p.fecha_vencimiento) < new Date())
 
                         return (
-                          <div key={ins.id} className={`p-4 rounded-2xl border flex flex-col xl:flex-row justify-between xl:items-center text-xs gap-4 ${estaDeBaja ? 'bg-slate-100 border-slate-200 opacity-70' : 'bg-slate-50 border-slate-200'}`}>
+                          <div key={ins.id} className={`p-4 rounded-2xl border flex justify-between items-center text-xs ${estaDeBaja ? 'bg-slate-100 opacity-60' : 'bg-slate-50'}`}>
                             <div>
                               <strong className="text-slate-900 block text-sm">{alumno?.nombre || alumno?.Nombre || 'Estudiante'}</strong>
                               <span className="text-slate-500">📧 {alumno?.correo || 'Sin correo'} · 📞 {alumno?.telefono || 'Sin teléfono'}</span>
                             </div>
-                            
-                            <div className="flex flex-wrap items-center gap-2">
-                              {estaDeBaja ? (
-                                <span className="px-3 py-1 rounded-full text-slate-500 bg-slate-200 font-bold">BAJA</span>
-                              ) : (
+                            <div className="flex items-center gap-2">
+                              {estaDeBaja ? <span className="px-3 py-1 rounded-full text-slate-500 bg-slate-200 font-bold">BAJA</span> : (
                                 <>
-                                  <span className="px-3 py-1 rounded-full text-indigo-700 bg-indigo-50 font-bold border border-indigo-100">Activa</span>
-                                  <span className={`px-3 py-1 rounded-full font-bold border ${badgePago.color}`}>{badgePago.text}</span>
-                                  
-                                  {(tienePagosVencidos || tienePagosPendientes) && (
-                                    <button 
-                                      onClick={enviarRecordatorio}
-                                      className="bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1 font-semibold"
-                                    >
-                                      📱 Cobrar
-                                    </button>
-                                  )}
-                                  
-                                  <button 
-                                    onClick={() => darDeBajaAlumno(ins.id, alumno.id)}
-                                    className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition border border-rose-200 hover:border-rose-600 font-semibold ml-2"
-                                  >
-                                    Dar de baja
-                                  </button>
+                                  <span className={`px-3 py-1 rounded-full font-bold ${tieneVencidos ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {tieneVencidos ? 'Pago Vencido' : 'Al Corriente'}
+                                  </span>
+                                  <button onClick={() => darDeBajaAlumno(ins.id, alumno.id)} className="bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white px-3 py-1.5 rounded-xl transition font-semibold ml-2">Dar de baja</button>
                                 </>
                               )}
                             </div>
@@ -819,7 +785,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: SESIONES */}
+              {/* PESTAÑA: SESIONES (CON REPROGRAMACIÓN Y LIGA A PAGOS) */}
               {pestanaActiva === 'sesiones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Programar Sesiones de Clase</h4>
@@ -828,20 +794,30 @@ export default function GruposAdminPage() {
                     <input type="text" required placeholder="Título (Ej. Clase 1)" value={formSesion.titulo_sesion} onChange={(e) => setFormSesion({ ...formSesion, titulo_sesion: e.target.value })} className="p-3 border rounded-xl text-xs bg-white" />
                     <input type="datetime-local" required value={formSesion.fecha_hora} onChange={(e) => setFormSesion({ ...formSesion, fecha_hora: e.target.value })} className="p-3 border rounded-xl text-xs bg-white" />
                     <input type="text" placeholder="Enlace Meet o Salón" value={formSesion.enlace_meet} onChange={(e) => setFormSesion({ ...formSesion, enlace_meet: e.target.value })} className="p-3 border rounded-xl text-xs bg-white" />
-                    <button type="submit" className="sm:col-span-2 bg-emerald-600 text-white py-2.5 rounded-xl text-xs font-semibold">+ Programar Sesión</button>
+                    <button type="submit" className="sm:col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl text-xs font-semibold">+ Programar Sesión</button>
                   </form>
 
                   <div className="space-y-2 pt-2">
-                    {sesionesDelGrupo.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No hay clases programadas.</p>
-                    ) : (
+                    {sesionesDelGrupo.length === 0 ? <p className="text-xs text-slate-400 italic">No hay clases programadas.</p> : (
                       sesionesDelGrupo.map(ses => (
-                        <div key={ses.id} className="p-3 bg-white rounded-xl border flex justify-between items-center text-xs shadow-xs">
+                        <div key={ses.id} className="p-3.5 bg-white rounded-xl border flex justify-between items-center text-xs shadow-xs">
                           <div>
                             <strong>Sesión {ses.numero_sesion}: {ses.titulo_sesion}</strong>
                             <p className="text-[11px] text-slate-500">🕒 {new Date(ses.fecha_hora).toLocaleString('es-MX')} {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}</p>
                           </div>
-                          <button onClick={() => eliminarSesion(ses.id)} className="text-rose-600 font-bold">Eliminar</button>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => {
+                              setSesionSeleccionada(ses)
+                              setFormEditarSesion({
+                                titulo_sesion: ses.titulo_sesion,
+                                fecha_hora: ses.fecha_hora ? ses.fecha_hora.slice(0, 16) : '',
+                                enlace_meet: ses.enlace_meet || '',
+                                reprogramar_pago: false
+                              })
+                              setModalSesionEdit(true)
+                            }} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-100">Reprogramar</button>
+                            <button onClick={() => eliminarSesion(ses.id)} className="text-rose-600 font-bold px-2">✕</button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -849,7 +825,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: MATERIALES */}
+              {/* PESTAÑA: MATERIALES */}
               {pestanaActiva === 'materiales' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Subir Material Didáctico (Videos o PDFs)</h4>
@@ -862,17 +838,11 @@ export default function GruposAdminPage() {
                     <input type="url" required placeholder="URL (YouTube, Drive...)" value={formRecurso.url} onChange={(e) => setFormRecurso({ ...formRecurso, url: e.target.value })} className="p-3 border rounded-xl text-xs bg-white" />
                     <button type="submit" className="sm:col-span-3 bg-slate-900 text-white py-2.5 rounded-xl text-xs font-semibold">+ Agregar Material al Grupo</button>
                   </form>
-
                   <div className="space-y-2 pt-2">
-                    {materialesDelGrupo.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No hay materiales subidos para este grupo.</p>
-                    ) : (
+                    {materialesDelGrupo.length === 0 ? <p className="text-xs text-slate-400 italic">No hay materiales subidos.</p> : (
                       materialesDelGrupo.map(rec => (
                         <div key={rec.id} className="p-3 bg-white rounded-xl border flex justify-between items-center text-xs">
-                          <div>
-                            <strong>{rec.titulo}</strong>
-                            <span className="text-[10px] text-indigo-600 block uppercase">{rec.tipo}</span>
-                          </div>
+                          <div><strong>{rec.titulo}</strong><span className="text-[10px] text-indigo-600 block uppercase">{rec.tipo}</span></div>
                           <button onClick={() => eliminarRecurso(rec.id)} className="text-rose-600 font-bold">Eliminar</button>
                         </div>
                       ))
@@ -881,41 +851,18 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* CONTENIDO DE PESTAÑA: INFO PARA WHATSAPP */}
+              {/* PESTAÑA: WHATSAPP */}
               {pestanaActiva === 'whatsapp' && (
                 <div className="space-y-4">
                   <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-1">
                     <h4 className="text-xs font-bold uppercase text-emerald-900">💬 Copy Informativo para tu Comunidad</h4>
-                    <p className="text-[11px] text-emerald-700">
-                      Escribe o pega aquí el texto completo que publicas en WhatsApp (precios, horarios, temario, etc.).
-                    </p>
+                    <p className="text-[11px] text-emerald-700">Texto completo para enviar o publicar en los chats de WhatsApp.</p>
                   </div>
-
                   <form onSubmit={actualizarInfoCopiar} className="space-y-3">
-                    <textarea 
-                      rows="8"
-                      value={infoCopiarEditada}
-                      onChange={(e) => setInfoCopiarEditada(e.target.value)}
-                      placeholder="Ej. 🎶 *¡Inscripciones Abiertas!*..."
-                      className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none focus:border-emerald-500 font-mono"
-                    ></textarea>
-
-                    <div className="flex flex-col sm:flex-row justify-between gap-3">
-                      <button 
-                        type="button" 
-                        onClick={() => copiarAlPortapapeles(infoCopiarEditada)}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm flex items-center justify-center gap-2"
-                      >
-                        📋 Copiar Texto
-                      </button>
-
-                      <button 
-                        type="submit" 
-                        disabled={guardandoInfo}
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition shadow-sm"
-                      >
-                        {guardandoInfo ? 'Guardando...' : '💾 Guardar Cambios'}
-                      </button>
+                    <textarea rows="8" value={infoCopiarEditada} onChange={(e) => setInfoCopiarEditada(e.target.value)} placeholder="Ej. 🎶 *¡Inscripciones Abiertas!*..." className="w-full p-4 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none font-mono"></textarea>
+                    <div className="flex justify-between">
+                      <button type="button" onClick={() => copiarAlPortapapeles(infoCopiarEditada)} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-xs font-semibold shadow-sm">📋 Copiar Texto</button>
+                      <button type="submit" disabled={guardandoInfo} className="bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-semibold">💾 Guardar Cambios</button>
                     </div>
                   </form>
                 </div>
@@ -928,6 +875,40 @@ export default function GruposAdminPage() {
           </div>
         )
       })()}
+
+      {/* MODAL DE REPROGRAMACIÓN DE SESIÓN INDIVIDUAL (LIGADO A PAGOS) */}
+      {modalSesionEdit && sesionSeleccionada && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">🗓️ Reprogramar Sesión {sesionSeleccionada.numero_sesion}</h3>
+            <form onSubmit={guardarEdicionSesion} className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Título de la Sesión</label>
+                <input type="text" required value={formEditarSesion.titulo_sesion} onChange={(e) => setFormEditarSesion({ ...formEditarSesion, titulo_sesion: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs outline-none" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Nueva Fecha y Hora</label>
+                <input type="datetime-local" required value={formEditarSesion.fecha_hora} onChange={(e) => setFormEditarSesion({ ...formEditarSesion, fecha_hora: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs outline-none" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Enlace Meet o Salón</label>
+                <input type="text" value={formEditarSesion.enlace_meet} onChange={(e) => setFormEditarSesion({ ...formEditarSesion, enlace_meet: e.target.value })} className="w-full p-2.5 border rounded-xl text-xs outline-none" />
+              </div>
+              <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 space-y-1">
+                <label className="flex items-center gap-2 text-xs font-semibold text-indigo-900 cursor-pointer">
+                  <input type="checkbox" checked={formEditarSesion.reprogramar_pago} onChange={(e) => setFormEditarSesion({ ...formEditarSesion, reprogramar_pago: e.target.checked })} className="rounded text-indigo-600" />
+                  Sincronizar con calendario de pagos
+                </label>
+                <p className="text-[10px] text-indigo-700">Moverá en automático los vencimientos de pagos pendientes la misma cantidad de días que se aplazó la clase.</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setModalSesionEdit(false)} className="px-4 py-2 text-xs text-slate-500 font-semibold">Cancelar</button>
+                <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-semibold">Guardar Cambios</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   )
