@@ -258,7 +258,6 @@ export default function GruposAdminPage() {
     cargarDatos()
   }
 
-  // AGREGAR SESIÓN CON HORA LOCAL CORRECTA (EVITA DESFASE UTC)
   const agregarSesionAGrupo = async (e) => {
     e.preventDefault()
     if (!formSesion.titulo_sesion.trim() || !formSesion.fecha_hora) return alert('Completa los campos de la sesión.')
@@ -267,7 +266,7 @@ export default function GruposAdminPage() {
       grupo_id: grupoSeleccionado.id,
       numero_sesion: Number(formSesion.numero_sesion),
       titulo_sesion: formSesion.titulo_sesion.trim(),
-      fecha_hora: formSesion.fecha_hora, // Formato datetime-local nativo
+      fecha_hora: formSesion.fecha_hora,
       enlace_meet: formSesion.enlace_meet.trim() || null
     }])
 
@@ -281,19 +280,18 @@ export default function GruposAdminPage() {
     }
   }
 
-  // REPROGRAMAR SESIÓN Y LIGAR AL CALENDARIO DE PAGOS
+  // REPROGRAMAR SESIÓN Y LIGAR AL CALENDARIO DE PAGOS (CON HORA EXACTA)
   const guardarEdicionSesion = async (e) => {
     e.preventDefault()
     if (!sesionSeleccionada) return
 
-    const fechaAntigua = new Date(sesionSeleccionada.fecha_hora)
-    const fechaNueva = new Date(formEditarSesion.fecha_hora)
+    const fechaHoraStr = formEditarSesion.fecha_hora
 
     const { error } = await supabase
       .from('sesiones_grupo')
       .update({
         titulo_sesion: formEditarSesion.titulo_sesion.trim(),
-        fecha_hora: formEditarSesion.fecha_hora,
+        fecha_hora: fechaHoraStr,
         enlace_meet: formEditarSesion.enlace_meet.trim() || null
       })
       .eq('id', sesionSeleccionada.id)
@@ -303,8 +301,9 @@ export default function GruposAdminPage() {
       return
     }
 
-    // Si se marcó reprogramar pago en cadena por diferencia de días
     if (formEditarSesion.reprogramar_pago) {
+      const fechaAntigua = new Date(sesionSeleccionada.fecha_hora)
+      const fechaNueva = new Date(fechaHoraStr)
       const diffDias = Math.round((fechaNueva - fechaAntigua) / (1000 * 60 * 60 * 24))
       if (diffDias !== 0) {
         const fechaStrOriginal = sesionSeleccionada.fecha_hora.split('T')[0]
@@ -529,7 +528,7 @@ export default function GruposAdminPage() {
         </div>
       </main>
 
-      {/* MODAL NUEVO GRUPO (CON CONFIGURACIÓN DE CUOTAS Y PAGOS) */}
+      {/* MODAL NUEVO GRUPO */}
       {modalGrupo && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
@@ -580,7 +579,6 @@ export default function GruposAdminPage() {
                 </div>
               </div>
 
-              {/* SECCIÓN FINANCIERA CORREGIDA */}
               <div className="grid grid-cols-2 gap-3 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
                 <div>
                   <label className="block text-[10px] font-bold uppercase text-indigo-900 mb-1">Costo Total del Curso ($) *</label>
@@ -785,7 +783,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: SESIONES (CON HORA LOCAL DE MÉXICO CORREGIDA) */}
+              {/* PESTAÑA: SESIONES (CON HORA EXACTA EN FORMATO DE 24 HORAS) */}
               {pestanaActiva === 'sesiones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Programar Sesiones de Clase</h4>
@@ -804,7 +802,7 @@ export default function GruposAdminPage() {
                           <div>
                             <strong>Sesión {ses.numero_sesion}: {ses.titulo_sesion}</strong>
                             <p className="text-[11px] text-slate-500">
-                              🕒 {new Date(ses.fecha_hora).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'short', timeStyle: 'short', hour12: true })} {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}
+                              🕒 {new Date(ses.fecha_hora.endsWith('Z') ? ses.fecha_hora : ses.fecha_hora + 'Z').toLocaleString('es-MX', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short', hour12: false })} hrs {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -878,7 +876,7 @@ export default function GruposAdminPage() {
         )
       })()}
 
-      {/* MODAL DE REPROGRAMACIÓN DE SESIÓN INDIVIDUAL (LIGADO A PAGOS) */}
+      {/* MODAL DE REPROGRAMACIÓN DE SESIÓN INDIVIDUAL */}
       {modalSesionEdit && sesionSeleccionada && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
