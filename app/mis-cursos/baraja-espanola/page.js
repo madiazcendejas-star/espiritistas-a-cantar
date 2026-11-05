@@ -1,31 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../../lib/supabase' // Ajusta tu ruta de importación si es necesario
 
 export default function ReproductorBarajaPage() {
-  // Estado para cambiar de clase activa
-  const [claseActiva, setClaseActiva] = useState(1)
+  const [lecciones, setLecciones] = useState([])
+  const [claseActiva, setClaseActiva] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  // Información de las 3 clases y el contenido del curso
-  const clasesData = {
-    1: {
-      titulo: "Clase 1: El significado de los mazos y cada carta",
-      duracion: "2 horas",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ", // Aquí irá tu enlace de video real (YouTube, Vimeo, etc.)
-      descripcion: "Comprende la energía viva y el trasfondo de cada arcano de la baraja española sin necesidad de memorizar como robot."
-    },
-    2: {
-      titulo: "Clase 2: Auto-consultas, tiradas y preguntas de Sí o No",
-      duracion: "2 horas",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-      descripcion: "Aprende a conectar primero con tu propia energía y domina las técnicas de precisión milimétrica para preguntas directas."
-    },
-    3: {
-      titulo: "Clase 3: Consagración del mazo y secreto de intuición",
-      duracion: "2 horas",
-      videoUrl: "https://www.youtube.com/embed/dQw4w9WgXcQ",
-      descripcion: "Los secretos indispensables para despertar, limpiar y sintonizar la energía de tus cartas, junto al secreto para potenciar tu intuición."
+  useEffect(() => {
+    cargarLeccionesReales()
+  }, [])
+
+  const cargarLeccionesReales = async () => {
+    setLoading(true)
+    // Consultamos las lecciones de la base de datos ordenadas por su campo 'orden'
+    const { data, error } = await supabase
+      .from('lecciones_lms')
+      .select('*')
+      .order('orden', { ascending: true })
+
+    if (error) {
+      console.error('Error al cargar clases:', error.message)
+    } else if (data && data.length > 0) {
+      setLecciones(data)
+      setClaseActiva(data[0]) // Selecciona automáticamente la primera clase
     }
+    setLoading(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans text-slate-500">
+        <p className="text-xs uppercase tracking-widest font-bold animate-pulse">Cargando contenido del taller...</p>
+      </div>
+    )
   }
 
   return (
@@ -52,37 +61,42 @@ export default function ReproductorBarajaPage() {
       {/* CONTENIDO DEL REPRODUCTOR */}
       <main className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* COLUMNA IZQUIERDA: REPRODUCTOR Y DETALLES (2 columnas de ancho) */}
+        {/* COLUMNA IZQUIERDA: REPRODUCTOR Y DETALLES */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Contenedor del Video */}
+          {/* Contenedor del Video Dinámico */}
           <div className="bg-black rounded-3xl overflow-hidden shadow-lg aspect-video flex items-center justify-center relative">
-            <iframe 
-              src={clasesData[claseActiva].videoUrl} 
-              title={clasesData[claseActiva].titulo}
-              className="w-full h-full border-0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-              allowFullScreen
-            ></iframe>
+            {claseActiva ? (
+              <iframe 
+                src={claseActiva.video_url} 
+                title={claseActiva.titulo}
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen
+              ></iframe>
+            ) : (
+              <p className="text-white text-xs">No hay clases disponibles en este momento.</p>
+            )}
           </div>
 
           {/* Información de la clase actual */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 px-3 py-1 rounded-full">
-                Clase {claseActiva} de 3
-              </span>
-              <span className="text-xs text-slate-400 font-medium">⏱️ {clasesData[claseActiva].duracion}</span>
-            </div>
-            
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900">
-              {clasesData[claseActiva].titulo}
-            </h1>
+          {claseActiva && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 px-3 py-1 rounded-full">
+                  Clase Activa
+                </span>
+              </div>
+              
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                {claseActiva.titulo}
+              </h1>
 
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {clasesData[claseActiva].descripcion}
-            </p>
-          </div>
+              <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                Disfruta de este contenido exclusivo preparado para tu formación y desarrollo en el taller.
+              </p>
+            </div>
+          )}
 
           {/* SECCIÓN DE RECURSOS DESCARGABLES */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
@@ -107,30 +121,37 @@ export default function ReproductorBarajaPage() {
 
         </div>
 
-        {/* COLUMNA DERECHA: TEMARIO / LISTA DE CLASES (1 columna de ancho) */}
+        {/* COLUMNA DERECHA: TEMARIO DINÁMICO DESDE EL ADMIN */}
         <div className="space-y-4">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 sticky top-24">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Contenido del Taller</h3>
 
-            <div className="space-y-2">
-              {[1, 2, 3].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => setClaseActiva(num)}
-                  className={`w-full text-left p-4 rounded-2xl transition flex items-center justify-between border cursor-pointer ${
-                    claseActiva === num 
-                      ? 'bg-rose-50 border-rose-200 text-rose-900 font-bold' 
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-medium'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <p className="text-[10px] uppercase tracking-wider text-rose-600 font-bold">Clase {num}</p>
-                    <p className="text-xs line-clamp-1">{clasesData[num].titulo.split(':')[1]}</p>
-                  </div>
-                  <span className="text-sm">{claseActiva === num ? '▶️' : '🔒'}</span>
-                </button>
-              ))}
-            </div>
+            {lecciones.length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Próximamente se habilitarán las clases.</p>
+            ) : (
+              <div className="space-y-2">
+                {lecciones.map((clase, index) => {
+                  const esActiva = claseActiva?.id === clase.id
+                  return (
+                    <button
+                      key={clase.id}
+                      onClick={() => setClaseActiva(clase)}
+                      className={`w-full text-left p-4 rounded-2xl transition flex items-center justify-between border cursor-pointer ${
+                        esActiva 
+                          ? 'bg-rose-50 border-rose-200 text-rose-900 font-bold' 
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <p className="text-[10px] uppercase tracking-wider text-rose-600 font-bold">Clase {clase.orden || index + 1}</p>
+                        <p className="text-xs line-clamp-1">{clase.titulo}</p>
+                      </div>
+                      <span className="text-sm">{esActiva ? '▶️' : '📖'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
 
             <div className="pt-4 border-t border-slate-100">
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center space-y-2">
