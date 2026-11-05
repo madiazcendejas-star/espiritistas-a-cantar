@@ -6,10 +6,10 @@ export default function GraciasPage() {
         Tu pago se ha procesado con éxito. En unos momentos tu acceso quedará habilitado en la plataforma.
       </p>
       <a
-        href="/login"
+        href="/"
         className="inline-block bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg"
       >
-        Ir a mis cursos
+        Volver al inicio
       </a>
     </div>
   );
