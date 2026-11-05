@@ -11,8 +11,13 @@ export default function DetalleCursoPage() {
 
   const [curso, setCurso] = useState(null)
   const [grupos, setGrupos] = useState([])
+  const [lecciones, setLecciones] = useState([])
   const [loading, setLoading] = useState(true)
   const [pestanaActiva, setPestanaActiva] = useState('detalles')
+
+  // Estado para la nueva lección
+  const [formLeccion, setFormLeccion] = useState({ titulo: '', video_url: '', orden: 1 })
+  const [guardandoLeccion, setGuardandoLeccion] = useState(false)
 
   // Estado con los campos extendidos para enriquecer la información del curso
   const [formEdicion, setFormEdicion] = useState({ 
@@ -32,13 +37,14 @@ export default function DetalleCursoPage() {
   const [subiendoImagen, setSubiendoImagen] = useState(false)
 
   useEffect(() => {
-    if (cursoId) cargarCursoYGrupos()
+    if (cursoId) cargarDatosCurso()
   }, [cursoId])
 
-  const cargarCursoYGrupos = async () => {
+  const cargarDatosCurso = async () => {
     setLoading(true)
     const { data: resCurso } = await supabase.from('cursos').select('*').eq('id', cursoId).single()
     const { data: resGrupos } = await supabase.from('grupos').select('*').eq('curso_id', cursoId)
+    const { data: resLecciones } = await supabase.from('lecciones_lms').select('*').eq('curso_id', cursoId).order('orden', { ascending: true })
 
     if (resCurso) {
       setCurso(resCurso)
@@ -54,6 +60,10 @@ export default function DetalleCursoPage() {
       })
     }
     if (resGrupos) setGrupos(resGrupos)
+    if (resLecciones) {
+      setLecciones(resLecciones)
+      setFormLeccion(prev => ({ ...prev, orden: resLecciones.length + 1 }))
+    }
     setLoading(false)
   }
 
@@ -79,9 +89,37 @@ export default function DetalleCursoPage() {
       alert('Error al actualizar: ' + error.message)
     } else {
       alert('¡Información del curso actualizada exitosamente!')
-      cargarCursoYGrupos()
+      cargarDatosCurso()
     }
     setGuardando(false)
+  }
+
+  // AGREGAR LECCIÓN / CLASE GRABADA
+  const agregarLeccion = async (e) => {
+    e.preventDefault()
+    setGuardandoLeccion(true)
+
+    const { error } = await supabase.from('lecciones_lms').insert([{
+      curso_id: cursoId,
+      titulo: formLeccion.titulo.trim(),
+      video_url: formLeccion.video_url.trim(),
+      orden: Number(formLeccion.orden) || 1
+    }])
+
+    if (error) {
+      alert('Error al agregar lección: ' + error.message)
+    } else {
+      setFormLeccion({ titulo: '', video_url: '', orden: lecciones.length + 2 })
+      cargarDatosCurso()
+    }
+    setGuardandoLeccion(false)
+  }
+
+  // ELIMINAR LECCIÓN
+  const eliminarLeccion = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar esta clase?')) return
+    const { error } = await supabase.from('lecciones_lms').delete().eq('id', id)
+    if (!error) cargarDatosCurso()
   }
 
   // FUNCIÓN PARA SUBIR LA IMAGEN LIMPIANDO ACENTOS Y ESPACIOS
@@ -122,21 +160,9 @@ export default function DetalleCursoPage() {
     } else {
       alert('¡Imagen de portada actualizada con éxito!')
       setImagenArchivo(null)
-      cargarCursoYGrupos()
+      cargarDatosCurso()
     }
     setSubiendoImagen(false)
-  }
-
-  const eliminarCurso = async () => {
-    if (!confirm('¿Estás seguro de eliminar este curso? Esta acción es irreversible.')) return
-
-    const { error } = await supabase.from('cursos').delete().eq('id', cursoId)
-    if (!error) {
-      alert('Curso eliminado.')
-      router.push('/admin/cursos')
-    } else {
-      alert('Error al eliminar: ' + error.message)
-    }
   }
 
   if (loading) {
@@ -189,7 +215,7 @@ export default function DetalleCursoPage() {
             </button>
             <div>
               <h1 className="text-xl font-black text-slate-900 tracking-tight">{nombreCurso}</h1>
-              <p className="text-xs text-slate-500 font-medium">Gestiona los detalles del curso y sus grupos</p>
+              <p className="text-xs text-slate-500 font-medium">Gestiona los detalles del curso, imágenes y clases grabadas</p>
             </div>
           </div>
 
@@ -218,6 +244,7 @@ export default function DetalleCursoPage() {
 
         <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8">
           
+          {/* PESTAÑAS DE NAVEGACIÓN */}
           <div className="flex gap-8 border-b border-slate-200 text-sm font-bold">
             <button 
               onClick={() => setPestanaActiva('detalles')}
@@ -232,6 +259,12 @@ export default function DetalleCursoPage() {
               🏛️ Grupos <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full text-xs">{grupos.length}</span>
             </button>
             <button 
+              onClick={() => setPestanaActiva('lecciones')}
+              className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'lecciones' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
+            >
+              🎬 Lecciones / Clases <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">{lecciones.length}</span>
+            </button>
+            <button 
               onClick={() => setPestanaActiva('imagenes')}
               className={`pb-4 border-b-2 transition flex items-center gap-2 ${pestanaActiva === 'imagenes' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-900'}`}
             >
@@ -239,6 +272,7 @@ export default function DetalleCursoPage() {
             </button>
           </div>
 
+          {/* CONTENIDO PESTAÑA: DETALLES */}
           {pestanaActiva === 'detalles' && (
             <div className="space-y-6">
               <div className="bg-white p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
@@ -267,7 +301,7 @@ export default function DetalleCursoPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duración (Ej. 4 semanas)</label>
+                      <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Duración</label>
                       <input 
                         type="text"
                         value={formEdicion.duracion}
@@ -307,7 +341,8 @@ export default function DetalleCursoPage() {
                       rows="4"
                       value={formEdicion.lo_que_aprenderas}
                       onChange={(e) => setFormEdicion({ ...formEdicion, lo_que_aprenderas: e.target.value })}
-                      placeholder="• Introducción al taller&#10;• Práctica avanzada&#10;• Material de apoyo..."
+                      placeholder="• Introducción
+• Práctica avanzada..."
                       className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none resize-none focus:bg-white"
                     />
                   </div>
@@ -316,9 +351,9 @@ export default function DetalleCursoPage() {
                     <button 
                       type="submit" 
                       disabled={guardando} 
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20 transition"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3.5 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer"
                     >
-                      Guardar Cambios
+                      {guardando ? 'Guardando...' : 'Guardar Cambios'}
                     </button>
                   </div>
                 </form>
@@ -326,17 +361,115 @@ export default function DetalleCursoPage() {
             </div>
           )}
 
+          {/* CONTENIDO PESTAÑA: GRUPOS */}
           {pestanaActiva === 'grupos' && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-black text-slate-900">Grupos Asociados</h3>
-              </div>
-              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs p-6 text-xs text-slate-500">
-                Gestión de grupos vinculados a este curso.
+              <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs p-6 text-sm text-slate-600 font-medium">
+                {grupos.length === 0 ? (
+                  <p className="text-slate-400 italic">No hay grupos asociados a este curso todavía.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {grupos.map(g => (
+                      <li key={g.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex justify-between items-center">
+                        <span className="font-bold text-slate-900">{g.nombre_grupo || g.nombre || 'Grupo'}</span>
+                        <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-bold">Cupo: {g.capacidad_maxima || 'N/A'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           )}
 
+          {/* CONTENIDO PESTAÑA: LECCIONES (NUEVO LMS) */}
+          {pestanaActiva === 'lecciones' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              
+              {/* LISTA DE LECCIONES */}
+              <div className="lg:col-span-2 space-y-4">
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Clases Grabadas del Curso ({lecciones.length})</h3>
+                
+                {lecciones.length === 0 ? (
+                  <div className="bg-white rounded-3xl border border-slate-200 p-10 text-center text-slate-400 font-medium text-sm">
+                    Aún no hay clases registradas. Agrega la primera lección desde el panel derecho. 🚀
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {lecciones.map((l, index) => (
+                      <div key={l.id} className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between shadow-xs">
+                        <div className="flex items-center gap-4">
+                          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                            {l.orden || index + 1}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-sm">{l.titulo}</h4>
+                            <p className="text-xs text-slate-400 truncate max-w-sm">{l.video_url}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => eliminarLeccion(l.id)}
+                          className="text-xs text-rose-500 hover:text-rose-700 font-bold px-3 py-1.5 rounded-xl hover:bg-rose-50 transition cursor-pointer"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* FORMULARIO PARA NUEVA LECCIÓN */}
+              <div className="space-y-4">
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Agregar Clase</h3>
+                <form onSubmit={agregarLeccion} className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xs space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Título de la Clase *</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ej. Clase 1: Introducción"
+                      value={formLeccion.titulo}
+                      onChange={(e) => setFormLeccion({ ...formLeccion, titulo: e.target.value })}
+                      className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Enlace del Video *</label>
+                    <input 
+                      type="url" 
+                      required
+                      placeholder="https://www.youtube.com/embed/..."
+                      value={formLeccion.video_url}
+                      onChange={(e) => setFormLeccion({ ...formLeccion, video_url: e.target.value })}
+                      className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Número de Orden</label>
+                    <input 
+                      type="number" 
+                      value={formLeccion.orden}
+                      onChange={(e) => setFormLeccion({ ...formLeccion, orden: e.target.value })}
+                      className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={guardandoLeccion}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                  >
+                    {guardandoLeccion ? 'Guardando...' : 'Añadir Lección 🎬'}
+                  </button>
+                </form>
+              </div>
+
+            </div>
+          )}
+
+          {/* CONTENIDO PESTAÑA: IMÁGENES */}
           {pestanaActiva === 'imagenes' && (
             <div className="bg-white p-8 rounded-3xl border border-slate-200/80 space-y-6 shadow-xs max-w-xl">
               <div>
@@ -369,7 +502,7 @@ export default function DetalleCursoPage() {
                     <button 
                       type="submit"
                       disabled={subiendoImagen || !imagenArchivo}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition disabled:opacity-50"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-md shadow-indigo-600/20 transition disabled:opacity-50 cursor-pointer"
                     >
                       {subiendoImagen ? 'Subiendo imagen...' : 'Subir y actualizar portada'}
                     </button>
