@@ -40,6 +40,9 @@ function GraciasContent() {
 
   const handleActivarCuenta = async (e) => {
     e.preventDefault()
+    if (!email) {
+      return setErrorMsg('Esperando correo de Stripe. Por favor recarga la página si tarda un momento.')
+    }
     if (!password || password.length < 6) {
       return setErrorMsg('La contraseña debe tener al menos 6 caracteres.')
     }
@@ -125,7 +128,8 @@ function GraciasContent() {
             type="email" 
             disabled
             value={email}
-            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-slate-400 cursor-not-allowed outline-none"
+            placeholder="Cargando correo de Stripe..."
+            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-slate-300 cursor-not-allowed outline-none"
           />
           <span className="text-[10px] text-slate-500 mt-1 block">Este correo viene directamente de tu pago y es tu usuario de acceso.</span>
         </div>
@@ -152,10 +156,10 @@ function GraciasContent() {
 
         <button 
           type="submit"
-          disabled={activando}
-          className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition cursor-pointer"
+          disabled={activando || !email}
+          className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition cursor-pointer"
         >
-          {activando ? 'Activando tu cuenta...' : '🚀 Activar mi cuenta y entrar'}
+          {activando ? 'Activando tu cuenta...' : (!email ? 'Cargando datos de pago...' : '🚀 Activar mi cuenta y entrar')}
         </button>
       </form>
 
