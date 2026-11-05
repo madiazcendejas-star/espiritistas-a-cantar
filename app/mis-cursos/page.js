@@ -20,7 +20,7 @@ export default function MisCursosDashboard() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = '/cursos/baraja-espanola'
+    window.location.href = '/login'
   }
 
   if (loading) {
