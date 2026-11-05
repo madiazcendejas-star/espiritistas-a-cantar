@@ -33,7 +33,7 @@ export default function GruposAdminPage() {
     reprogramar_pago: false
   })
 
-  // Formulario Nuevo Grupo (Con num_pagos y frecuencia funcionales)
+  // Formulario Nuevo Grupo
   const [formGrupo, setFormGrupo] = useState({
     curso_id: '',
     nombre_grupo: '',
@@ -68,11 +68,6 @@ export default function GruposAdminPage() {
     enlace_meet: ''
   })
 
-  // Ajuste masivo de pagos
-  const [fechaOriginalAjuste, setFechaOriginalAjuste] = useState('')
-  const [fechaNuevaAjuste, setFechaNuevaAjuste] = useState('')
-  const [guardandoMasivo, setGuardandoMasivo] = useState(false)
-
   useEffect(() => {
     cargarDatos()
   }, [])
@@ -99,7 +94,7 @@ export default function GruposAdminPage() {
     setLoading(false)
   }
 
-  // CREAR GRUPO Y GENERAR PLAN DE PAGOS AUTOMÁTICO SI APLICA
+  // CREAR GRUPO
   const crearGrupo = async (e) => {
     e.preventDefault()
     setGuardando(true)
@@ -107,7 +102,7 @@ export default function GruposAdminPage() {
     const costoTotalNum = Number(formGrupo.costo_total) || 0
     const numPagosNum = Number(formGrupo.num_pagos) || 1
 
-    const { data: grupoCreado, error } = await supabase.from('grupos').insert([{
+    const { error } = await supabase.from('grupos').insert([{
       curso_id: Number(formGrupo.curso_id),
       nombre_grupo: formGrupo.nombre_grupo.trim(),
       tipo_modalidad: formGrupo.tipo_modalidad,
@@ -120,7 +115,7 @@ export default function GruposAdminPage() {
       fecha_fin: formGrupo.fecha_fin || null,
       horario_texto: formGrupo.horario_texto.trim(),
       enlace_whatsapp: formGrupo.enlace_whatsapp.trim()
-    }]).select().single()
+    }])
 
     if (error) {
       alert('Error al crear grupo: ' + error.message)
@@ -141,7 +136,7 @@ export default function GruposAdminPage() {
         enlace_whatsapp: ''
       })
       cargarDatos()
-      alert('¡Grupo creado exitosamente con su esquema de pagos configurado!')
+      alert('¡Grupo creado exitosamente!')
     }
     setGuardando(false)
   }
@@ -160,7 +155,7 @@ export default function GruposAdminPage() {
       .eq('id', grupoSeleccionado.id)
 
     if (error) {
-      alert('Error al actualizar datos del grupo: ' + error.message)
+      alert('Error al actualizar datos: ' + error.message)
     } else {
       alert('¡Configuración guardada con éxito!')
       setGrupoSeleccionado({ 
@@ -202,9 +197,9 @@ export default function GruposAdminPage() {
       .eq('id', grupoSeleccionado.id)
 
     if (error) {
-      alert('Error al guardar la información para WhatsApp: ' + error.message)
+      alert('Error al guardar la información: ' + error.message)
     } else {
-      alert('¡Información para WhatsApp guardada con éxito!')
+      alert('¡Información guardada con éxito!')
       setGrupoSeleccionado({ ...grupoSeleccionado, info_copiar: infoCopiarEditada })
       cargarDatos()
     }
@@ -218,7 +213,7 @@ export default function GruposAdminPage() {
   }
 
   const eliminarGrupo = async () => {
-    if (!confirm('¿Estás seguro de eliminar este grupo? Se perderán sus inscripciones y pagos asociados.')) return
+    if (!confirm('¿Estás seguro de eliminar este grupo?')) return
     const { error } = await supabase.from('grupos').delete().eq('id', grupoSeleccionado.id)
     if (!error) {
       setModalDetalle(false)
@@ -229,7 +224,7 @@ export default function GruposAdminPage() {
   }
 
   const darDeBajaAlumno = async (inscripcionId, alumnoId) => {
-    if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno? Perderá el acceso y se cancelarán sus cobros futuros.')) return
+    if (!confirm('¿Estás seguro de DAR DE BAJA a este alumno?')) return
     setLoading(true)
 
     const { error: errIns } = await supabase
@@ -280,12 +275,12 @@ export default function GruposAdminPage() {
     }
   }
 
-  // REPROGRAMAR SESIÓN Y LIGAR AL CALENDARIO DE PAGOS (CON HORA EXACTA)
+  // REPROGRAMAR SESIÓN (USANDO TEXTO PLANO PARA EVITAR CUALQUIER DESFASE)
   const guardarEdicionSesion = async (e) => {
     e.preventDefault()
     if (!sesionSeleccionada) return
 
-    const fechaHoraStr = formEditarSesion.fecha_hora
+    const fechaHoraStr = formEditarSesion.fecha_hora // Ej: "2026-11-17T20:00"
 
     const { error } = await supabase
       .from('sesiones_grupo')
@@ -384,10 +379,21 @@ export default function GruposAdminPage() {
     return coincide
   })
 
+  // Función segura para formatear la fecha y hora plano sin conversiones UTC erróneas
+  const formatearFechaHoraSegura = (fechaStr) => {
+    if (!fechaStr) return 'Sin fecha'
+    // Si viene en formato "2026-11-17T20:00" o con segundos "2026-11-17T20:00:00"
+    const partes = fechaStr.split('T')
+    if (partes.length !== 2) return fechaStr
+    const [anio, mes, dia] = partes[0].split('-')
+    const horaMinuto = partes[1].substring(0, 5) // "20:00"
+    return `${dia}/${mes}/${anio}, ${horaMinuto} hrs`
+  }
+
   return (
     <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900">
       
-      {/* SIDEBAR MODERNO */}
+      {/* SIDEBAR */}
       <aside className="w-64 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/80 z-20 flex-shrink-0">
         <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
           <div className="flex items-center gap-3">
@@ -626,7 +632,7 @@ export default function GruposAdminPage() {
         </div>
       )}
 
-      {/* MODAL DETALLE DE GRUPO CON PESTAÑAS */}
+      {/* MODAL DETALLE DE GRUPO */}
       {modalDetalle && grupoSeleccionado && (() => {
         const cursoAsociado = cursos.find(c => Number(c.id) === Number(grupoSeleccionado.curso_id))
         const nombreCurso = cursoAsociado?.Nombre_curso || cursoAsociado?.nombre_curso || 'Curso General'
@@ -642,7 +648,6 @@ export default function GruposAdminPage() {
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-3xl max-w-4xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 max-h-[90vh] overflow-y-auto">
               
-              {/* CABECERA DEL DETALLE */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                 <div>
                   <span className="text-xs bg-indigo-50 text-indigo-600 font-bold px-3 py-1 rounded-full uppercase">{nombreCurso}</span>
@@ -655,7 +660,6 @@ export default function GruposAdminPage() {
                 </div>
               </div>
 
-              {/* NAVEGACIÓN POR PESTAÑAS */}
               <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-xs font-bold">
                 <button onClick={() => setPestanaActiva('detalles')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'detalles' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>📄 Detalles</button>
                 <button onClick={() => setPestanaActiva('inscripciones')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'inscripciones' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>🎓 Inscripciones ({inscritosGrupo.length})</button>
@@ -665,7 +669,6 @@ export default function GruposAdminPage() {
                 <button onClick={() => setPestanaActiva('whatsapp')} className={`px-4 py-2 rounded-xl transition ${pestanaActiva === 'whatsapp' ? 'bg-emerald-600 text-white shadow-sm' : 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'}`}>💬 Info WhatsApp</button>
               </div>
 
-              {/* PESTAÑA: DETALLES */}
               {pestanaActiva === 'detalles' && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -717,7 +720,6 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: VALORACIONES */}
               {pestanaActiva === 'valoraciones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">⭐ Reseñas y Estrellas de este Curso</h4>
@@ -744,7 +746,6 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: INSCRIPCIONES */}
               {pestanaActiva === 'inscripciones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Estudiantes Inscritos a este Grupo</h4>
@@ -783,7 +784,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: SESIONES (CON HORA EXACTA EN FORMATO DE 24 HORAS) */}
+              {/* PESTAÑA: SESIONES (CON VISUALIZADOR SEGURO EN TEXTO PLANO) */}
               {pestanaActiva === 'sesiones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Programar Sesiones de Clase</h4>
@@ -802,7 +803,7 @@ export default function GruposAdminPage() {
                           <div>
                             <strong>Sesión {ses.numero_sesion}: {ses.titulo_sesion}</strong>
                             <p className="text-[11px] text-slate-500">
-                              🕒 {new Date(ses.fecha_hora.endsWith('Z') ? ses.fecha_hora : ses.fecha_hora + 'Z').toLocaleString('es-MX', { timeZone: 'UTC', dateStyle: 'short', timeStyle: 'short', hour12: false })} hrs {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}
+                              🕒 {formatearFechaHoraSegura(ses.fecha_hora)} {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -825,7 +826,6 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: MATERIALES */}
               {pestanaActiva === 'materiales' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Subir Material Didáctico (Videos o PDFs)</h4>
@@ -851,7 +851,6 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: WHATSAPP */}
               {pestanaActiva === 'whatsapp' && (
                 <div className="space-y-4">
                   <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-1">
