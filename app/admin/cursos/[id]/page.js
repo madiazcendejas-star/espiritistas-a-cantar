@@ -19,7 +19,7 @@ export default function DetalleCursoPage() {
   const [formLeccion, setFormLeccion] = useState({ titulo: '', video_url: '', orden: 1 })
   const [guardandoLeccion, setGuardandoLeccion] = useState(false)
 
-  // Estado con los campos extendidos para enriquecer la información del curso
+  // Estado con los campos extendidos para enriquecer la información del curso (incluyendo manual_pdf_url)
   const [formEdicion, setFormEdicion] = useState({ 
     Nombre_curso: '', 
     descripcion: '', 
@@ -28,14 +28,14 @@ export default function DetalleCursoPage() {
     modalidad: 'en_linea',
     lo_que_aprenderas: '',
     visible_web: true,
-    proximo: false 
+    proximo: false,
+    manual_pdf_url: '' 
   })
   const [guardando, setGuardando] = useState(false)
 
   // Estado para la subida de imagen directa desde el equipo
   const [imagenArchivo, setImagenArchivo] = useState(null)
   const [subiendoImagen, setSubiendoImagen] = useState(false)
-  const [subiendoPdf, setSubiendoPdf] = useState(false)
 
   useEffect(() => {
     if (cursoId) cargarDatosCurso()
@@ -57,7 +57,8 @@ export default function DetalleCursoPage() {
         modalidad: resCurso.modalidad || 'en_linea',
         lo_que_aprenderas: resCurso.lo_que_aprenderas || '',
         visible_web: resCurso.visible_web ?? true,
-        proximo: resCurso.proximo ?? false
+        proximo: resCurso.proximo ?? false,
+        manual_pdf_url: resCurso.manual_pdf_url || ''
       })
     }
     if (resGrupos) setGrupos(resGrupos)
@@ -82,7 +83,8 @@ export default function DetalleCursoPage() {
         modalidad: formEdicion.modalidad,
         lo_que_aprenderas: formEdicion.lo_que_aprenderas.trim(),
         visible_web: formEdicion.visible_web,
-        proximo: formEdicion.proximo
+        proximo: formEdicion.proximo,
+        manual_pdf_url: formEdicion.manual_pdf_url ? formEdicion.manual_pdf_url.trim() : ''
       })
       .eq('id', cursoId)
 
@@ -164,48 +166,6 @@ export default function DetalleCursoPage() {
       cargarDatosCurso()
     }
     setSubiendoImagen(false)
-  }
-
-  // FUNCIÓN PARA SUBIR EL MANUAL PDF DESDE EL ADMIN
-  const subirPdfManual = async (e) => {
-    const archivo = e.target.files[0]
-    if (!archivo) return
-
-    setSubiendoPdf(true)
-    const nombreLimpio = archivo.name
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-zA-Z0-9.-]/g, '_')
-
-    const nombreArchivo = `pdf_${Date.now()}_${nombreLimpio}`
-    
-    const { error: uploadError } = await supabase.storage
-      .from('cursos')
-      .upload(nombreArchivo, archivo)
-
-    if (uploadError) {
-      setSubiendoPdf(false)
-      return alert('Error al subir el PDF: ' + uploadError.message)
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('cursos')
-      .getPublicUrl(nombreArchivo)
-
-    const urlPdf = publicUrlData.publicUrl
-
-    const { error: updateError } = await supabase
-      .from('cursos')
-      .update({ manual_pdf_url: urlPdf })
-      .eq('id', cursoId)
-
-    if (updateError) {
-      alert('PDF subido pero error al guardar en la base de datos: ' + updateError.message)
-    } else {
-      alert('¡Manual en PDF subido y vinculado con éxito! 📄')
-      cargarDatosCurso()
-    }
-    setSubiendoPdf(false)
   }
 
   if (loading) {
@@ -390,20 +350,24 @@ export default function DetalleCursoPage() {
                     />
                   </div>
 
-                  {/* SECCIÓN NUEVA: SUBIR MANUAL PDF */}
+                  {/* SECCIÓN NUEVA: ENLACE DEL MANUAL PDF (GOOGLE DRIVE) */}
                   <div className="pt-4 border-t border-slate-100">
-                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Manual o Recurso en PDF</label>
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Enlace del Manual o PDF (Ej. Google Drive)</label>
                     <input 
-                      type="file"
-                      accept="application/pdf"
-                      onChange={subirPdfManual}
-                      className="w-full p-2.5 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                      type="url"
+                      placeholder="https://drive.google.com/..."
+                      value={formEdicion.manual_pdf_url}
+                      onChange={(e) => setFormEdicion({ ...formEdicion, manual_pdf_url: e.target.value })}
+                      className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none focus:bg-white"
                     />
-                    {subiendoPdf && <p className="text-xs text-indigo-600 font-semibold mt-2">Subiendo PDF...</p>}
-                    {curso.manual_pdf_url && (
-                      <p className="text-xs text-emerald-600 font-semibold mt-2">
-                        ✅ PDF actual cargado correctamente (<a href={curso.manual_pdf_url} target="_blank" rel="noreferrer" className="underline font-bold">Ver archivo PDF</a>)
-                      </p>
+                    <p className="text-[11px] text-slate-400 mt-1">Pega el enlace de Google Drive o cualquier nube para que los alumnos lo descarguen con un clic.</p>
+                    
+                    {formEdicion.manual_pdf_url && (
+                      <div className="mt-2">
+                        <a href={formEdicion.manual_pdf_url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 font-bold underline">
+                          🔗 Probar enlace actual
+                        </a>
+                      </div>
                     )}
                   </div>
 
