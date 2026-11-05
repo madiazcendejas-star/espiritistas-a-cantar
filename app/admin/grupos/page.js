@@ -785,7 +785,7 @@ export default function GruposAdminPage() {
                 </div>
               )}
 
-              {/* PESTAÑA: SESIONES (CON REPROGRAMACIÓN Y LIGA A PAGOS) */}
+              {/* PESTAÑA: SESIONES (CON HORA LOCAL DE MÉXICO CORREGIDA) */}
               {pestanaActiva === 'sesiones' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold uppercase text-slate-500">Programar Sesiones de Clase</h4>
@@ -803,7 +803,9 @@ export default function GruposAdminPage() {
                         <div key={ses.id} className="p-3.5 bg-white rounded-xl border flex justify-between items-center text-xs shadow-xs">
                           <div>
                             <strong>Sesión {ses.numero_sesion}: {ses.titulo_sesion}</strong>
-                            <p className="text-[11px] text-slate-500">🕒 {new Date(ses.fecha_hora).toLocaleString('es-MX')} {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}</p>
+                            <p className="text-[11px] text-slate-500">
+                              🕒 {new Date(ses.fecha_hora).toLocaleString('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'short', timeStyle: 'short', hour12: true })} {ses.enlace_meet ? `· 🔗 ${ses.enlace_meet}` : ''}
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => {
