@@ -24,10 +24,53 @@ export default function ProspectosPage() {
   // Modal para Enviar Mensaje / Secuencia de WhatsApp
   const [modalMensaje, setModalMensaje] = useState(false)
   const [prospectoSeleccionado, setProspectoSeleccionado] = useState(null)
-  const [tipoMensaje, setTipoMensaje] = useState('primer_contacto')
+  
+  // Plantillas por defecto + Plantillas personalizadas del usuario
+  const [plantillas, setPlantillas] = useState([
+    {
+      id: 'primer_contacto',
+      titulo: '1. Primer Contacto (Bienvenida y Valor)',
+      texto: '¡Hola [Nombre]! Qué gusto saludarte. Vi tu interés en el curso *[Curso]* en Espiritistas a Cantar. ¿Te gustaría que te comparta el temario completo o tienes alguna duda sobre fechas y horarios?'
+    },
+    {
+      id: 'seguimiento',
+      titulo: '2. Seguimiento (Lugares limitados)',
+      texto: '¡Hola [Nombre]! Espero que tengas excelente semana. Te escribo porque los lugares para el curso *[Curso]* se están llenando y no quería que te quedaras fuera. ¿Te aparto tu lugar?'
+    },
+    {
+      id: 'urgencia',
+      titulo: '3. Urgencia / Cierre (Cercanía de inicio)',
+      texto: '¡Hola [Nombre]! ¿Cómo estás? Te cuento que estamos a pocos días de arrancar con el curso *[Curso]* y nos quedan muy pocos lugares disponibles. ¿Tienes algún problema con tu proceso de inscripción para echarte la mano?'
+    },
+    {
+      id: 'info_pago',
+      titulo: '4. Información de Pago y Métodos',
+      texto: '¡Hola [Nombre]! Claro que sí, con gusto te comparto los detalles y métodos de pago para inscribirte al curso *[Curso]*:\n\n💳 Puedes realizar tu pago mediante tarjeta de crédito/débito directamente en nuestra plataforma o por transferencia bancaria.\n\nUna vez realizado tu pago, me mandas tu comprobante por aquí para darte de alta de inmediato. ¿Tienes alguna duda con el proceso?'
+    },
+    {
+      id: 'bienvenida_inscrito',
+      titulo: '5. Confirmación de Inscripción Exitosa',
+      texto: '¡Muchas felicidades [Nombre]! 🎉 Me da muchísimo gusto confirmarte que tu inscripción al curso *[Curso]* ha quedado lista. En breve recibirás tus accesos a la plataforma para comenzar. ¡Bienvenido a la comunidad de Espiritistas a Cantar!'
+    }
+  ])
+
+  const [plantillaSeleccionadaId, setPlantillaSeleccionadaId] = useState('primer_contacto')
+
+  // Estado para crear nueva plantilla personalizada
+  const [mostrarFormNuevaPlantilla, setMostrarFormNuevaPlantilla] = useState(false)
+  const [nuevaPlantilla, setNuevaPlantilla] = useState({ titulo: '', texto: '' })
 
   useEffect(() => {
     cargarDatos()
+    // Cargar plantillas personalizadas guardadas previamente si existen
+    const guardadas = localStorage.getItem('plantillas_whatsapp_personalizadas')
+    if (guardadas) {
+      try {
+        setPlantillas(JSON.parse(guardadas))
+      } catch (e) {
+        console.error("Error al cargar plantillas guardadas", e)
+      }
+    }
   }, [])
 
   const cargarDatos = async () => {
@@ -74,23 +117,68 @@ export default function ProspectosPage() {
     if (!error) cargarDatos()
   }
 
-  // Generador de Enlaces de WhatsApp con Plantillas Persuasivas
+  // Guardar nueva plantilla creada por el usuario
+  const agregarPlantillaPersonalizada = (e) => {
+    e.preventDefault()
+    if (!nuevaPlantilla.titulo.trim() || !nuevaPlantilla.texto.trim()) {
+      return alert('Completa el título y el texto de la plantilla.')
+    }
+
+    const nueva = {
+      id: 'custom_' + Date.now(),
+      titulo: nuevaPlantilla.titulo.trim(),
+      texto: nuevaPlantilla.texto.trim()
+    }
+
+    const actualizadas = [...plantillas, nueva]
+    setPlantillas(actualizadas)
+    localStorage.setItem('plantillas_whatsapp_personalizadas', JSON.stringify(actualizadas))
+
+    setPlantillaSeleccionadaId(nueva.id)
+    setNuevaPlantilla({ titulo: '', texto: '' })
+    setMostrarFormNuevaPlantilla(false)
+    alert('¡Plantilla guardada con éxito!')
+  }
+
+  // Eliminar plantilla personalizada
+  const eliminarPlantilla = (id, e) => {
+    e.stopPropagation()
+    if (plantillas.length <= 1) return alert('Debes conservar al menos una plantilla.')
+    if (!confirm('¿Eliminar esta plantilla personalizada?')) return
+
+    const actualizadas = plantillas.filter(p => p.id !== id)
+    setPlantillas(actualizadas)
+    localStorage.setItem('plantillas_whatsapp_personalizadas', JSON.stringify(actualizadas))
+    setPlantillaSeleccionadaId(actualizadas[0].id)
+  }
+
+  // Generador de Enlaces de WhatsApp reemplazando comodines [Nombre] y [Curso]
   const generarEnlaceWhatsApp = (prospecto) => {
     const cursoObj = cursos.find(c => Number(c.id) === Number(prospecto.curso_id))
     const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'nuestros talleres'
     const nombre = prospecto.nombre || 'Estimado(a)'
 
-    let mensaje = ''
-    if (tipoMensaje === 'primer_contacto') {
-      mensaje = `¡Hola ${nombre}! Qué gusto saludarte. Vi tu interés en el curso *${nombreCurso}* en Espiritistas a Cantar. ¿Te gustaría que te comparta el temario completo o tienes alguna duda sobre fechas y horarios?`
-    } else if (tipoMensaje === 'seguimiento') {
-      mensaje = `¡Hola ${nombre}! Espero que tengas excelente semana. Te escribo porque los lugares para el curso *${nombreCurso}* se están llenando y no quería que te quedaras fuera. ¿Te aparto tu lugar?`
-    } else if (tipoMensaje === 'urgencia') {
-      mensaje = `¡Hola ${nombre}! ¿Cómo estás? Te cuento que estamos a pocos días de arrancar con el curso *${nombreCurso}* y nos quedan muy pocos lugares disponibles. ¿Tienes algún problema con tu proceso de inscripción para echarte la mano?`
-    }
+    const plantillaObj = plantillas.find(p => p.id === plantillaSeleccionadaId) || plantillas[0]
+    
+    let mensaje = plantillaObj.texto
+      .replace(/\[Nombre\]/g, nombre)
+      .replace(/\[Curso\]/g, nombreCurso)
 
     const telefonoLimpio = (prospecto.telefono || '').replace(/\D/g, '')
     return `https://wa.me/${telefonoLimpio}?text=${encodeURIComponent(mensaje)}`
+  }
+
+  const obtenerTextoVistaPrevia = (prospecto) => {
+    if (!prospecto) return ''
+    const cursoObj = cursos.find(c => Number(c.id) === Number(prospecto.curso_id))
+    const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'nuestros talleres'
+    const nombre = prospecto.nombre || 'Estimado(a)'
+
+    const plantillaObj = plantillas.find(p => p.id === plantillaSeleccionadaId) || plantillas[0]
+    
+    return plantillaObj.texto
+      .replace(/\[Nombre\]/g, nombre)
+      .replace(/\[Curso\]/g, nombreCurso)
   }
 
   const totalProspectos = prospectos.length
@@ -352,47 +440,94 @@ export default function ProspectosPage() {
         </div>
       )}
 
-      {/* MODAL DE MENSAJE DE WHATSAPP INTEGRADO */}
+      {/* MODAL DE WHATSAPP CON CREADOR Y GESTOR DE PLANTILLAS */}
       {modalMensaje && prospectoSeleccionado && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-8 shadow-2xl border border-slate-200 space-y-5">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center">
               <h3 className="text-base font-bold text-slate-900">💬 Enviar WhatsApp a {prospectoSeleccionado.nombre}</h3>
               <button onClick={() => setModalMensaje(false)} className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 font-bold flex items-center justify-center text-xs">✕</button>
             </div>
             
             <div className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Seleccionar Tipo de Plantilla</label>
-                <select 
-                  value={tipoMensaje}
-                  onChange={(e) => setTipoMensaje(e.target.value)}
-                  className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none font-semibold text-indigo-600"
+              
+              {/* SELECTOR DE PLANTILLAS + BOTÓN NUEVA PLANTILLA */}
+              <div className="flex justify-between items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Seleccionar Plantilla</label>
+                  <select 
+                    value={plantillaSeleccionadaId}
+                    onChange={(e) => setPlantillaSeleccionadaId(e.target.value)}
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs bg-slate-50 outline-none font-semibold text-indigo-600"
+                  >
+                    {plantillas.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.titulo} {p.id.startsWith('custom_') ? '⭐ (Personalizada)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <button 
+                  type="button"
+                  onClick={() => setMostrarFormNuevaPlantilla(!mostrarFormNuevaPlantilla)}
+                  className="bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-3 rounded-xl text-xs font-semibold whitespace-nowrap shadow-xs"
                 >
-                  <option value="primer_contacto">1. Primer Contacto (Bienvenida y Valor)</option>
-                  <option value="seguimiento">2. Seguimiento (Lugares limitados)</option>
-                  <option value="urgencia">3. Urgencia / Cierre (Cercanía de inicio)</option>
-                </select>
+                  {mostrarFormNuevaPlantilla ? '✕ Cancelar' : '+ Nueva Plantilla'}
+                </button>
               </div>
 
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
-                <span className="text-[10px] font-bold uppercase text-emerald-900 block">Vista previa del mensaje:</span>
-                <p className="text-xs text-emerald-800 italic bg-white p-3 rounded-xl border border-emerald-200">
-                  "{
-                    (() => {
-                      const cursoObj = cursos.find(c => Number(c.id) === Number(prospectoSeleccionado.curso_id))
-                      const nombreCurso = cursoObj?.Nombre_curso || cursoObj?.nombre_curso || 'nuestros talleres'
-                      const nombre = prospectoSeleccionado.nombre || 'Estimado(a)'
+              {/* FORMULARIO PARA CREAR NUEVA PLANTILLA */}
+              {mostrarFormNuevaPlantilla && (
+                <form onSubmit={agregarPlantillaPersonalizada} className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-3">
+                  <h4 className="text-xs font-bold text-indigo-900">✨ Crear Nueva Plantilla Personalizada</h4>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Título de la Plantilla</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Ej. Promoción Especial de Fin de Semana"
+                      value={nuevaPlantilla.titulo}
+                      onChange={(e) => setNuevaPlantilla({ ...nuevaPlantilla, titulo: e.target.value })}
+                      className="w-full p-2.5 border border-indigo-200 rounded-xl text-xs bg-white outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">
+                      Mensaje (Usa <code className="text-indigo-600 font-bold">[Nombre]</code> y <code className="text-indigo-600 font-bold">[Curso]</code> como comodines)
+                    </label>
+                    <textarea 
+                      rows="3"
+                      required
+                      placeholder="¡Hola [Nombre]! Te escribo porque tenemos descuento..."
+                      value={nuevaPlantilla.texto}
+                      onChange={(e) => setNuevaPlantilla({ ...nuevaPlantilla, texto: e.target.value })}
+                      className="w-full p-2.5 border border-indigo-200 rounded-xl text-xs bg-white outline-none"
+                    ></textarea>
+                  </div>
+                  <div className="flex justify-end">
+                    <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold">
+                      Guardar Plantilla
+                    </button>
+                  </div>
+                </form>
+              )}
 
-                      if (tipoMensaje === 'primer_contacto') {
-                        return `¡Hola ${nombre}! Qué gusto saludarte. Vi tu interés en el curso *${nombreCurso}* en Espiritistas a Cantar. ¿Te gustaría que te comparta el temario completo o tienes alguna duda sobre fechas y horarios?`
-                      } else if (tipoMensaje === 'seguimiento') {
-                        return `¡Hola ${nombre}! Espero que tengas excelente semana. Te escribo porque los lugares para el curso *${nombreCurso}* se están llenando y no quería que te quedaras fuera. ¿Te aparto tu lugar?`
-                      } else {
-                        return `¡Hola ${nombre}! ¿Cómo estás? Te cuento que estamos a pocos días de arrancar con el curso *${nombreCurso}* y nos quedan muy pocos lugares disponibles. ¿Tienes algún problema con tu proceso de inscripción para echarte la mano?`
-                      }
-                    })()
-                  }"
+              {/* VISTA PREVIA DEL MENSAJE */}
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-bold uppercase text-emerald-900">Vista previa del mensaje:</span>
+                  {plantillaSeleccionadaId.startsWith('custom_') && (
+                    <button 
+                      onClick={(e) => eliminarPlantilla(plantillaSeleccionadaId, e)}
+                      className="text-[10px] font-bold text-rose-600 hover:underline"
+                    >
+                      🗑️ Eliminar esta plantilla
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-emerald-800 italic bg-white p-3 rounded-xl border border-emerald-200 whitespace-pre-line">
+                  "{obtenerTextoVistaPrevia(prospectoSeleccionado)}"
                 </p>
               </div>
 
