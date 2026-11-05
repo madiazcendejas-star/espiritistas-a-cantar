@@ -4,29 +4,54 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabase' // Ajusta tu ruta de importación si es necesario
 
 export default function ReproductorBarajaPage() {
+  const [curso, setCurso] = useState(null)
   const [lecciones, setLecciones] = useState([])
   const [claseActiva, setClaseActiva] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    cargarLeccionesReales()
+    cargarDatosDelCursoYLecciones()
   }, [])
 
-  const cargarLeccionesReales = async () => {
+  const cargarDatosDelCursoYLecciones = async () => {
     setLoading(true)
-    // Consultamos las lecciones de la base de datos ordenadas por su campo 'orden'
-    const { data, error } = await supabase
+    
+    // 1. Consultamos la información general del curso para obtener el enlace del PDF (ej. curso ID 16)
+    const { data: resCurso } = await supabase
+      .from('cursos')
+      .select('*')
+      .eq('id', 16)
+      .single()
+
+    // 2. Consultamos las lecciones de la base de datos ordenadas por su campo 'orden'
+    const { data: resLecciones, error } = await supabase
       .from('lecciones_lms')
       .select('*')
+      .eq('curso_id', 16)
       .order('orden', { ascending: true })
+
+    if (resCurso) setCurso(resCurso)
 
     if (error) {
       console.error('Error al cargar clases:', error.message)
-    } else if (data && data.length > 0) {
-      setLecciones(data)
-      setClaseActiva(data[0]) // Selecciona automáticamente la primera clase
+    } else if (resLecciones && resLecciones.length > 0) {
+      setLecciones(resLecciones)
+      setClaseActiva(resLecciones[0]) // Selecciona automáticamente la primera clase
     }
     setLoading(false)
+  }
+
+  // Función inteligente para transformar cualquier link de YouTube a formato embed
+  const obtenerUrlEmbed = (url) => {
+    if (!url) return ''
+    if (url.includes('youtu.be/')) {
+      const idVideo = url.split('/').pop()
+      return `https://www.youtube.com/embed/${idVideo}`
+    }
+    if (url.includes('watch?v=')) {
+      return url.replace('watch?v=', 'embed/')
+    }
+    return url
   }
 
   if (loading) {
@@ -46,7 +71,9 @@ export default function ReproductorBarajaPage() {
           <a href="/mis-cursos" className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 transition">
             <span>←</span> Volver a Mis Cursos
           </a>
-          <span className="text-xs font-extrabold text-slate-900 hidden sm:inline">Taller de Baraja Española</span>
+          <span className="text-xs font-extrabold text-slate-900 hidden sm:inline">
+            {curso?.Nombre_curso || curso?.nombre_curso || 'Taller de Baraja Española'}
+          </span>
           <a 
             href="https://wa.me/5215500000000" 
             target="_blank" 
@@ -68,7 +95,7 @@ export default function ReproductorBarajaPage() {
           <div className="bg-black rounded-3xl overflow-hidden shadow-lg aspect-video flex items-center justify-center relative">
             {claseActiva ? (
               <iframe 
-                src={claseActiva.video_url} 
+                src={obtenerUrlEmbed(claseActiva.video_url)} 
                 title={claseActiva.titulo}
                 className="w-full h-full border-0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -98,24 +125,30 @@ export default function ReproductorBarajaPage() {
             </div>
           )}
 
-          {/* SECCIÓN DE RECURSOS DESCARGABLES */}
+          {/* SECCIÓN DE RECURSOS DESCARGABLES (CONECTADO AL ENLACE DEL ADMIN) */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
             <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Materiales Descargables</h3>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">📄</span>
                 <div>
-                  <p className="text-xs font-bold text-slate-900">Manual Digital de la Baraja Española</p>
+                  <p className="text-xs font-bold text-slate-900">Manual Digital del Curso</p>
                   <p className="text-[11px] text-slate-500">PDF con significados clave y esquemas de tiradas.</p>
                 </div>
               </div>
-              <a 
-                href="/recursos/manual-baraja.pdf" 
-                target="_blank"
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition whitespace-nowrap"
-              >
-                Descargar PDF ⬇️
-              </a>
+              
+              {curso?.manual_pdf_url ? (
+                <a 
+                  href={curso.manual_pdf_url} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition whitespace-nowrap"
+                >
+                  Descargar PDF ⬇️
+                </a>
+              ) : (
+                <span className="text-xs text-slate-400 italic">Próximamente disponible</span>
+              )}
             </div>
           </div>
 
