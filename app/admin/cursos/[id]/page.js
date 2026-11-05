@@ -35,6 +35,7 @@ export default function DetalleCursoPage() {
   // Estado para la subida de imagen directa desde el equipo
   const [imagenArchivo, setImagenArchivo] = useState(null)
   const [subiendoImagen, setSubiendoImagen] = useState(false)
+  const [subiendoPdf, setSubiendoPdf] = useState(false)
 
   useEffect(() => {
     if (cursoId) cargarDatosCurso()
@@ -163,6 +164,48 @@ export default function DetalleCursoPage() {
       cargarDatosCurso()
     }
     setSubiendoImagen(false)
+  }
+
+  // FUNCIÓN PARA SUBIR EL MANUAL PDF DESDE EL ADMIN
+  const subirPdfManual = async (e) => {
+    const archivo = e.target.files[0]
+    if (!archivo) return
+
+    setSubiendoPdf(true)
+    const nombreLimpio = archivo.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+
+    const nombreArchivo = `pdf_${Date.now()}_${nombreLimpio}`
+    
+    const { error: uploadError } = await supabase.storage
+      .from('cursos')
+      .upload(nombreArchivo, archivo)
+
+    if (uploadError) {
+      setSubiendoPdf(false)
+      return alert('Error al subir el PDF: ' + uploadError.message)
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('cursos')
+      .getPublicUrl(nombreArchivo)
+
+    const urlPdf = publicUrlData.publicUrl
+
+    const { error: updateError } = await supabase
+      .from('cursos')
+      .update({ manual_pdf_url: urlPdf })
+      .eq('id', cursoId)
+
+    if (updateError) {
+      alert('PDF subido pero error al guardar en la base de datos: ' + updateError.message)
+    } else {
+      alert('¡Manual en PDF subido y vinculado con éxito! 📄')
+      cargarDatosCurso()
+    }
+    setSubiendoPdf(false)
   }
 
   if (loading) {
@@ -345,6 +388,23 @@ export default function DetalleCursoPage() {
 • Práctica avanzada..."
                       className="w-full p-4 border border-slate-200 rounded-2xl text-sm font-medium bg-slate-50 outline-none resize-none focus:bg-white"
                     />
+                  </div>
+
+                  {/* SECCIÓN NUEVA: SUBIR MANUAL PDF */}
+                  <div className="pt-4 border-t border-slate-100">
+                    <label className="block text-xs font-bold uppercase text-slate-500 mb-1.5">Manual o Recurso en PDF</label>
+                    <input 
+                      type="file"
+                      accept="application/pdf"
+                      onChange={subirPdfManual}
+                      className="w-full p-2.5 border border-slate-200 rounded-2xl text-xs bg-slate-50 outline-none file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                    />
+                    {subiendoPdf && <p className="text-xs text-indigo-600 font-semibold mt-2">Subiendo PDF...</p>}
+                    {curso.manual_pdf_url && (
+                      <p className="text-xs text-emerald-600 font-semibold mt-2">
+                        ✅ PDF actual cargado correctamente (<a href={curso.manual_pdf_url} target="_blank" rel="noreferrer" className="underline font-bold">Ver archivo PDF</a>)
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex justify-end pt-4 border-t border-slate-100">
