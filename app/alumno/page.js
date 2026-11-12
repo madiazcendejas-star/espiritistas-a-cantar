@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import PortalModals from './PortalModals'
 
@@ -92,6 +92,10 @@ export default function AlumnoPortalPage() {
   // CURSO SELECCIONADO PARA EL POP-UP DE RECOMENDADOS
   const [cursoPopup, setCursoPopup] = useState(null)
 
+  // ESTADO PARA EL MENÚ DESPLEGABLE DE PERFIL EN EL HEADER
+  const [menuPerfilAbierto, setMenuPerfilAbierto] = useState(false)
+  const menuRef = useRef(null)
+
   // Estado para cambiar contraseña
   const [modalPass, setModalPass] = useState(false)
   const [nuevaPass, setNuevaPass] = useState('')
@@ -100,6 +104,17 @@ export default function AlumnoPortalPage() {
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null)
   const [archivoComprobante, setArchivoComprobante] = useState(null)
   const [subiendo, setSubiendo] = useState(false)
+
+  // CERRAR MENÚ DESPLEGABLE AL HACER CLIC FUERA
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuPerfilAbierto(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // RECUPERAR SESIÓN AL RECARGAR LA PÁGINA
   useEffect(() => {
@@ -415,7 +430,7 @@ export default function AlumnoPortalPage() {
       {alumno?.id && <PortalModals alumnoId={alumno.id} />}
 
       {/* ========================================================= */}
-      {/* HEADER SUPERIOR REDISEÑADO CON LOGO Y BOTONES MINIMALISTAS */}
+      {/* HEADER SUPERIOR CON MENÚ DESPLEGABLE ESTILO REFERENCIA    */}
       {/* ========================================================= */}
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-6 py-3.5 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -435,7 +450,7 @@ export default function AlumnoPortalPage() {
             </div>
           </div>
 
-          {/* LADO DERECHO: BOTONES MINIMALISTAS, PERFIL Y SALIR */}
+          {/* LADO DERECHO: BOTONES MINIMALISTAS Y MENÚ DE PERFIL DESPLEGABLE */}
           <div className="flex items-center gap-2 sm:gap-4">
             
             {/* BOTÓN MINIMALISTA: MIS CURSOS */}
@@ -475,28 +490,53 @@ export default function AlumnoPortalPage() {
             {/* DIVISOR SUTIL */}
             <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 
-            {/* PERFIL DEL ALUMNO (BOTÓN HACIA PERFIL) */}
-            <button
-              onClick={() => { setMenuActivo('perfil'); setCursoSeleccionado(null); }}
-              className="text-right cursor-pointer group focus:outline-none px-3 py-1.5 rounded-xl hover:bg-slate-100/70 transition hidden sm:block"
-              title="Consultar y editar información de perfil"
-            >
-              <p className="text-xs font-black text-slate-900 group-hover:text-rose-600 transition line-clamp-1">
-                {nombreAlumno}
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium group-hover:underline">
-                {correoAlumno}
-              </p>
-            </button>
+            {/* MENÚ DESPLEGABLE DE PERFIL Y SALIR */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuPerfilAbierto(!menuPerfilAbierto)}
+                className="text-right cursor-pointer group focus:outline-none px-3 py-1.5 rounded-xl hover:bg-slate-100/70 transition flex items-center gap-2"
+                title="Abrir menú de usuario"
+              >
+                <div className="hidden sm:block">
+                  <p className="text-xs font-black text-slate-900 group-hover:text-rose-600 transition line-clamp-1">
+                    {nombreAlumno}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {correoAlumno}
+                  </p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-xs border border-rose-100">
+                  {nombreAlumno.charAt(0).toUpperCase()}
+                </div>
+              </button>
 
-            {/* BOTÓN SALIR */}
-            <button 
-              onClick={cerrarSesion}
-              className="text-xs bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 px-3.5 py-2 rounded-xl transition font-bold cursor-pointer border border-transparent hover:border-rose-100"
-              title="Cerrar sesión"
-            >
-              Salir
-            </button>
+              {/* DROPDOWN LIMPIO Y MODAL */}
+              {menuPerfilAbierto && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-3xl shadow-2xl border border-slate-200 py-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-5 py-3 border-b border-slate-100 space-y-0.5">
+                    <p className="text-xs font-black text-slate-900 uppercase tracking-tight line-clamp-1">{nombreAlumno}</p>
+                    <p className="text-[11px] text-slate-400 font-medium truncate">{correoAlumno}</p>
+                  </div>
+
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => { setMenuActivo('perfil'); setCursoSeleccionado(null); setMenuPerfilAbierto(false); }}
+                      className="w-full text-left px-4 py-2.5 rounded-2xl text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer flex items-center justify-between"
+                    >
+                      <span>Perfil</span>
+                      <span className="text-slate-400">→</span>
+                    </button>
+                    <button
+                      onClick={() => { cerrarSesion(); setMenuPerfilAbierto(false); }}
+                      className="w-full text-left px-4 py-2.5 rounded-2xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition cursor-pointer flex items-center justify-between"
+                    >
+                      <span>Cerrar sesión</span>
+                      <span>🚪</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
