@@ -394,7 +394,6 @@ export default function AlumnoPortalPage() {
   const matriculaAlumno = alumno.matricula || 'N/A'
   const correoAlumno = alumno.correo || 'No registrado'
   const telefonoAlumno = alumno.telefono || 'No registrado'
-  const inicialUsuario = nombreAlumno.charAt(0).toUpperCase()
 
   const pagosHechosTanda = pagosTanda.filter(p => p.estado === 'pagado').length
   const totalPagosTanda = tandaAlumno?.tandas_config?.total_pagos || 10
@@ -405,87 +404,102 @@ export default function AlumnoPortalPage() {
     : 'Por definir'
 
   return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 text-sm flex selection:bg-rose-500 selection:text-white">
+    <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 text-sm flex flex-col selection:bg-rose-500 selection:text-white">
       
       {/* GESTOR DE POP-UPS */}
       {alumno?.id && <PortalModals alumnoId={alumno.id} />}
 
-      {/* BARRA LATERAL TIPO UNIVERSIDAD */}
-      <aside className="w-72 bg-slate-900 text-slate-300 hidden lg:flex flex-col border-r border-slate-800/80 z-20 flex-shrink-0">
-        <div className="h-20 px-6 flex items-center gap-3 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur-md">
-          <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-rose-700 text-white rounded-2xl flex items-center justify-center font-black text-xs shadow-md shadow-rose-600/20">E</div>
-          <div className="flex flex-col">
-            <span className="font-extrabold text-white text-xs tracking-tight leading-tight">Espiritistas a Cantar</span>
-            <span className="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Aula Virtual</span>
+      {/* ========================================================= */}
+      {/* HEADER SUPERIOR CON MENÚ DESPLEGABLE Y DATOS DE IDENTIDAD */}
+      {/* ========================================================= */}
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-6 py-4 shadow-xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          
+          {/* LADO IZQUIERDO: LOGO + TITULO + SLOGAN */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 text-white flex items-center justify-center font-black text-sm shadow-md shadow-rose-600/25 flex-shrink-0">
+              E
+            </div>
+            <div>
+              <span className="font-black tracking-tight text-slate-900 text-sm sm:text-base block leading-none">
+                Espiritistas a Cantar
+              </span>
+              <span className="text-[10px] text-rose-600 font-extrabold uppercase tracking-widest block mt-1">
+                reconecta con tu naturaleza espirita
+              </span>
+            </div>
+          </div>
+
+          {/* LADO DERECHO: NAVEGACIÓN, SOPORTE, PERFIL Y SALIR */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            
+            {/* BOTÓN MINIMALISTA: MIS CURSOS */}
+            <button
+              onClick={() => { setMenuActivo('cursos'); setCursoSeleccionado(null); setRecursoActivo(null); }}
+              className={`text-xs font-bold transition cursor-pointer px-3.5 py-2 rounded-xl ${
+                menuActivo === 'cursos' && !cursoSeleccionado
+                  ? 'text-rose-600 bg-rose-50 border-b-2 border-rose-600'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              Mis cursos
+            </button>
+
+            {/* SOPORTE WA */}
+            <a 
+              href="https://wa.me/525650426741?text=Hola,%20necesito%20soporte%20en%20el%20portal%20del%20alumno." 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+            >
+              <span>💬</span> Soporte WA
+            </a>
+
+            {/* SI TIENE TANDA ACTIVA, MUESTRA ACCESO RÁPIDO */}
+            {tandaAlumno && (
+              <button
+                onClick={() => setMenuActivo('tandas')}
+                className={`text-xs font-bold transition cursor-pointer px-3.5 py-2 rounded-xl hidden md:block ${
+                  menuActivo === 'tandas' ? 'text-rose-600 bg-rose-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                Tandas
+              </button>
+            )}
+
+            {/* DIVISOR */}
+            <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
+
+            {/* PERFIL DEL ALUMNO (NOMBRE + CORREO COMO BOTÓN AL PERFIL) */}
+            <button
+              onClick={() => { setMenuActivo('perfil'); setCursoSeleccionado(null); }}
+              className="text-right cursor-pointer group focus:outline-none hidden sm:block"
+              title="Ver y editar información de perfil"
+            >
+              <p className="text-xs font-black text-slate-900 group-hover:text-rose-600 transition line-clamp-1">
+                {nombreAlumno}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium group-hover:underline">
+                {correoAlumno}
+              </p>
+            </button>
+
+            {/* BOTÓN SALIR */}
+            <button 
+              onClick={cerrarSesion}
+              className="text-xs bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 px-3.5 py-2 rounded-xl transition font-bold cursor-pointer border border-transparent hover:border-rose-100"
+              title="Cerrar sesión"
+            >
+              Salir
+            </button>
+
           </div>
         </div>
-
-        <nav className="flex-1 py-6 px-4 space-y-1.5 text-xs font-bold">
-          <div className="px-3 pb-2 text-[10px] uppercase tracking-widest text-slate-500 font-black">Navegación</div>
-          <button 
-            onClick={() => { setMenuActivo('cursos'); setCursoSeleccionado(null); setRecursoActivo(null); }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition cursor-pointer ${menuActivo === 'cursos' && !cursoSeleccionado ? 'bg-rose-600 text-white font-extrabold shadow-md shadow-rose-600/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
-          >
-            <span>📚</span> Mis Cursos
-          </button>
-          <button 
-            onClick={() => setMenuActivo('pagos')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition cursor-pointer ${menuActivo === 'pagos' ? 'bg-rose-600 text-white font-extrabold shadow-md shadow-rose-600/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
-          >
-            <span>💳</span> Pagos y Comprobantes
-          </button>
-          {tandaAlumno && (
-            <button 
-              onClick={() => setMenuActivo('tandas')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition cursor-pointer ${menuActivo === 'tandas' ? 'bg-rose-600 text-white font-extrabold shadow-md shadow-rose-600/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
-            >
-              <span>📍</span> Sesiones y Tandas
-            </button>
-          )}
-          <button 
-            onClick={() => setMenuActivo('perfil')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition cursor-pointer ${menuActivo === 'perfil' ? 'bg-rose-600 text-white font-extrabold shadow-md shadow-rose-600/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
-          >
-            <span>👤</span> Mi Perfil
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-slate-800/80 bg-slate-900/50">
-          <button 
-            onClick={cerrarSesion} 
-            className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 py-3 rounded-2xl text-xs font-bold transition text-center cursor-pointer border border-rose-500/20"
-          >
-            Cerrar Sesión
-          </button>
-        </div>
-      </aside>
+      </header>
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto">
-        
-        {/* HEADER SUPERIOR */}
-        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/80 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-3">
-            <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
-              {cursoSeleccionado ? cursoSeleccionado.nombreCurso : 
-               menuActivo === 'cursos' ? 'Mis Cursos Activos' :
-               menuActivo === 'pagos' ? 'Estado de Cuenta y Pagos' :
-               menuActivo === 'tandas' ? 'Compromiso Presencial (Tanda)' : 'Mi Perfil Estudiantil'}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden sm:block">
-              <span className="block text-xs font-bold text-slate-800">{nombreAlumno}</span>
-              <span className="text-[10px] text-slate-400 font-mono font-semibold">Matrícula: #{matriculaAlumno}</span>
-            </div>
-            <div className="w-9 h-9 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center font-black text-xs border border-rose-100 shadow-xs">
-              {inicialUsuario}
-            </div>
-          </div>
-        </header>
-
-        <div className="p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
+      <main className="flex-1 flex flex-col overflow-y-auto">
+        <div className="p-6 sm:p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
           
           {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (ESTILO MODERNO DE DOS COLUMNAS) */}
           {cursoSeleccionado ? (
@@ -497,14 +511,6 @@ export default function AlumnoPortalPage() {
                 >
                   ← Volver a Mis Cursos
                 </button>
-                <a 
-                  href="https://wa.me/525650426741?text=Hola,%20tengo%20dudas%20con%20el%20contenido%20de%20mi%20curso." 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-xs font-bold text-slate-700 hover:bg-slate-100 transition flex items-center gap-1.5 bg-white border border-slate-200 px-4 py-2.5 rounded-2xl shadow-xs cursor-pointer"
-                >
-                  <span>💬</span> Soporte por WhatsApp
-                </a>
               </div>
 
               {cursoSeleccionado.estaEnBaja ? (
@@ -535,7 +541,6 @@ export default function AlumnoPortalPage() {
                   {/* COLUMNA IZQUIERDA: REPRODUCTOR / CONTENIDO ACTIVO */}
                   <div className="lg:col-span-2 space-y-6">
                     
-                    {/* Tarjeta del Reproductor Principal */}
                     <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
                       {recursoActivo ? (
                         <div className="space-y-4">
@@ -582,7 +587,7 @@ export default function AlumnoPortalPage() {
                       )}
                     </div>
 
-                    {/* SECCIÓN DE CLASES EN VIVO / MEET O PRESENCIAL SI APLICA */}
+                    {/* SESIONES EN VIVO */}
                     {(() => {
                       const modalidad = cursoSeleccionado.tipoModalidad || 'en_linea';
                       if (cursoSeleccionado.sesiones.length === 0) return null;
@@ -607,7 +612,7 @@ export default function AlumnoPortalPage() {
 
                   </div>
 
-                  {/* COLUMNA DERECHA: CONTENIDO DEL TALLER / ÍNDICE DE CLASES */}
+                  {/* COLUMNA DERECHA: ÍNDICE DE CLASES */}
                   <div className="space-y-6">
                     <div className="bg-white rounded-3xl border border-slate-200/80 p-6 space-y-4 shadow-xs sticky top-28">
                       <div className="border-b border-slate-100 pb-3">
@@ -713,7 +718,7 @@ export default function AlumnoPortalPage() {
                                 <div className="space-y-2">
                                   <h3 className="text-base font-extrabold text-slate-900 group-hover:text-rose-600 transition">{nombreCurso}</h3>
                                   
-                                  {/* ESTRELLAS Y VALORACIÓN PROMEDIO */}
+                                  {/* ESTRELLAS */}
                                   <div className="flex items-center gap-1.5">
                                     <div className="flex text-amber-400 text-xs">
                                       {[1, 2, 3, 4, 5].map((num) => {
@@ -754,7 +759,7 @@ export default function AlumnoPortalPage() {
                     )}
                   </div>
 
-                  {/* NUEVA SECCIÓN: CURSOS QUE PODRÍAN INTERESARTE */}
+                  {/* CURSOS PRÓXIMOS */}
                   {cursosProximos.length > 0 && (
                     <div className="space-y-6 pt-6 border-t border-slate-200/80">
                       <div>
@@ -777,11 +782,7 @@ export default function AlumnoPortalPage() {
                             <div key={cur.id} className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs flex flex-col justify-between">
                               <div>
                                 <div className="relative h-48 w-full overflow-hidden bg-slate-100">
-                                  <img 
-                                    src={imagenCur} 
-                                    alt={nombreCur} 
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <img src={imagenCur} alt={nombreCur} className="w-full h-full object-cover" />
                                 </div>
                                 <div className="p-6 space-y-2">
                                   <h3 className="text-base font-extrabold text-slate-900">{nombreCur}</h3>
@@ -931,7 +932,7 @@ export default function AlumnoPortalPage() {
 
               {/* VISTA 5: MENÚ "MI PERFIL" */}
               {menuActivo === 'perfil' && (
-                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6 max-w-2xl">
+                <div className="bg-white rounded-3xl border border-slate-200/80 p-8 shadow-xs space-y-6 max-w-2xl mx-auto">
                   <div>
                     <h3 className="text-base font-black text-slate-900">Información del Perfil</h3>
                     <p className="text-xs text-slate-500 mt-0.5 font-medium">Tus datos personales registrados en la academia.</p>
