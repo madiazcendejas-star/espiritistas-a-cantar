@@ -47,14 +47,14 @@ function BotonClaseEnVivo({ sesion }) {
           rel="noreferrer"
           className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-md shadow-emerald-600/20 transition inline-block animate-pulse"
         >
-          Unirme a Clase 🎥
+          Unirme a Clase
         </a>
       ) : (
         <button 
           disabled
           className="bg-slate-100 text-slate-400 px-4 py-2.5 rounded-2xl text-xs font-semibold cursor-not-allowed border border-slate-200"
         >
-          🔒 {mensajeEstado || 'Próximamente'}
+          {mensajeEstado || 'Próximamente'}
         </button>
       )}
     </div>
@@ -349,7 +349,9 @@ export default function AlumnoPortalPage() {
           <div className="absolute top-0 right-0 w-48 h-48 bg-rose-50 rounded-full blur-3xl -z-10"></div>
 
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-rose-500 to-rose-700 text-white rounded-2xl mx-auto flex items-center justify-center font-black text-sm shadow-md shadow-rose-600/30">E</div>
+            <div className="w-14 h-14 rounded-2xl mx-auto flex items-center justify-center shadow-md overflow-hidden bg-[#132238]">
+              <img src="/logoeac.png" alt="Logo EAC" className="w-full h-full object-cover" />
+            </div>
             <h1 className="text-xl font-black text-slate-900 tracking-tight">Portal del Alumno</h1>
             <p className="text-xs font-semibold text-slate-500">Espiritistas a Cantar · Aula Virtual</p>
           </div>
@@ -403,6 +405,9 @@ export default function AlumnoPortalPage() {
     ? new Date(tandaAlumno.fecha_misa).toLocaleString('es-MX', { dateStyle: 'full', timeStyle: 'short' })
     : 'Por definir'
 
+  // MENSAJE PERSONALIZADO PARA SOPORTE DE WHATSAPP
+  const mensajeWhatsApp = encodeURIComponent(`Hola soy ${nombreAlumno}, matrícula ${matriculaAlumno}, necesito soporte en el portal.`)
+
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans text-slate-900 text-sm flex flex-col selection:bg-rose-500 selection:text-white">
       
@@ -410,71 +415,71 @@ export default function AlumnoPortalPage() {
       {alumno?.id && <PortalModals alumnoId={alumno.id} />}
 
       {/* ========================================================= */}
-      {/* HEADER SUPERIOR CON MENÚ DESPLEGABLE Y DATOS DE IDENTIDAD */}
+      {/* HEADER SUPERIOR REDISEÑADO CON LOGO Y BOTONES MINIMALISTAS */}
       {/* ========================================================= */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-6 py-4 shadow-xs">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 px-6 py-3.5 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
-          {/* LADO IZQUIERDO: LOGO + TITULO + SLOGAN */}
+          {/* LADO IZQUIERDO: LOGO REAL + TITULO + SLOGAN */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-700 text-white flex items-center justify-center font-black text-sm shadow-md shadow-rose-600/25 flex-shrink-0">
-              E
+            <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-sm flex-shrink-0 bg-[#132238] border border-slate-200/50 flex items-center justify-center">
+              <img src="/logoeac.png" alt="Espiritistas a Cantar" className="w-full h-full object-cover" />
             </div>
             <div>
-              <span className="font-black tracking-tight text-slate-900 text-sm sm:text-base block leading-none">
+              <span className="font-black tracking-tight text-slate-900 text-sm sm:text-base block leading-tight">
                 Espiritistas a Cantar
               </span>
-              <span className="text-[10px] text-rose-600 font-extrabold uppercase tracking-widest block mt-1">
+              <span className="text-[10px] text-rose-600 font-extrabold uppercase tracking-wider block mt-0.5">
                 reconecta con tu naturaleza espirita
               </span>
             </div>
           </div>
 
-          {/* LADO DERECHO: NAVEGACIÓN, SOPORTE, PERFIL Y SALIR */}
-          <div className="flex items-center gap-4 sm:gap-6">
+          {/* LADO DERECHO: BOTONES MINIMALISTAS, PERFIL Y SALIR */}
+          <div className="flex items-center gap-2 sm:gap-4">
             
             {/* BOTÓN MINIMALISTA: MIS CURSOS */}
             <button
               onClick={() => { setMenuActivo('cursos'); setCursoSeleccionado(null); setRecursoActivo(null); }}
               className={`text-xs font-bold transition cursor-pointer px-3.5 py-2 rounded-xl ${
                 menuActivo === 'cursos' && !cursoSeleccionado
-                  ? 'text-rose-600 bg-rose-50 border-b-2 border-rose-600'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  ? 'text-rose-600 bg-rose-50'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
               }`}
             >
               Mis cursos
             </button>
 
-            {/* SOPORTE WA */}
+            {/* SOPORTE WA CON MENSAJE PERSONALIZADO */}
             <a 
-              href="https://wa.me/525650426741?text=Hola,%20necesito%20soporte%20en%20el%20portal%20del%20alumno." 
+              href={`https://wa.me/525650426741?text=${mensajeWhatsApp}`} 
               target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs font-bold text-slate-600 hover:text-slate-900 transition flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-slate-50 cursor-pointer"
+              rel="noreferrer"
+              className="text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 transition px-3.5 py-2 rounded-xl cursor-pointer"
             >
-              <span>💬</span> Soporte WA
+              Soporte WA
             </a>
 
-            {/* SI TIENE TANDA ACTIVA, MUESTRA ACCESO RÁPIDO */}
+            {/* SI TIENE TANDA ACTIVA */}
             {tandaAlumno && (
               <button
                 onClick={() => setMenuActivo('tandas')}
                 className={`text-xs font-bold transition cursor-pointer px-3.5 py-2 rounded-xl hidden md:block ${
-                  menuActivo === 'tandas' ? 'text-rose-600 bg-rose-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  menuActivo === 'tandas' ? 'text-rose-600 bg-rose-50' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                 }`}
               >
                 Tandas
               </button>
             )}
 
-            {/* DIVISOR */}
-            <div className="h-6 w-px bg-slate-200 hidden sm:block"></div>
+            {/* DIVISOR SUTIL */}
+            <div className="h-5 w-px bg-slate-200 hidden sm:block mx-1"></div>
 
-            {/* PERFIL DEL ALUMNO (NOMBRE + CORREO COMO BOTÓN AL PERFIL) */}
+            {/* PERFIL DEL ALUMNO (BOTÓN HACIA PERFIL) */}
             <button
               onClick={() => { setMenuActivo('perfil'); setCursoSeleccionado(null); }}
-              className="text-right cursor-pointer group focus:outline-none hidden sm:block"
-              title="Ver y editar información de perfil"
+              className="text-right cursor-pointer group focus:outline-none px-3 py-1.5 rounded-xl hover:bg-slate-100/70 transition hidden sm:block"
+              title="Consultar y editar información de perfil"
             >
               <p className="text-xs font-black text-slate-900 group-hover:text-rose-600 transition line-clamp-1">
                 {nombreAlumno}
@@ -501,7 +506,7 @@ export default function AlumnoPortalPage() {
       <main className="flex-1 flex flex-col overflow-y-auto">
         <div className="p-6 sm:p-10 max-w-[1600px] mx-auto w-full space-y-8 flex-1">
           
-          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO (ESTILO MODERNO DE DOS COLUMNAS) */}
+          {/* VISTA 1: DETALLE DEL CURSO SELECCIONADO */}
           {cursoSeleccionado ? (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
@@ -562,7 +567,7 @@ export default function AlumnoPortalPage() {
                               <a 
                                 href={recursoActivo.url} 
                                 target="_blank" 
-                                rel="noopener noreferrer"
+                                rel="noreferrer"
                                 className="bg-rose-600 hover:bg-rose-700 text-white px-6 py-3 rounded-2xl text-xs font-bold inline-block shadow-md transition"
                               >
                                 Abrir / Descargar PDF ↗
