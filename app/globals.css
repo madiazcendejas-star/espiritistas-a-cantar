@@ -634,7 +634,7 @@ a.primary,a.secondary,a.ghost{text-decoration:none}
 .auth-form .sub{color:var(--muted);margin-bottom:22px}
 .field input.big{min-height:50px;font-size:16px}
 .form-error{background:var(--rose-soft);color:#8f3e50;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:14px}
-.back-home{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-weight:700;font-size:13px;margin-bottom:26px}
+.back-home{display:flex;width:max-content;align-items:center;gap:6px;color:var(--muted);font-weight:700;font-size:13px;margin-bottom:26px}
 .back-home svg{transform:rotate(180deg)}
 
 @media (max-width:980px){
