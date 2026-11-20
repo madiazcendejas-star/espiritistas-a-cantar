@@ -2,6 +2,8 @@ import Link from 'next/link'
 import Icon from '@/components/Icon'
 import LiveSessionCard from '@/components/LiveSessionCard'
 import MiniGrupo from '@/components/MiniGrupo'
+import AgregarCorreo from '@/components/AgregarCorreo'
+import { esCorreoTecnico } from '@/lib/cuentas'
 import { getSessionProfile, nombreCorto } from '@/lib/auth'
 import { getMisGrupos, getProximasSesiones, getPagos } from '@/lib/student'
 import { fechaLarga, fechaDia, money, MODALIDAD } from '@/lib/format'
@@ -14,7 +16,8 @@ function saludo() {
 }
 
 export default async function MiEspacio() {
-  const { supabase, profile } = await getSessionProfile()
+  const { supabase, profile, user } = await getSessionProfile()
+  const sinCorreo = esCorreoTecnico(profile.email)
   const [grupos, sesiones, pagos] = await Promise.all([getMisGrupos(supabase), getProximasSesiones(supabase, 3), getPagos(supabase)])
   const principal = grupos.find((g) => g.access_state === 'activo') || grupos[0]
   const pausados = grupos.filter((g) => g.access_state === 'pausado')
@@ -34,6 +37,8 @@ export default async function MiEspacio() {
         </div>
         <div className="date-pill"><Icon name="calendar" /><span><small>HOY</small>{fechaLarga(new Date())}</span></div>
       </div>
+
+      {sinCorreo && <AgregarCorreo pendiente={user?.user_metadata?.correo_pendiente || null} />}
 
       {(vencidos.length > 0 || pausados.length > 0) && (
         <div className="notice danger" style={{ marginBottom: 20 }}>

@@ -1,11 +1,13 @@
 import Icon from '@/components/Icon'
 import { getSessionProfile } from '@/lib/auth'
 import { cerrarSesion } from '@/app/entrar/actions'
+import AgregarCorreo from '@/components/AgregarCorreo'
+import { esCorreoTecnico } from '@/lib/cuentas'
 
 export const metadata = { title: 'Mi perfil' }
 
 export default async function Perfil() {
-  const { profile } = await getSessionProfile()
+  const { profile, user } = await getSessionProfile()
   const filas = [
     ['Nombre', [profile.first_name, profile.last_name].filter(Boolean).join(' ') || '—'],
     ['Matrícula', profile.matricula],
@@ -22,12 +24,7 @@ export default async function Perfil() {
         </div>
       </div>
 
-      {!profile.email && (
-        <div className="notice warn" style={{ marginBottom: 16 }}>
-          <Icon name="mail" />
-          <span><b>Agrega tu correo.</b> Muy pronto te pediremos registrarlo para que puedas recuperar tu contraseña y recibir avisos de tus clases.</span>
-        </div>
-      )}
+      {esCorreoTecnico(profile.email) && <AgregarCorreo pendiente={user?.user_metadata?.correo_pendiente || null} />}
 
       <section className="card" style={{ padding: '6px 22px' }}>
         {filas.map(([k, v]) => (

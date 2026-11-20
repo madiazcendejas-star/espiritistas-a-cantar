@@ -94,7 +94,7 @@ export default async function Gracias({ searchParams }) {
 
   if (pendiente) {
     return (
-      <Marco eyebrow="Pago recibido" titulo={`¡Bienvenido${perfil.first_name && perfil.first_name !== 'Estudiante' ? `, ${perfil.first_name}` : ''}!`}>
+      <Marco eyebrow="Pago recibido" titulo={`¡Te damos la bienvenida${perfil.first_name && perfil.first_name !== 'Estudiante' ? `, ${perfil.first_name}` : ''}!`}>
         <p className="sub">Ya tienes acceso. Elige una contraseña para entrar a tus clases desde cualquier dispositivo. Tu matrícula es <b>{perfil.matricula}</b>.</p>
         <CrearContrasenaForm sessionId={sessionId} email={correoCuenta} />
       </Marco>
