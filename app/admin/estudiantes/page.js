@@ -1,353 +1,99 @@
-'use client'
+import Link from 'next/link'
+import Icon from '@/components/Icon'
+import Flash from '@/components/Flash'
+import { requireAdmin, nombreCompleto } from '@/lib/admin'
+import { hoyMx } from '@/lib/format'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '../../../lib/supabase'
+export const metadata = { title: 'Estudiantes y accesos' }
+const POR_PAGINA = 40
 
-export default function EstudiantesAdminPage() {
-  const [alumnos, setAlumnos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [busqueda, setBusqueda] = useState('')
-  const [modalNuevo, setModalNuevo] = useState(false)
-  const [guardando, setGuardando] = useState(false)
+export default async function Estudiantes({ searchParams }) {
+  const sp = await searchParams
+  const { db } = await requireAdmin()
+  const q = String(sp?.q || '').trim()
+  const filtro = sp?.filtro || ''
+  const pagina = Math.max(1, Number(sp?.p) || 1)
 
-  // Función para generar contraseña aleatoria segura y única
-  const generarPasswordAleatoria = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789*#$'
-    let pass = ''
-    for (let i = 0; i < 8; i++) {
-      pass += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return pass
+  let query = db
+    .from('profiles')
+    .select('id, matricula, first_name, last_name, phone, email, source, auth_user_id', { count: 'exact' })
+    .eq('role', 'student')
+    .order('id', { ascending: false })
+    .range((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA - 1)
+  if (filtro === 'sin-correo') query = query.is('email', null)
+  if (q) {
+    const limpio = q.replace(/[%_,()\\]/g, ' ').trim()
+    const dig = q.replace(/\D/g, '')
+    const ors = [`first_name.ilike.%${limpio}%`, `last_name.ilike.%${limpio}%`, `matricula.ilike.%${limpio}%`, `email.ilike.%${limpio}%`]
+    if (dig.length >= 4) ors.push(`phone10.ilike.%${dig.slice(-10)}%`)
+    query = query.or(ors.join(','))
   }
+  const { data: lista, count } = await query
+  const ids = (lista || []).map((p) => p.id)
 
-  // Formulario de nuevo estudiante con generación automática
-  const [formNuevo, setFormNuevo] = useState({
-    nombre: '',
-    apellidos: '',
-    correo: '',
-    telefono: '',
-    fecha_nacimiento: '',
-    direccion: '',
-    password: generarPasswordAleatoria()
-  })
-
-  useEffect(() => {
-    cargarAlumnos()
-  }, [])
-
-  const cargarAlumnos = async () => {
-    setLoading(true)
-    const { data, error } = await supabase
-      .from('alumnos')
-      .select('*')
-      .order('nombre', { ascending: true }) // Orden alfabético estricto
-
-    if (!error && data) {
-      setAlumnos(data)
-    }
-    setLoading(false)
-  }
-
-  // Abrir modal y asegurar nueva contraseña única cada vez
-  const abrirModalNuevo = () => {
-    setFormNuevo({
-      nombre: '',
-      apellidos: '',
-      correo: '',
-      telefono: '',
-      fecha_nacimiento: '',
-      direccion: '',
-      password: generarPasswordAleatoria()
-    })
-    setModalNuevo(true)
-  }
-
-  const crearAlumno = async (e) => {
-    e.preventDefault()
-    setGuardando(true)
-
-    const nombreCompleto = `${formNuevo.nombre.trim()} ${formNuevo.apellidos.trim()}`
-    // Matrícula numérica automática de 4 dígitos (ej. 2415)
-    const matriculaNumerica = Math.floor(1000 + Math.random() * 9000).toString()
-
-    const { data, error } = await supabase.from('alumnos').insert([
-      {
-        nombre: nombreCompleto,
-        correo: formNuevo.correo.trim(),
-        telefono: formNuevo.telefono.trim(),
-        fecha_nacimiento: formNuevo.fecha_nacimiento || null,
-        direccion: formNuevo.direccion.trim(),
-        matricula: matriculaNumerica,
-        password: formNuevo.password.trim()
-      }
-    ]).select()
-
-    if (error) {
-      alert('Error al registrar estudiante: ' + error.message)
-    } else {
-      alert('¡Estudiante registrado exitosamente con matrícula #' + matriculaNumerica + '!')
-
-      // DISPARAR WHATSAPP DE BIENVENIDA AUTOMÁTICO (OPCIÓN 2)
-      const telLimpio = formNuevo.telefono ? String(formNuevo.telefono).replace(/\D/g, '') : ''
-      if (telLimpio) {
-        const telefonoAlumno = formNuevo.telefono.trim()
-        const passwordTemp = formNuevo.password.trim()
-
-        const mensajeBienvenida = `¡Bienvenid@ a *Espiritistas a Cantar*! Tu inscripción ha sido confirmada.\n\nAQUÍ TIENES TUS DATOS DE ACCESO A LA PLATAFORMA:\n\n🔗 *Enlace:* https://espiritistasacantar.com/alumno\n👤 *Usuario:* ${telefonoAlumno}\n🔑 *Contraseña temporal:* ${passwordTemp}\n\nEn el portal podrás encontrar el acceso a tus cursos, pagos y próximos cursos. ¡Cualquier duda, aquí estamos para apoyarte!`
-
-        const urlWa = `https://wa.me/${telLimpio}?text=${encodeURIComponent(mensajeBienvenida)}`
-        window.open(urlWa, '_blank')
-      } else {
-        alert('Aviso: El teléfono ingresado no es válido para abrir el WhatsApp automático.')
-      }
-
-      setModalNuevo(false)
-      cargarAlumnos()
-    }
-    setGuardando(false)
-  }
-
-  // Filtrado dinámico por nombre, correo, teléfono o matrícula
-  const alumnosFiltrados = alumnos.filter(a => {
-    const nombre = a.nombre || a.Nombre || ''
-    const correo = a.correo || a.Correo || ''
-    const telefono = a.telefono || a.Telefono || ''
-    const matricula = a.matricula || ''
-    const termino = busqueda.toLowerCase()
-    
-    return nombre.toLowerCase().includes(termino) || 
-           correo.toLowerCase().includes(termino) || 
-           telefono.toLowerCase().includes(termino) ||
-           matricula.toLowerCase().includes(termino)
-  })
+  const [{ data: inscripciones }, { data: vencidas }] = ids.length
+    ? await Promise.all([
+        db.from('enrollments').select('profile_id, status').in('profile_id', ids),
+        db.from('payments').select('profile_id').in('profile_id', ids).eq('status', 'pendiente').lt('due_date', hoyMx()),
+      ])
+    : [{ data: [] }, { data: [] }]
+  const activos = (id) => (inscripciones || []).filter((e) => e.profile_id === id && e.status === 'activa').length
+  const conVencida = new Set((vencidas || []).map((v) => v.profile_id))
+  const paginas = Math.max(1, Math.ceil((count || 0) / POR_PAGINA))
+  const link = (p) => `/admin/estudiantes?${new URLSearchParams({ ...(q && { q }), ...(filtro && { filtro }), p: String(p) })}`
 
   return (
-    <div className="h-screen flex overflow-hidden bg-[#f8fafc] font-sans text-slate-900 text-sm">
-      
-      {/* SIDEBAR ADMINISTRATIVO */}
-      <aside className="w-72 bg-[#0a0f1d] text-slate-300 hidden lg:flex flex-col border-r border-slate-800/60 z-20 flex-shrink-0">
-        <div className="h-20 px-6 flex items-center justify-between border-b border-slate-800/80 bg-[#0f172a]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-bold text-sm shadow-md">EC</div>
-            <div className="flex flex-col">
-              <span className="font-bold text-white text-sm leading-tight">Espiritistas a Cantar</span>
-              <span className="text-xs text-indigo-400 font-medium">Panel Administrativo</span>
-            </div>
-          </div>
+    <main className="page">
+      <div className="greeting">
+        <div>
+          <span className="eyebrow">Matrículas y accesos</span>
+          <h1>Estudiantes</h1>
+          <p>{count ?? 0} {filtro === 'sin-correo' ? 'sin correo registrado' : 'estudiantes registrados'}.</p>
         </div>
+        <Link href="/admin/estudiantes/nuevo" className="primary"><Icon name="plus" size={18} /> Nuevo estudiante</Link>
+      </div>
+      <Flash ok={sp?.ok} error={sp?.error} />
 
-        <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto text-sm font-medium">
-          <div className="px-3 pb-2 text-xs uppercase tracking-wider text-slate-500 font-bold">Gestión</div>
-          <a href="/admin" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏠 Inicio</a>
-          <a href="/admin/estudiantes" className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-sm">🎓 Estudiantes</a>
-          <a href="/admin/cursos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📚 Cursos / Programas</a>
-          <a href="/admin/grupos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">🏛️ Grupos y Horarios</a>
-          <a href="/admin/pagos" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">💳 Pagos y Finanzas</a>
-          
-          <div className="pt-6 px-3 pb-2 text-xs uppercase tracking-wider text-indigo-400 font-bold">Presencial</div>
-          <a href="/admin/tandas" className="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-400 hover:bg-slate-800/50 hover:text-white transition">📍 Tandas y Misas</a>
-        </nav>
-      </aside>
+      <form className="toolbar" action="/admin/estudiantes">
+        <label className="search">
+          <Icon name="user" size={18} />
+          <input name="q" defaultValue={q} placeholder="Buscar por nombre, matrícula, teléfono o correo" />
+        </label>
+        {filtro && <input type="hidden" name="filtro" value={filtro} />}
+        <button className="secondary" type="submit">Buscar</button>
+        {(q || filtro) && <Link href="/admin/estudiantes" className="ghost">Limpiar</Link>}
+      </form>
 
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto">
-        
-        {/* HEADER SUPERIOR */}
-        <header className="bg-white border-b border-slate-200 h-20 flex items-center justify-between px-10 sticky top-0 z-30 shadow-xs">
-          <div>
-            <h1 className="text-lg font-extrabold text-slate-900">Estudiantes</h1>
-            <p className="text-xs text-slate-500">Gestiona la información y expedientes de tus estudiantes</p>
-          </div>
-          <button 
-            onClick={abrirModalNuevo}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-2xl text-sm font-bold shadow-sm transition flex items-center gap-2"
-          >
-            <span>+</span> Nuevo estudiante
-          </button>
-        </header>
-
-        {/* VISTA GENERAL */}
-        <div className="p-10 max-w-[1700px] mx-auto w-full space-y-8">
-          
-          {/* BARRA DE BÚSQUEDA DINÁMICA */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
-            <span className="text-slate-400 text-base pl-2">🔍</span>
-            <input 
-              type="text" 
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por matrícula, nombre, teléfono o correo electrónico..." 
-              className="w-full text-sm outline-none bg-transparent text-slate-900 placeholder-slate-400 font-medium"
-            />
-          </div>
-
-          {/* TABLA DE ESTUDIANTES */}
-          <div className="bg-white rounded-3xl border border-slate-200/80 overflow-hidden shadow-xs">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Listado General ({alumnosFiltrados.length} estudiantes)</h3>
-            </div>
-            
-            <div className="overflow-x-auto">
-              {loading ? (
-                <div className="text-center py-16 text-sm text-slate-400">Cargando directorio de estudiantes...</div>
-              ) : alumnosFiltrados.length === 0 ? (
-                <div className="text-center py-16 text-sm text-slate-400">No se encontraron estudiantes registrados.</div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#1e293b] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="py-4 px-6">Nombre</th>
-                      <th className="py-4 px-6">Email</th>
-                      <th className="py-4 px-6">Teléfono</th>
-                      <th className="py-4 px-6">Matrícula</th>
-                      <th className="py-4 px-6 text-right">Contraseña LMS</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                    {alumnosFiltrados.map((a) => {
-                      const nombre = a.nombre || a.Nombre || 'Sin nombre'
-                      const correo = a.correo || a.Correo || 'Sin correo'
-                      const telefono = a.telefono || a.Telefono || 'Sin teléfono'
-                      const matricula = a.matricula || `${a.id}`
-                      const password = a.password || 'EAC2026*'
-                      
-                      const iniciales = nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
-
-                      return (
-                        <tr 
-                          key={a.id} 
-                          onClick={() => window.location.href = `/admin/estudiantes/detalle?id=${a.id}`}
-                          className="hover:bg-slate-50 transition cursor-pointer group"
-                        >
-                          <td className="py-4 px-6 font-semibold text-slate-900 flex items-center gap-4">
-                            <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-extrabold text-xs shadow-xs border border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white transition">
-                              {iniciales}
-                            </div>
-                            <div>
-                              <span className="block group-hover:text-indigo-600 transition font-bold">{nombre}</span>
-                              <span className="text-xs text-slate-400 font-normal">Ver expediente</span>
-                            </div>
-                          </td>
-                          <td className="py-4 px-6 text-slate-600 font-medium">{correo}</td>
-                          <td className="py-4 px-6 text-slate-600 font-medium">{telefono}</td>
-                          <td className="py-4 px-6 font-mono text-indigo-600 font-bold text-sm">#{matricula}</td>
-                          <td className="py-4 px-6 font-mono text-slate-500 font-semibold text-right">{password}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
+      <section className="table-panel">
+        <div className="table-row table-header" style={{ gridTemplateColumns: '.8fr 1.8fr 1.1fr 1.6fr .8fr .9fr 38px' }}>
+          <span>Matrícula</span><span>Nombre</span><span>Teléfono</span><span>Correo</span><span>Accesos</span><span>Estado</span><span />
         </div>
-      </main>
+        {(lista || []).map((p) => (
+          <Link key={p.id} href={`/admin/estudiantes/${p.id}`} className="table-row" style={{ gridTemplateColumns: '.8fr 1.8fr 1.1fr 1.6fr .8fr .9fr 38px' }}>
+            <span><b style={{ color: 'var(--purple-dark)' }}>{p.matricula}</b></span>
+            <span className="person"><i>{(p.first_name || '?')[0]}{(p.last_name || '')[0] || ''}</i><b>{nombreCompleto(p)}</b></span>
+            <span>{p.phone || '—'}</span>
+            <span style={{ color: p.email ? undefined : 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email || 'Sin correo'}</span>
+            <span>{activos(p.id)}</span>
+            <span>
+              {!p.auth_user_id ? <i className="status neutral">Sin cuenta</i>
+                : conVencida.has(p.id) ? <i className="status danger">Cuota vencida</i>
+                : activos(p.id) ? <i className="status success">Activo</i>
+                : <i className="status neutral">Sin cursos</i>}
+            </span>
+            <Icon name="chevron" size={17} />
+          </Link>
+        ))}
+        {!lista?.length && <div className="empty-card">No hay resultados{q ? ` para «${q}»` : ''}.</div>}
+      </section>
 
-      {/* MODAL NUEVO ESTUDIANTE */}
-      {modalNuevo && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-8 shadow-2xl border border-slate-200 space-y-6">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Registrar Nuevo Estudiante</h3>
-              <p className="text-xs text-slate-500 mt-1">La matrícula numérica y la contraseña se generan automáticamente.</p>
-            </div>
-
-            <form onSubmit={crearAlumno} className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Nombre *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formNuevo.nombre}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, nombre: e.target.value })}
-                    placeholder="Ej. Alma"
-                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Apellidos *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formNuevo.apellidos}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, apellidos: e.target.value })}
-                    placeholder="Ej. Aldabalde"
-                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Correo Electrónico *</label>
-                  <input 
-                    type="email" 
-                    required
-                    value={formNuevo.correo}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, correo: e.target.value })}
-                    placeholder="correo@ejemplo.com"
-                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Teléfono *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formNuevo.telefono}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, telefono: e.target.value })}
-                    placeholder="91004691"
-                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Fecha de Nacimiento</label>
-                  <input 
-                    type="date" 
-                    value={formNuevo.fecha_nacimiento}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, fecha_nacimiento: e.target.value })}
-                    className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">🔑 Contraseña Generada</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formNuevo.password}
-                    onChange={(e) => setFormNuevo({ ...formNuevo, password: e.target.value })}
-                    className="w-full p-3.5 border border-indigo-200 rounded-2xl text-sm bg-indigo-50/50 outline-none focus:border-indigo-600 font-mono font-bold text-indigo-700"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 mb-1.5">Dirección</label>
-                <input 
-                  type="text" 
-                  value={formNuevo.direccion}
-                  onChange={(e) => setFormNuevo({ ...formNuevo, direccion: e.target.value })}
-                  placeholder="Calle, Colonia, Ciudad..."
-                  className="w-full p-3.5 border border-slate-200 rounded-2xl text-sm bg-slate-50 outline-none focus:border-indigo-600 font-medium"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-5 border-t border-slate-100">
-                <button type="button" onClick={() => setModalNuevo(false)} className="px-5 py-2.5 text-xs font-semibold text-slate-500">Cancelar</button>
-                <button type="submit" disabled={guardando} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-2xl text-sm font-semibold transition shadow-sm disabled:opacity-50">
-                  {guardando ? 'Guardando...' : 'Crear Estudiante'}
-                </button>
-              </div>
-            </form>
-          </div>
+      {paginas > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 16, alignItems: 'center' }}>
+          {pagina > 1 && <Link href={link(pagina - 1)} className="secondary sm">Anterior</Link>}
+          <span className="muted" style={{ fontSize: 13 }}>Página {pagina} de {paginas}</span>
+          {pagina < paginas && <Link href={link(pagina + 1)} className="secondary sm">Siguiente</Link>}
         </div>
       )}
-
-    </div>
+    </main>
   )
 }

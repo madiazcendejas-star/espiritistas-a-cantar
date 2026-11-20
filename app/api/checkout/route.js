@@ -1,38 +1,32 @@
-import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getSessionProfile } from '@/lib/auth'
+import { crearCheckoutInscripcion, BARAJA_GRUPO_ID } from '@/lib/stripe'
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic'
 
+// Compatible con la landing anterior: POST { grupo_id } → { url }.
 export async function POST(req) {
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    // Opcional: Puedes recibir el curso_id y grupo_id desde el frontend si lo deseas, 
-    // o definirlos aquí directamente para este producto.
-    const body = await req.json().catch(() => ({}));
-    const cursoId = body.curso_id || '1'; // ID por defecto o recibido
-    const grupoId = body.grupo_id || '5'; // ID del grupo por defecto o recibido
-
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price: process.env.STRIPE_PRICE_ID_BARAJA,
-          quantity: 1,
-        },
-      ],
-      mode: 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/gracias?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/cursos/baraja-espanola`,
-      
-      // 🌟 AQUÍ PASAMOS LOS METADATOS QUE LEE EL WEBHOOK 🌟
-      metadata: {
-        curso_id: String(cursoId),
-        grupo_id: String(grupoId)
-      },
-    });
-
-    return NextResponse.json({ url: session.url });
+    const body = await req.json().catch(() => ({}))
+    const grupoId = Number(body.grupo_id || BARAJA_GRUPO_ID)
+    const db = createAdminClient()
+    const { data: grupo } = await db
+      .from('course_groups')
+      .select('id, course_id, name, price_total, installments, status, courses(id, title, is_visible)')
+      .eq('id', grupoId)
+      .maybeSingle()
+    if (!grupo || grupo.status !== 'activo' || !grupo.courses?.is_visible || !(Number(grupo.price_total) > 0)) {
+      return NextResponse.json({ error: 'Este grupo no está disponible para inscripción en línea.' }, { status: 400 })
+    }
+    let perfil = null
+    try {
+      perfil = (await getSessionProfile()).profile
+    } catch {}
+    const url = await crearCheckoutInscripcion({ grupo, curso: grupo.courses, perfil })
+    return NextResponse.json({ url })
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Checkout', error)
+    return NextResponse.json({ error: 'No pudimos iniciar el pago. Intenta de nuevo.' }, { status: 500 })
   }
 }

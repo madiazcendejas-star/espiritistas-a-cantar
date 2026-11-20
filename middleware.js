@@ -1,34 +1,41 @@
 import { NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
-// Protege todo /admin con usuario y contraseña verificados en el servidor.
-// Configura ADMIN_USER y ADMIN_PASSWORD en Vercel (Settings → Environment Variables) ANTES de desplegar.
-export const config = { matcher: ['/admin', '/admin/:path*'] }
+const PRIVADAS = ['/mi-espacio', '/docente', '/admin']
 
-function igualSeguro(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false
-  let r = 0
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  return r === 0
+// Renueva la sesión de Supabase en cada petición y manda al login a quien
+// entra a una zona privada sin sesión. El rol se verifica en cada layout.
+export async function middleware(request) {
+  let response = NextResponse.next({ request })
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return response
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        response = NextResponse.next({ request })
+        cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
+      },
+    },
+  })
+
+  const { data: { user } } = await supabase.auth.getUser()
+  const { pathname } = request.nextUrl
+
+  if (!user && PRIVADAS.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+    const destino = request.nextUrl.clone()
+    destino.pathname = '/entrar'
+    destino.search = `?siguiente=${encodeURIComponent(pathname)}`
+    return NextResponse.redirect(destino)
+  }
+  return response
 }
 
-export function middleware(req) {
-  const user = process.env.ADMIN_USER
-  const pass = process.env.ADMIN_PASSWORD
-  if (!user || !pass) {
-    return new NextResponse('Panel de administración deshabilitado: faltan ADMIN_USER y ADMIN_PASSWORD.', { status: 503 })
-  }
-  const auth = req.headers.get('authorization') || ''
-  if (auth.startsWith('Basic ')) {
-    try {
-      const decoded = atob(auth.slice(6))
-      const i = decoded.indexOf(':')
-      const u = decoded.slice(0, i)
-      const p = decoded.slice(i + 1)
-      if (i > -1 && igualSeguro(u, user) && igualSeguro(p, pass)) return NextResponse.next()
-    } catch (e) {}
-  }
-  return new NextResponse('Autenticación requerida', {
-    status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="EAC Administracion", charset="UTF-8"' },
-  })
+export const config = {
+  matcher: ['/((?!api/webhook|_next/static|_next/image|favicon.ico|icon.png|logo-eac.png|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)'],
 }

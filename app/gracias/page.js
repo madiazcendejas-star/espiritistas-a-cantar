@@ -1,146 +1,117 @@
-'use client'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import Brand from '@/components/Brand'
+import Icon from '@/components/Icon'
+import CrearContrasenaForm from './CrearContrasenaForm'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getSessionProfile } from '@/lib/auth'
+import { getStripe, cumplirCheckout, perfilDeCheckout } from '@/lib/stripe'
+import { money2 } from '@/lib/format'
 
-import { useState, Suspense } from 'react'
-import { supabase } from '../../lib/supabase'
+export const dynamic = 'force-dynamic'
+export const metadata = { title: 'Gracias por tu pago', robots: { index: false } }
 
-function GraciasContent() {
-  const [email, setEmail] = useState('')
-  const [nombre, setNombre] = useState('')
-  const [password, setPassword] = useState('')
-  const [errorMsg, setErrorMsg] = useState('')
-  const [activando, setActivando] = useState(false)
-
-  const handleActivarCuenta = async (e) => {
-    e.preventDefault()
-    if (!email || !email.includes('@')) {
-      return setErrorMsg('Por favor ingresa un correo electrónico válido.')
-    }
-    if (!password || password.length < 6) {
-      return setErrorMsg('La contraseña debe tener al menos 6 caracteres.')
-    }
-
-    try {
-      setActivando(true)
-      setErrorMsg('')
-
-      // 1. Crear el usuario en Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { full_name: nombre }
-        }
-      })
-
-      if (authError) throw authError
-
-      // 2. Guardar o actualizar en la tabla 'alumnos'
-      const { error: dbError } = await supabase
-        .from('alumnos')
-        .upsert([
-          { 
-            correo: email, 
-            nombre: nombre || 'Estudiante',
-            auth_id: authData.user?.id 
-          }
-        ], { onConflict: 'correo' })
-
-      if (dbError) {
-        console.error('Error guardando en tabla alumnos:', dbError)
-      }
-
-      // 3. Iniciar sesión automáticamente y redirigir al portal
-      await supabase.auth.signInWithPassword({ email, password })
-      window.location.href = '/mis-cursos'
-
-    } catch (err) {
-      setErrorMsg(err.message || 'Ocurrió un error al activar tu cuenta.')
-      setActivando(false)
-    }
-  }
-
+function Marco({ eyebrow, titulo, children }) {
   return (
-    <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-6">
-      
-      <div className="text-center space-y-2">
-        <div className="w-12 h-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center mx-auto text-lg font-black shadow-lg shadow-rose-600/30">
-          ✓
-        </div>
-        <h1 className="text-xl font-black text-white">¡Pago completado con éxito!</h1>
-        <p className="text-xs text-slate-400">
-          Tu compra se ha procesado correctamente. Define tu nombre, correo y contraseña para acceder de inmediato a tus clases.
-        </p>
+    <div className="auth-form" style={{ minHeight: '100vh' }}>
+      <div>
+        <div style={{ marginBottom: 24 }}><Brand /></div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h1>{titulo}</h1>
+        {children}
       </div>
-
-      <form onSubmit={handleActivarCuenta} className="space-y-4">
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            Tu Nombre *
-          </label>
-          <input 
-            type="text" 
-            required
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Tu nombre completo"
-            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-white outline-none focus:border-rose-600 transition"
-          />
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            Tu Correo Electrónico (Tu Usuario de Acceso) *
-          </label>
-          <input 
-            type="email" 
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="tucorreo@gmail.com"
-            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-white outline-none focus:border-rose-600 transition"
-          />
-          <span className="text-[10px] text-slate-500 mt-1 block">Este será tu usuario para entrar al portal.</span>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
-            Crea tu Contraseña *
-          </label>
-          <input 
-            type="password" 
-            required
-            placeholder="Mínimo 6 caracteres"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border border-slate-800 rounded-xl text-xs bg-slate-950 text-white outline-none focus:border-rose-600 transition"
-          />
-        </div>
-
-        {errorMsg && (
-          <p className="text-xs text-rose-400 bg-rose-950/50 p-3 rounded-xl border border-rose-900 text-center font-medium">
-            {errorMsg}
-          </p>
-        )}
-
-        <button 
-          type="submit"
-          disabled={activando}
-          className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg shadow-rose-600/30 transition cursor-pointer"
-        >
-          {activando ? 'Activando tu cuenta...' : '🚀 Activar mi cuenta y entrar'}
-        </button>
-      </form>
-
     </div>
   )
 }
 
-export default function GraciasPage() {
+export default async function Gracias({ searchParams }) {
+  const { session_id: sessionId } = await searchParams
+  if (!sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) redirect('/')
+
+  let session
+  try {
+    session = await getStripe().checkout.sessions.retrieve(sessionId)
+  } catch (e) {
+    console.error('Gracias: sesión de Stripe', e)
+    return (
+      <Marco eyebrow="Pago" titulo="No encontramos este pago">
+        <p className="sub">Si ya pagaste, revisa tu correo o escríbenos por WhatsApp y lo revisamos contigo.</p>
+        <Link href="/" className="primary full">Volver al inicio</Link>
+      </Marco>
+    )
+  }
+
+  const md = session.metadata || {}
+  const tipo = md.tipo || (md.grupo_id ? 'inscripcion' : null)
+
+  // OXXO / SPEI: la ficha está generada pero falta que la persona pague.
+  if (session.payment_status !== 'paid') {
+    return (
+      <Marco eyebrow="Casi listo" titulo="Tu ficha de pago está lista">
+        <p className="sub">En cuanto Stripe confirme tu pago (en OXXO puede tardar hasta un día hábil), activaremos tu acceso y te avisaremos por correo{session.customer_details?.email ? ` a ${session.customer_details.email}` : ''}.</p>
+        <div className="notice info" style={{ marginBottom: 16 }}><Icon name="info" /><span>Guarda la ficha o el número de referencia que te mostró Stripe. También te llegó por correo.</span></div>
+        <Link href="/" className="secondary full">Volver al inicio</Link>
+      </Marco>
+    )
+  }
+
+  // Por si el webhook aún no llega: registramos aquí (no duplica nada).
+  try {
+    await cumplirCheckout(session)
+  } catch (e) {
+    console.error('Gracias: cumplirCheckout', e)
+  }
+
+  if (tipo === 'cuota') {
+    return (
+      <Marco eyebrow="Pago recibido" titulo="¡Gracias! Tu cuota quedó pagada">
+        <p className="sub">Recibimos {money2((session.amount_total || 0) / 100)} MXN. Si tu acceso estaba en pausa, ya está activo de nuevo.</p>
+        <Link href="/mi-espacio/pagos" className="primary full">Ver mis pagos</Link>
+      </Marco>
+    )
+  }
+
+  const db = createAdminClient()
+  const perfil = await perfilDeCheckout(db, session).catch(() => null)
+  const grupoUrl = md.grupo_id ? `/mi-espacio/grupo/${md.grupo_id}` : '/mi-espacio'
+
+  if (!perfil) {
+    return (
+      <Marco eyebrow="Pago recibido" titulo="Estamos activando tu acceso">
+        <p className="sub">Tu pago se recibió. Danos unos segundos y recarga esta página. Si no cambia, escríbenos por WhatsApp.</p>
+        <a href={`/gracias?session_id=${sessionId}`} className="primary full">Recargar</a>
+      </Marco>
+    )
+  }
+
+  let pendiente = false
+  let correoCuenta = perfil.email || ''
+  if (perfil.auth_user_id) {
+    const { data: u } = await db.auth.admin.getUserById(perfil.auth_user_id)
+    pendiente = u?.user?.user_metadata?.contrasena_pendiente === sessionId
+    correoCuenta = u?.user?.email || correoCuenta
+  }
+
+  if (pendiente) {
+    return (
+      <Marco eyebrow="Pago recibido" titulo={`¡Bienvenido${perfil.first_name && perfil.first_name !== 'Estudiante' ? `, ${perfil.first_name}` : ''}!`}>
+        <p className="sub">Ya tienes acceso. Elige una contraseña para entrar a tus clases desde cualquier dispositivo. Tu matrícula es <b>{perfil.matricula}</b>.</p>
+        <CrearContrasenaForm sessionId={sessionId} email={correoCuenta} />
+      </Marco>
+    )
+  }
+
+  let conSesion = false
+  try {
+    conSesion = (await getSessionProfile()).profile?.id === perfil.id
+  } catch {}
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6 font-sans">
-      <Suspense fallback={<div className="text-xs text-slate-400 uppercase tracking-widest animate-pulse">Cargando...</div>}>
-        <GraciasContent />
-      </Suspense>
-    </div>
+    <Marco eyebrow="Pago recibido" titulo="¡Listo! Ya tienes acceso">
+      <p className="sub">El curso ya aparece en tu espacio{correoCuenta && !conSesion ? `. Entra con ${correoCuenta} y tu contraseña` : ''}.</p>
+      <Link href={conSesion ? grupoUrl : `/entrar?siguiente=${encodeURIComponent(grupoUrl)}`} className="primary full">
+        {conSesion ? 'Ir a mi curso' : 'Iniciar sesión'}
+      </Link>
+    </Marco>
   )
 }
