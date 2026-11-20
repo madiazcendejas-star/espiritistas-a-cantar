@@ -735,3 +735,13 @@ a.table-row:hover{background:var(--surface-2)}
   .cuota-pagar{grid-column:1/-1;grid-row:3}
   .cuota-pagar .primary{width:100%;min-height:46px}
 }
+
+/* Aviso para agregar correo */
+.correo-card{padding:18px 20px;margin-bottom:20px;border-color:var(--purple-line);background:linear-gradient(180deg,var(--purple-soft),var(--surface) 70%)}
+.correo-head{display:flex;gap:14px;align-items:flex-start}
+.correo-head b{font-size:15px;color:var(--ink-2)}
+.correo-head p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.correo-form{display:flex;gap:10px;margin-top:14px}
+.correo-form input{flex:1;min-width:0;min-height:46px;border:1px solid var(--line-strong);border-radius:12px;padding:0 14px;background:var(--surface);font-size:15px}
+.correo-form .primary{min-height:46px}
+@media (max-width:760px){.correo-form{flex-direction:column}.correo-form .primary{width:100%}}
