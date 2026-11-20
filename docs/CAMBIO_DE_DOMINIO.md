@@ -12,7 +12,10 @@ del mismo proyecto de Supabase.
 - 20 nov 2026: **preparación A completa.** Migraciones y sincronización en producción (todo `ok`,
   36 casos en `migration_issues`), esquema `app` expuesto, OXXO y webhook en Stripe real,
   variables de Production en Vercel listas, PR #3 creado como borrador.
-- Pendiente antes del día B: mandar su matrícula a los 8 estudiantes con teléfono compartido.
+- 20 nov 2026, 15:10: **cambio hecho.** Respaldo `respaldo-eac-20nov.dump`, última sincronización
+  validada, 118/118 cuentas creadas, PR #3 unido y publicado. Compra real con tarjeta probada
+  sin errores en los registros.
+- Pendiente: mandar su matrícula a los 8 estudiantes con teléfono compartido; pasos de la sección C.
 
 ## A. Preparación (días antes, los estudiantes no notan nada)
 
