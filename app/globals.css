@@ -672,3 +672,9 @@ a.primary,a.secondary,a.ghost{text-decoration:none}
 .notice.danger{display:flex;width:auto;min-height:0;white-space:normal;justify-content:flex-start;padding:14px 16px;border-radius:14px;font-weight:500;font-size:14px;border:1px solid #efc9d2;background:var(--rose-soft);color:#8f3e50}
 .status.danger{display:inline-flex;width:auto;min-height:0;white-space:nowrap;padding:5px 10px;border-radius:20px;border:0;font-size:11px;font-weight:700;background:var(--rose-soft);color:var(--rose)}
 .notice span{min-width:0;overflow-wrap:anywhere}
+@media (max-width:760px){
+  .continue-card .course-art{min-height:132px;padding:22px 24px}
+  .continue-card .course-art>.star{top:20px;left:24px;font-size:26px}
+  .continue-card .course-art b{font-size:21px}
+  .course-info h2{font-size:24px}
+}

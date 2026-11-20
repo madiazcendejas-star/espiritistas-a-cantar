@@ -51,8 +51,8 @@ export default async function MiEspacio() {
           <div className={`course-art ${principal.curso.id % 2 ? '' : 'blue'}`}>
             <div className="moon" />
             <span className="star">✦</span>
-            <small>{(MODALIDAD[principal.grupo.modality] || 'CURSO').toUpperCase()}</small>
-            <b>{principal.curso.title}</b>
+            <small>{(MODALIDAD[principal.grupo.modality] || 'CURSO').toUpperCase()} · CONTINÚA DONDE TE QUEDASTE</small>
+            <b>{principal.grupo.name}</b>
           </div>
           <div className="course-info">
             <span className="tag">{principal.access_state === 'activo' ? 'Acceso activo' : 'Acceso pausado'}</span>
