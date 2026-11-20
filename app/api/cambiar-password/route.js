@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getSupabaseAdmin } from '@/lib/supabaseAdmin'
-import { passwordRegistrada, esperar } from '@/lib/alumnoAuth'
+import { getSupabaseAdmin } from '../../../lib/supabaseAdmin'
+import { passwordRegistrada, esperar } from '../../../lib/alumnoAuth'
 
 export const dynamic = 'force-dynamic'
 

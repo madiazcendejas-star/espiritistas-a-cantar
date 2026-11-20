@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { buscarAlumno, passwordRegistrada, sanitizar, esperar } from '@/lib/alumnoAuth'
+import { buscarAlumno, passwordRegistrada, sanitizar, esperar } from '../../../lib/alumnoAuth'
 
 export const dynamic = 'force-dynamic'
 
