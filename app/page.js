@@ -1,106 +1,83 @@
-'use client'
+import Link from 'next/link'
+import PublicHeader from '@/components/PublicHeader'
+import PublicFooter from '@/components/PublicFooter'
+import CourseCard from '@/components/CourseCard'
+import Icon from '@/components/Icon'
+import { getCatalog } from '@/lib/catalog'
 
-import { useState } from 'react'
+export const revalidate = 300
 
-export default function LoginPage() {
-  const [usuario, setUsuario] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
-
-  const manejarIngreso = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setErrorMsg('')
-
-    const userTrim = usuario.trim()
-    const passTrim = password.trim()
-
-    // 1. Administración: el acceso se valida en el servidor (middleware de /admin)
-    if (userTrim.toLowerCase() === 'admin') {
-      window.location.href = '/admin'
-      return
-    }
-
-    // 2. Validar Estudiante en el servidor (ya no se descarga la tabla al navegador)
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identificador: userTrim, password: passTrim }),
-    })
-    const { alumno: data, error } = await res.json().catch(() => ({}))
-
-    if (!res.ok || !data) {
-      setErrorMsg(error || 'Credenciales incorrectas. Verifique sus datos.')
-      setLoading(false)
-      return
-    }
-
-    localStorage.setItem('eac_sesion', JSON.stringify({ rol: 'alumno', alumno: data }))
-    window.location.href = '/alumno'
+export default async function Home() {
+  let destacados = []
+  try {
+    destacados = (await getCatalog()).slice(0, 3)
+  } catch {
+    destacados = []
   }
 
   return (
-    <main className="min-h-screen flex flex-col justify-between bg-[#0a0f1d] text-slate-100 p-6 md:p-12 relative overflow-hidden">
-      <header className="flex justify-between items-center max-w-7xl mx-auto w-full z-10 relative">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-bold text-sm shadow-md">EC</div>
+    <>
+      <PublicHeader />
+      <main className="pub-main">
+        <section className="hero">
           <div>
-            <h2 className="font-bold text-white text-sm tracking-tight">Espiritistas a Cantar</h2>
-            <span className="text-[11px] text-slate-400 font-medium">Sistema Académico & LMS</span>
+            <span className="eyebrow">Escuela de artes holísticas</span>
+            <h1>Aprende, practica y transforma tu camino.</h1>
+            <p className="lead">
+              Cursos y talleres de tarot, sanación energética, cristales, meditación y más. Clases en vivo, lecciones
+              grabadas y materiales para descargar, desde tu celular o tu computadora.
+            </p>
+            <div className="ctas">
+              <Link href="/cursos" className="primary"><Icon name="book" size={18} /> Ver cursos</Link>
+              <Link href="/entrar" className="secondary">Ya tengo cuenta</Link>
+            </div>
           </div>
-        </div>
-      </header>
+          <div className="hero-art" aria-hidden="true">
+            <div className="moon" />
+            <span className="star">✦</span>
+            <small>RUTAS DE APRENDIZAJE</small>
+            <b>Conocimiento con estructura,<br />práctica con sentido.</b>
+          </div>
+        </section>
 
-      <div className="flex-1 flex flex-col items-center justify-center max-w-md mx-auto w-full py-8 z-10 relative">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-2">Portal Institucional</h1>
-          <p className="text-slate-400 text-sm">Ingrese sus credenciales para acceder.</p>
-        </div>
-        
-        <div className="bg-white text-slate-900 rounded-3xl w-full p-8 shadow-2xl border border-slate-200">
-          {errorMsg && (
-            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-medium">
-              {errorMsg}
-            </div>
-          )}
+        <section className="trust">
+          <div className="card"><span className="stat-icon"><Icon name="video" /></span><div><b>Clases en vivo</b><span>Te unes con un clic 15 minutos antes de cada sesión.</span></div></div>
+          <div className="card"><span className="stat-icon"><Icon name="file" /></span><div><b>Materiales siempre disponibles</b><span>Grabaciones, guías y manuales en tu espacio personal.</span></div></div>
+          <div className="card"><span className="stat-icon"><Icon name="card" /></span><div><b>Pagos locales</b><span>Tarjeta, transferencia SPEI u OXXO, también en parcialidades.</span></div></div>
+        </section>
 
-          <form onSubmit={manejarIngreso} className="space-y-5">
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Usuario / Teléfono</label>
-              <input 
-                type="text" 
-                required 
-                value={usuario}
-                onChange={(e) => setUsuario(e.target.value)}
-                placeholder="Ej. admin" 
-                className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:border-indigo-600 bg-slate-50"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Contraseña</label>
-              <input 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••" 
-                className="w-full px-4 py-3 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:border-indigo-600 bg-slate-50"
-              />
-            </div>
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3.5 rounded-2xl font-semibold transition shadow-sm text-sm mt-2 disabled:opacity-50"
-            >
-              {loading ? 'Verificando...' : 'Acceder al Sistema'}
-            </button>
-          </form>
+        <div className="section-head">
+          <div><span className="eyebrow">Catálogo</span><h2>Cursos destacados</h2></div>
+          <Link href="/cursos" className="text-link">Ver todos <Icon name="chevron" size={16} /></Link>
         </div>
-      </div>
-      <footer className="max-w-7xl mx-auto w-full text-center text-xs text-slate-500 z-10">
-        <p>© 2026 Espiritistas a Cantar. Todos los derechos reservados.</p>
-      </footer>
-    </main>
+        {destacados.length ? (
+          <div className="catalog-grid">{destacados.map((c) => <CourseCard key={c.id} course={c} />)}</div>
+        ) : (
+          <div className="card empty-card"><Icon name="book" size={28} /><b>Muy pronto publicaremos el catálogo</b>Mientras tanto, si ya eres estudiante, entra a tu espacio.</div>
+        )}
+
+        <div className="section-head"><div><span className="eyebrow">Cómo funciona</span><h2>Empieza en cuatro pasos</h2></div></div>
+        <div className="steps-row">
+          {[
+            ['Elige tu curso', 'Revisa el temario, la modalidad y las fechas disponibles.'],
+            ['Inscríbete', 'Paga con tarjeta, SPEI u OXXO. Tu cuenta se crea con tu correo.'],
+            ['Entra a tu espacio', 'Desde tu celular, con tu teléfono o correo y tu contraseña.'],
+            ['Aprende a tu ritmo', 'Clases en vivo, grabaciones y materiales en un solo lugar.'],
+          ].map(([t, d], i) => (
+            <div key={t} className="card step"><span className="n">{i + 1}</span><b>{t}</b><span>{d}</span></div>
+          ))}
+        </div>
+
+        <section className="cta-band">
+          <div>
+            <span className="eyebrow">Para docentes</span>
+            <h2>¿Enseñas terapias o artes holísticas?</h2>
+            <p>Publica tus cursos en EAC y gana por cada inscripción. Nosotros nos encargamos de los pagos y la plataforma.</p>
+          </div>
+          <Link href="/docentes" className="primary">Conoce cómo <Icon name="chevron" size={16} /></Link>
+        </section>
+      </main>
+      <PublicFooter />
+    </>
   )
 }

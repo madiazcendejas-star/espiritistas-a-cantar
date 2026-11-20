@@ -4,7 +4,8 @@ insert into public.cursos (id, "Nombre_curso", precio, visible_web) overriding s
 insert into public.grupos (id, curso_id, nombre_grupo, costo_total, num_pagos, duracion_acceso, tipo_modalidad) values
   (10, 1, 'Tarot marzo', 2400, 3, '1_ano', 'en_linea'),
   (11, 2, 'Baraja grabado', 980, 1, '1_ano', 'en_linea'),
-  (12, 1, 'Tarot presencial', 3000, 1, '1_ano', 'presencial');
+  (12, 1, 'Tarot presencial', 3000, 1, '1_ano', 'presencial'),
+  (13, 3, 'Curso oculto grupo', 500, 1, '1_ano', 'en_linea');
 
 insert into public.alumnos (id, matricula, "Nombre", nombre, apellidos, telefono, correo, email, password) overriding system value values
   (1, '1048',    'Mariana', 'Mariana', 'Vega',  '33 1234 5678',     'mariana@correo.mx', null, 'Luna2026'),

@@ -65,7 +65,15 @@ select tests.check((select count(*) from app.payments) = 2 and not exists (selec
 select tests.check((select count(*) from app.group_resources) = 2, 'estudiante ve recursos de sus grupos activos');
 select tests.check((select count(*) from app.lessons) = 1, 'estudiante ve lecciones de su curso');
 select tests.check((select count(*) from app.courses) = 2, 'catálogo: no ve cursos ocultos');
-select tests.check((select string_agg(access_state, ',' order by group_id) from app.my_groups) = 'activo,activo', 'vista my_groups');
+reset role;
+insert into app.enrollments (id, profile_id, course_id, group_id, status, source)
+  select 999001, 1, 3, 13, 'activa', 'manual' from (select 1) x
+  where exists (select 1 from app.course_groups where id = 13);
+set role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', false);
+select tests.check((select count(*) from app.courses where id = 3) = 1, 'curso oculto visible para quien está inscrito');
+select tests.check((select count(*) from app.course_groups where id = 13) = 1, 'grupo de curso oculto visible para quien está inscrito');
+select tests.check((select string_agg(access_state, ',' order by group_id) from app.my_groups) = 'activo,activo,activo', 'vista my_groups');
 do $$ begin
   perform 1 from app.legacy_credentials;
   raise exception 'FALLÓ: estudiante pudo leer legacy_credentials';
