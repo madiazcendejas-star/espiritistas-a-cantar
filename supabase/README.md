@@ -9,9 +9,10 @@ Las tablas nuevas viven en el esquema `app`, dentro del mismo proyecto de Supaba
 | `migrations/20261120000100_app_schema.sql` | Tablas del esquema `app` |
 | `migrations/20261120000200_app_access_rls.sql` | Regla de acceso (inscripción activa y sin cuota vencida) y seguridad por filas (RLS) |
 | `migrations/20261120000400_enrolled_visibility.sql` | Estudiantes ven sus cursos aunque estén ocultos del catálogo |
+| `migrations/20261120000500_admin_support.sql` | Pagos manuales (quién y cuándo), bitácora y matrículas consecutivas |
 | `migrations/20261120000300_sync_from_legacy.sql` | `app.sync_from_legacy()` copia `public` → `app` (idempotente) y `app.validate_migration()` compara conteos |
 | `../scripts/crear-cuentas-auth.mjs` | Crea una cuenta de Supabase Auth por estudiante con su misma contraseña |
-| `tests/` | Pruebas locales con datos ficticios (47 pruebas) |
+| `tests/` | Pruebas locales con datos ficticios (50 pruebas) |
 
 ## Decisiones aplicadas
 

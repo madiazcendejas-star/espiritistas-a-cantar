@@ -200,10 +200,12 @@ begin
   where exists (select 1 from app.profiles p where p.id = pg.alumno_id)
   on conflict (id) do update set
     course_id = excluded.course_id, group_id = excluded.group_id, amount = excluded.amount,
-    amount_received = excluded.amount_received, due_date = excluded.due_date, paid_on = excluded.paid_on,
+    amount_received = case when py.stripe_payment_id is not null or py.registered_at is not null then py.amount_received else excluded.amount_received end,
+    due_date = excluded.due_date,
+    paid_on = case when py.stripe_payment_id is not null or py.registered_at is not null then py.paid_on else excluded.paid_on end,
     receipt_url = excluded.receipt_url, notes = excluded.notes,
-    -- Un pago confirmado por Stripe en v2 no se revierte con datos viejos.
-    status = case when py.stripe_payment_id is not null then py.status else excluded.status end;
+    -- Un pago confirmado por Stripe o registrado a mano en v2 no se revierte con datos viejos.
+    status = case when py.stripe_payment_id is not null or py.registered_at is not null then py.status else excluded.status end;
   get diagnostics n = row_count; paso := '4. Pagos'; filas := n; return next;
 
   -- -------------------------------------------------------------------

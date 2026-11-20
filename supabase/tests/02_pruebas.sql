@@ -47,6 +47,14 @@ select tests.check((select status from app.enrollments where profile_id = 2 and 
 select tests.check((select count(*) from app.profiles) = 6 and (select count(*) from app.enrollments) = 6, 'segunda sincronización no duplica');
 select tests.check((select matricula from app.profiles where id = 3) = '10000', 'matrícula asignada se mantiene entre corridas');
 
+-- ---------- Pago manual registrado en v2 no se pisa al sincronizar ----------
+update app.payments set status = 'pagado', paid_on = '2026-11-20', amount_received = 800, method = 'transferencia', registered_at = now() where id = 502;
+select count(*) from app.sync_from_legacy();
+select tests.check((select status from app.payments where id = 502) = 'pagado', 'pago manual en v2 se conserva tras sincronizar');
+select tests.check(not exists (select 1 from app.payments where profile_id = 2 and group_id = 10 and status = 'pendiente' and due_date < current_date), 'pago manual deja sin cuotas vencidas (quita la pausa)');
+update app.payments set status = 'pendiente', paid_on = null, amount_received = 0, method = null, registered_at = null where id = 502;
+select tests.check(app.next_matricula() ~ '^\d+$', 'next_matricula devuelve un número');
+
 -- ---------- Seguridad (RLS) ----------
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-000000000001', 'mariana@correo.mx'),
                                           ('00000000-0000-0000-0000-000000000002', 'admin@eac.mx');

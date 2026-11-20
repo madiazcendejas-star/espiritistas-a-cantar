@@ -702,3 +702,22 @@ a.primary,a.secondary,a.ghost{text-decoration:none}
   .video-embed{border-radius:12px;margin:0 -4px}
   .viewer-head h1{font-size:20px}
 }
+
+/* ---------- Administración ---------- */
+.pay-sum{list-style:none;padding:14px 18px;display:grid;grid-template-columns:1.6fr 1fr .9fr .9fr auto;gap:12px;align-items:center}
+.pay-sum::-webkit-details-marker{display:none}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.inline-form{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
+a.table-row:hover{background:var(--surface-2)}
+.admin-group{padding:18px 20px;display:grid;grid-template-columns:1.6fr 1fr 1fr auto;gap:14px;align-items:center}
+.admin-group+.admin-group{border-top:1px solid var(--line)}
+.switches{display:flex;gap:18px;flex-wrap:wrap;margin:6px 0 14px}
+.switches label{display:flex;gap:8px;align-items:center;font-weight:600;font-size:13px;cursor:pointer}
+.switches input{accent-color:var(--purple);width:16px;height:16px}
+@media (max-width:760px){
+  .pay-sum{grid-template-columns:1fr 1fr;gap:8px}
+  .pay-sum>span:first-child{grid-column:1/-1}
+  .grid3{grid-template-columns:1fr}
+  .inline-form{grid-template-columns:1fr}
+  .admin-group{grid-template-columns:1fr}
+}
