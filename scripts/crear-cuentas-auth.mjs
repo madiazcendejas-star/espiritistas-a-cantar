@@ -81,8 +81,17 @@ const perfiles = await rest('profiles?select=id,matricula,role,email&auth_user_i
 const credenciales = await rest('legacy_credentials?select=profile_id,password_bcrypt')
 const hashDe = new Map(credenciales.map((c) => [c.profile_id, c.password_bcrypt]))
 
+// Contraseñas cambiadas en la app anterior después de crear la cuenta
+// (la sincronización las marca con migrated_at = null).
+const ligados = await rest('profiles?select=id,auth_user_id&auth_user_id=not.is.null')
+const pendientesHash = new Set(
+  (await rest('legacy_credentials?select=profile_id&migrated_at=is.null')).map((c) => c.profile_id),
+)
+const porActualizar = ligados.filter((p) => pendientesHash.has(p.id))
+
 const resumen = {
   perfiles_sin_cuenta: perfiles.length,
+  contraseñas_por_actualizar: porActualizar.length,
   con_correo_real: perfiles.filter((p) => p.email).length,
   con_correo_tecnico: perfiles.filter((p) => !p.email).length,
   sin_contraseña_heredada: perfiles.filter((p) => !hashDe.has(p.id)).length,
@@ -113,7 +122,26 @@ for (const p of perfiles) {
     errores.push({ profile_id: p.id, error: String(e.message).slice(0, 160) })
   }
 }
+let actualizadas = 0
+for (const p of porActualizar) {
+  try {
+    const res = await fetch(`${URL_SB}/auth/v1/admin/users/${p.auth_user_id}`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({ password_hash: hashDe.get(p.id) }),
+    })
+    if (!res.ok) throw new Error(`Auth ${res.status}: ${(await res.text()).slice(0, 120)}`)
+    await rest(`legacy_credentials?profile_id=eq.${p.id}`, {
+      method: 'PATCH', body: JSON.stringify({ migrated_at: new Date().toISOString() }), headers: { Prefer: 'return=minimal' },
+    })
+    actualizadas++
+  } catch (e) {
+    errores.push({ profile_id: p.id, error: String(e.message).slice(0, 160) })
+  }
+}
+
 console.log(`Cuentas creadas: ${creadas} de ${perfiles.length}`)
+console.log(`Contraseñas actualizadas: ${actualizadas} de ${porActualizar.length}`)
 if (errores.length) {
   console.log('Errores (por id de perfil, sin datos personales):')
   console.table(errores)
