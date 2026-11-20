@@ -26,7 +26,7 @@ const PASOS = [
 
 const FAQ = [
   ['¿Cuánto gano por cada inscripción?', 'El reparto estándar es 70% para ti y 30% para EAC, calculado sobre el precio de venta menos la comisión de la pasarela de pago. Se puede ajustar según el curso.'],
-  ['¿Cuándo recibo mis pagos?', 'Hacemos cortes periódicos (quincenales o mensuales) y depositamos tu saldo a la cuenta que registres.'],
+  ['¿Cuándo recibo mis pagos?', 'Hacemos un corte cada quincena (días 1–15 y 16–fin de mes) y te transferimos tu saldo a la cuenta que registres en tu perfil docente.'],
   ['¿Necesito saber de tecnología?', 'No. Subes tus materiales desde tu portal y nosotros nos encargamos de la plataforma, los cobros y el soporte a estudiantes.'],
   ['¿Puedo dar clases en vivo?', 'Sí. Cada sesión tiene su enlace de Google Meet y después puedes adjuntar la grabación a la misma lección.'],
 ]

@@ -1,27 +1,26 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
+import SolicitudForm from './SolicitudForm'
+import { getSessionProfile } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
-
 export const metadata = { title: 'Solicitud de docente' }
 
-// El registro y la revisión de docentes llegan en la etapa del marketplace.
-export default function SolicitudDocente() {
+export default async function SolicitudDocente() {
+  const { profile } = await getSessionProfile().catch(() => ({ profile: null }))
+  if (profile && ['teacher', 'admin'].includes(profile.role)) redirect('/docente')
   return (
     <>
       <PublicHeader active="docente" />
-      <main className="pub-main" style={{ paddingTop: 40, maxWidth: 720 }}>
+      <main className="pub-main" style={{ paddingTop: 40, maxWidth: 760 }}>
         <Link href="/docentes" className="back-home"><Icon name="chevron" size={16} /> Enseña en EAC</Link>
-        <div className="card" style={{ padding: 28 }}>
-          <span className="eyebrow">Muy pronto</span>
-          <h1 style={{ fontWeight: 700, fontSize: 28, margin: '8px 0', color: 'var(--ink-2)' }}>Registro de docentes</h1>
-          <p className="muted">
-            Estamos preparando el portal para docentes aliados. Muy pronto podrás crear tu cuenta y enviar tu
-            propuesta de curso desde aquí.
-          </p>
-        </div>
+        <span className="eyebrow">Docentes</span>
+        <h1 style={{ fontWeight: 700, fontSize: 'clamp(26px,3vw,34px)', margin: '8px 0', color: 'var(--ink-2)' }}>Solicitud para enseñar en EAC</h1>
+        <p className="muted" style={{ marginBottom: 22 }}>Cuéntanos de ti y del curso que quieres impartir. Revisamos cada solicitud y te respondemos por correo.</p>
+        <SolicitudForm conSesion={!!profile} nombre={profile?.first_name} />
       </main>
       <PublicFooter />
     </>
