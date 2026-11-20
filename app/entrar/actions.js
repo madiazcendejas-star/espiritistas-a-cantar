@@ -4,41 +4,16 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PANEL_POR_ROL, rutaSegura } from '@/lib/auth'
+import { buscarPerfil, correoDeCuenta, ERROR_GENERICO } from '@/lib/cuentas'
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms))
-const ERROR_GENERICO = 'Los datos de acceso no coinciden. Revisa tu teléfono, matrícula o correo y tu contraseña.'
 
-// Traduce lo que escribe la persona (teléfono, matrícula o correo) al correo
-// de su cuenta de Supabase Auth. Etapa 1 del plan de acceso.
 async function resolverCorreoDeCuenta(identificador) {
   const admin = createAdminClient()
-  const valor = identificador.trim()
-  let perfil = null
-
-  if (valor.includes('@')) {
-    const { data } = await admin.from('profiles').select('id, auth_user_id').ilike('email', valor.replace(/[%_\\]/g, '\\$&')).maybeSingle()
-    perfil = data
-  } else {
-    const limpio = valor.replace(/[%_\\]/g, '\\$&')
-    const { data: porMatricula } = await admin
-      .from('profiles')
-      .select('id, auth_user_id')
-      .or(`matricula.ilike.${limpio},matricula.ilike.EAC-${limpio}`)
-      .limit(2)
-    if (porMatricula?.length === 1) perfil = porMatricula[0]
-
-    const digitos = valor.replace(/\D/g, '')
-    if (!perfil && digitos.length >= 10) {
-      const { data: porTelefono } = await admin.from('profiles').select('id, auth_user_id').eq('phone10', digitos.slice(-10)).limit(2)
-      if (porTelefono?.length > 1) return { error: 'Este teléfono está registrado en más de una cuenta. Entra con tu matrícula o tu correo.' }
-      if (porTelefono?.length === 1) perfil = porTelefono[0]
-    }
-  }
-
-  if (!perfil?.auth_user_id) return { error: ERROR_GENERICO }
-  const { data: usuario, error } = await admin.auth.admin.getUserById(perfil.auth_user_id)
-  if (error || !usuario?.user?.email) return { error: ERROR_GENERICO }
-  return { email: usuario.user.email }
+  const r = await buscarPerfil(admin, identificador)
+  if (r.error) return { error: r.error }
+  const email = await correoDeCuenta(admin, r.perfil)
+  return email ? { email } : { error: ERROR_GENERICO }
 }
 
 export async function iniciarSesion(_prev, formData) {
