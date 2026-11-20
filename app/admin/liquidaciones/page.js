@@ -68,6 +68,12 @@ export default async function Liquidaciones({ searchParams }) {
                   <button className="primary sm" type="submit">Generar corte</button>
                 </form>
               ) : <span className="muted" style={{ fontSize: 12 }}>Nada en este corte</span>}
+              {r.total > r.periodo && r.total > 0 && (
+                <form action={generarCorte} style={{ marginTop: 6 }}>
+                  <input type="hidden" name="teacher_id" value={r.id} /><input type="hidden" name="inicio" value={periodo.inicio} /><input type="hidden" name="fin" value={hoyMx()} />
+                  <button className="ghost sm" type="submit">Cortar hasta hoy ({money2(r.total)})</button>
+                </form>
+              )}
             </span>
           </div>
         ))}
