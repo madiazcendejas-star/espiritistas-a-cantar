@@ -11,7 +11,7 @@ export default async function Cursos({ searchParams }) {
   const sp = await searchParams
   const { db } = await requireAdmin()
   const [{ data: cursos }, { data: grupos }, { data: inscr }] = await Promise.all([
-    db.from('courses').select('id, title, price, is_visible, is_upcoming, cover_url').order('title'),
+    db.from('courses').select('id, title, price, is_visible, is_upcoming, cover_url, owner_id, review_status').neq('review_status', 'borrador').order('title'),
     db.from('course_groups').select('id, course_id, status'),
     db.from('enrollments').select('course_id').eq('status', 'activa'),
   ])
@@ -38,7 +38,7 @@ export default async function Cursos({ searchParams }) {
             <span className="right">{money(c.price)}</span>
             <span className="right">{nGrupos(c.id)}</span>
             <span className="right">{nInscr(c.id)}</span>
-            <span>{c.is_visible ? <i className="status success">Visible</i> : <i className="status neutral">Oculto</i>}{c.is_upcoming && <i className="status review" style={{ marginLeft: 6 }}>Próximamente</i>}</span>
+            <span>{c.review_status === 'en_revision' ? <i className="status review">Por revisar</i> : c.review_status === 'rechazado' ? <i className="status danger">Cambios pedidos</i> : c.is_visible ? <i className="status success">Visible</i> : <i className="status neutral">Oculto</i>}{c.is_upcoming && <i className="status review" style={{ marginLeft: 6 }}>Próximamente</i>}{c.owner_id && <i className="status info" style={{ marginLeft: 6 }}>Docente</i>}</span>
             <Icon name="chevron" size={17} />
           </Link>
         ))}

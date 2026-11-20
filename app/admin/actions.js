@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO } from '@/lib/admin'
 import { hoyMx, sumarMeses } from '@/lib/format'
+import { enviarAviso } from '@/lib/correo'
+import { urlDelSitio } from '@/lib/sitio'
 
 const volver = (ruta, msg, tipo = 'ok') => redirect(`${ruta}${ruta.includes('?') ? '&' : '?'}${tipo}=${encodeURIComponent(msg)}`)
 const esCorreo = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
@@ -384,4 +386,195 @@ export async function eliminarSesion(formData) {
   await audit(db, actor, 'eliminar_sesion', 'live_session', id)
   revalidatePath(`/admin/grupos/${groupId}`)
   volver(`/admin/grupos/${groupId}`, 'Sesión eliminada.')
+}
+
+// ---------------------------------------------------------------------
+// Docentes y marketplace
+// ---------------------------------------------------------------------
+async function avisar(datos) {
+  try {
+    await enviarAviso(datos)
+  } catch (e) {
+    console.error('Aviso por correo', e)
+  }
+}
+
+async function correoDe(db, profileId) {
+  const { data } = await db.from('profiles').select('email, first_name').eq('id', profileId).maybeSingle()
+  return data
+}
+
+export async function asignarDocente(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const groupId = Number(formData.get('group_id'))
+  const profileId = Number(formData.get('profile_id'))
+  const ruta = `/admin/grupos/${groupId}`
+  const { data: p } = await db.from('profiles').select('role').eq('id', profileId).maybeSingle()
+  if (p?.role !== 'teacher') volver(ruta, 'Esa persona no está aprobada como docente.', 'error')
+  await db.from('group_teachers').upsert({ group_id: groupId, profile_id: profileId }, { onConflict: 'group_id,profile_id', ignoreDuplicates: true })
+  await audit(db, actor, 'asignar_docente', 'group', groupId, { profileId })
+  revalidatePath(ruta)
+  volver(ruta, 'Docente asignado.')
+}
+
+export async function quitarDocente(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const groupId = Number(formData.get('group_id'))
+  const profileId = Number(formData.get('profile_id'))
+  await db.from('group_teachers').delete().eq('group_id', groupId).eq('profile_id', profileId)
+  await audit(db, actor, 'quitar_docente', 'group', groupId, { profileId })
+  revalidatePath(`/admin/grupos/${groupId}`)
+  volver(`/admin/grupos/${groupId}`, 'Docente quitado del grupo.')
+}
+
+export async function resolverSolicitud(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  const aprobar = formData.get('decision') === 'aprobar'
+  const notas = nullable(txt(formData, 'review_notes'))
+  const { data: s } = await db.from('teacher_applications').select('*').eq('id', id).maybeSingle()
+  if (!s || s.status !== 'pendiente') volver('/admin/docentes', 'Esa solicitud ya fue revisada.', 'error')
+
+  await db.from('teacher_applications').update({
+    status: aprobar ? 'aprobada' : 'rechazada', review_notes: notas, reviewed_by: actor.id, reviewed_at: new Date().toISOString(),
+  }).eq('id', id)
+
+  const persona = await correoDe(db, s.profile_id)
+  if (aprobar) {
+    const { data: actual } = await db.from('profiles').select('role').eq('id', s.profile_id).single()
+    if (actual.role === 'student') await db.from('profiles').update({ role: 'teacher' }).eq('id', s.profile_id)
+    await db.from('teacher_profiles').upsert({
+      profile_id: s.profile_id, specialty: s.specialty, bio: s.bio, sample_url: s.sample_url, updated_at: new Date().toISOString(),
+    }, { onConflict: 'profile_id' })
+    await avisar({
+      para: persona?.email,
+      asunto: '¡Ya eres docente en EAC Academia!',
+      titulo: `¡Te damos la bienvenida al equipo docente${persona?.first_name ? `, ${persona.first_name}` : ''}!`,
+      parrafos: ['Aprobamos tu solicitud. Ya puedes entrar a tu portal de docente para proponer tu primer curso.', ...(notas ? [notas] : [])],
+      boton: 'Entrar a mi portal',
+      enlace: `${await urlDelSitio()}/docente`,
+    })
+  } else {
+    await avisar({
+      para: persona?.email,
+      asunto: 'Tu solicitud para ser docente en EAC Academia',
+      titulo: 'Gracias por tu interés en EAC Academia',
+      parrafos: ['Por ahora no podemos aprobar tu solicitud.', ...(notas ? [notas] : []), 'Puedes escribirnos si tienes dudas.'],
+    })
+  }
+  await audit(db, actor, aprobar ? 'aprobar_docente' : 'rechazar_docente', 'profile', s.profile_id, { solicitud: id })
+  revalidatePath('/admin/docentes')
+  volver('/admin/docentes', aprobar ? 'Docente aprobado. Le avisamos por correo.' : 'Solicitud rechazada.')
+}
+
+export async function revisarCurso(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  const aprobar = formData.get('decision') === 'aprobar'
+  const notas = nullable(txt(formData, 'review_notes'))
+  const volverA = txt(formData, 'volver') === 'docentes' ? '/admin/docentes' : `/admin/cursos/${id}`
+  const { data: c } = await db.from('courses').select('id, title, owner_id, review_status').eq('id', id).maybeSingle()
+  if (!c) volver(volverA, 'No encontramos el curso.', 'error')
+  if (!aprobar && !notas) volver(volverA, 'Escribe qué cambios necesita el curso.', 'error')
+
+  await db.from('courses').update(aprobar
+    ? { review_status: 'aprobado', review_notes: notas, is_visible: true }
+    : { review_status: 'rechazado', review_notes: notas, is_visible: false }).eq('id', id)
+
+  if (c.owner_id) {
+    const persona = await correoDe(db, c.owner_id)
+    await avisar({
+      para: persona?.email,
+      asunto: aprobar ? `Tu curso «${c.title}» ya está publicado` : `Tu curso «${c.title}» necesita cambios`,
+      titulo: aprobar ? '¡Tu curso ya está publicado!' : 'Tu curso necesita algunos cambios',
+      parrafos: aprobar
+        ? [`«${c.title}» ya aparece en el catálogo de EAC Academia y está listo para recibir inscripciones.`, ...(notas ? [notas] : [])]
+        : [`Revisamos «${c.title}» y antes de publicarlo te pedimos lo siguiente:`, notas, 'Cuando lo tengas, vuelve a enviarlo a revisión desde tu portal.'],
+      boton: 'Ver mi curso',
+      enlace: `${await urlDelSitio()}/docente/cursos/${id}`,
+    })
+  }
+  await audit(db, actor, aprobar ? 'aprobar_curso' : 'pedir_cambios_curso', 'course', id, { notas })
+  revalidatePath('/admin/docentes')
+  revalidatePath('/cursos')
+  volver(volverA, aprobar ? 'Curso aprobado y publicado.' : 'Le pedimos los cambios a quien lo propuso.')
+}
+
+export async function guardarReparto(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  const ownerTxt = txt(formData, 'owner_id')
+  const shareTxt = txt(formData, 'teacher_share')
+  const share = shareTxt === '' ? null : Math.min(100, Math.max(0, Number(shareTxt)))
+  await db.from('courses').update({ owner_id: ownerTxt ? Number(ownerTxt) : null, teacher_share: Number.isFinite(share) ? share : null }).eq('id', id)
+  await audit(db, actor, 'reparto_curso', 'course', id, { owner: ownerTxt || null, share })
+  revalidatePath(`/admin/cursos/${id}`)
+  volver(`/admin/cursos/${id}`, 'Reparto guardado. Aplica a los pagos que se registren desde ahora.')
+}
+
+export async function guardarPorcentaje(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const pct = Number(txt(formData, 'pct'))
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) volver('/admin/liquidaciones', 'Escribe un porcentaje entre 0 y 100.', 'error')
+  await db.from('settings').upsert({ key: 'docente_porcentaje', value: pct, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  await audit(db, actor, 'porcentaje_docente', 'settings', 'docente_porcentaje', { pct })
+  volver('/admin/liquidaciones', `Desde ahora, los cursos sin porcentaje propio le dan ${pct} % a su docente.`)
+}
+
+export async function generarCorte(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const teacherId = Number(formData.get('teacher_id'))
+  const inicio = txt(formData, 'inicio')
+  const fin = txt(formData, 'fin')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}-\d{2}$/.test(fin)) volver('/admin/liquidaciones', 'Periodo no válido.', 'error')
+  const { data: filas } = await db.from('teacher_earnings').select('id, teacher_amount').eq('teacher_id', teacherId).is('payout_id', null).lte('earned_on', fin)
+  if (!filas?.length) volver('/admin/liquidaciones', 'No hay ganancias pendientes en ese periodo.', 'error')
+  const monto = Math.round(filas.reduce((a, f) => a + Number(f.teacher_amount), 0) * 100) / 100
+  if (monto <= 0) volver('/admin/liquidaciones', 'El saldo de ese periodo no es positivo (hay pagos cancelados). Se sumará al siguiente corte.', 'error')
+  const { data: corte, error } = await db.from('teacher_payouts').insert({
+    teacher_id: teacherId, period_start: inicio, period_end: fin, amount: monto, created_by: actor.id,
+  }).select('id').single()
+  if (error) volver('/admin/liquidaciones', `No se pudo crear el corte: ${error.message}`, 'error')
+  await db.from('teacher_earnings').update({ payout_id: corte.id }).in('id', filas.map((f) => f.id)).is('payout_id', null)
+  await audit(db, actor, 'generar_corte', 'teacher_payout', corte.id, { teacherId, inicio, fin, monto })
+  revalidatePath('/admin/liquidaciones')
+  volver('/admin/liquidaciones', `Corte creado por ${monto.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}. Transfiere y márcalo como pagado.`)
+}
+
+export async function marcarCortePagado(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  const referencia = nullable(txt(formData, 'reference'))
+  const { data: corte } = await db.from('teacher_payouts').update({ status: 'pagado', paid_on: hoyMx(), reference: referencia })
+    .eq('id', id).eq('status', 'pendiente').select('teacher_id, amount, period_start, period_end').maybeSingle()
+  if (!corte) volver('/admin/liquidaciones', 'Ese corte ya estaba pagado.', 'error')
+  const persona = await correoDe(db, corte.teacher_id)
+  await avisar({
+    para: persona?.email,
+    asunto: 'Te enviamos tu pago de EAC Academia',
+    titulo: 'Tu pago va en camino',
+    parrafos: [
+      `Te transferimos ${Number(corte.amount).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} por tus ventas del ${corte.period_start} al ${corte.period_end}.`,
+      ...(referencia ? [`Referencia: ${referencia}`] : []),
+    ],
+    boton: 'Ver mis ganancias',
+    enlace: `${await urlDelSitio()}/docente/ganancias`,
+  })
+  await audit(db, actor, 'pagar_corte', 'teacher_payout', id, { referencia })
+  revalidatePath('/admin/liquidaciones')
+  volver('/admin/liquidaciones', 'Corte marcado como pagado. Le avisamos por correo.')
+}
+
+export async function cambiarRol(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  const role = formData.get('role') === 'teacher' ? 'teacher' : 'student'
+  const ruta = `/admin/estudiantes/${id}`
+  const { data: p } = await db.from('profiles').select('role').eq('id', id).maybeSingle()
+  if (!p || p.role === 'admin') volver(ruta, 'No se puede cambiar el rol de una cuenta de administración desde aquí.', 'error')
+  await db.from('profiles').update({ role }).eq('id', id)
+  if (role === 'teacher') await db.from('teacher_profiles').upsert({ profile_id: id }, { onConflict: 'profile_id', ignoreDuplicates: true })
+  await audit(db, actor, 'cambiar_rol', 'profile', id, { role })
+  revalidatePath(ruta)
+  volver(ruta, role === 'teacher' ? 'Ahora tiene acceso al portal docente.' : 'Ya no tiene acceso al portal docente.')
 }

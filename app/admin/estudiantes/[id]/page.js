@@ -6,7 +6,7 @@ import PaymentRow from '@/components/PaymentRow'
 import GroupSelect, { getGruposParaSelect } from '@/components/GroupSelect'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { hoyMx, fechaLarga } from '@/lib/format'
-import { actualizarEstudiante, restablecerContrasena, inscribir, cambiarEstatusInscripcion, agregarCuota } from '../../actions'
+import { actualizarEstudiante, restablecerContrasena, inscribir, cambiarEstatusInscripcion, agregarCuota, cambiarRol } from '../../actions'
 
 export const metadata = { title: 'Estudiante' }
 
@@ -141,6 +141,20 @@ export default async function Estudiante({ params, searchParams }) {
           <div className="field"><label>Contraseña temporal</label><input name="password" minLength={8} required autoComplete="off" /></div>
           <button className="secondary" type="submit"><Icon name="lock" size={16} /> Asignar contraseña temporal</button>
         </form>
+        {p.role !== 'admin' && (
+          <form action={cambiarRol} className="card" style={{ padding: 22 }}>
+            <input type="hidden" name="id" value={id} />
+            <span className="eyebrow">Rol</span>
+            <h3 style={{ fontWeight: 700, fontSize: 17, margin: '6px 0 10px' }}>{p.role === 'teacher' ? 'Es docente' : 'Es estudiante'}</h3>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+              {p.role === 'teacher'
+                ? 'Tiene acceso al portal docente. Sus cursos y grupos asignados se conservan si le quitas el rol.'
+                : 'Dale el rol de docente para que entre al portal docente y puedas asignarle grupos o cursos.'}
+            </p>
+            <input type="hidden" name="role" value={p.role === 'teacher' ? 'student' : 'teacher'} />
+            <button className="secondary" type="submit">{p.role === 'teacher' ? 'Quitar rol de docente' : 'Hacer docente'}</button>
+          </form>
+        )}
       </div>
     </main>
   )

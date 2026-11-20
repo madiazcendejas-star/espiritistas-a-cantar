@@ -14,7 +14,8 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `/entrar` | Todos | Login con teléfono, matrícula o correo + contraseña |
 | `/entrar/nueva-contrasena` | Con sesión | Obligatorio si la contraseña heredada es corta |
 | `/mi-espacio/*` | Estudiantes | Panel (celular primero): cursos, en vivo, pagos, perfil |
-| `/docente` | Docentes | Portal (en construcción) |
+| `/docente/*` | Docentes | Portal docente (computadora primero): cursos propios con revisión, grupos asignados, materiales y clases, estudiantes, ganancias y perfil |
+| `/docentes/solicitud` | Todos | Solicitud para ser docente (crea la cuenta si no tiene) |
 | `/admin` | Administración | No aparece en el menú; exige rol `admin` |
 | `/gracias` | Todos | Regreso de Stripe: confirma el pago y, si la cuenta es nueva, pide crear contraseña |
 | `/cursos/baraja-espanola` | Todos | Liga de la app anterior; redirige al curso del grupo de Baraja |
@@ -34,6 +35,7 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `NEXT_PUBLIC_SITE_URL` | Servidor | `https://espiritistasacantar.com` (solo se usa en producción) |
 | `STRIPE_PRICE_ID_BARAJA` | Solo servidor | Opcional: precio fijo de Stripe para el grupo de Baraja. Sin ella se cobra el precio del grupo |
 | `BARAJA_GRUPO_ID` | Solo servidor | Opcional, por defecto `5` |
+| `CORREO_AVISOS_ADMIN` | Solo servidor | Opcional: correo(s) separados por coma que reciben avisos de solicitudes y cursos por revisar |
 
 ### Pagos en línea
 
