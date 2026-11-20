@@ -99,6 +99,7 @@ export default function AlumnoPortalPage() {
   // Estado para cambiar contraseña
   const [modalPass, setModalPass] = useState(false)
   const [nuevaPass, setNuevaPass] = useState('')
+  const [passActual, setPassActual] = useState('')
 
   // ESTADOS PARA SUBIR / ACTUALIZAR COMPROBANTE
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null)
@@ -141,34 +142,22 @@ export default function AlumnoPortalPage() {
 
     setLoading(true)
 
-    const { data: todosLosAlumnos, error } = await supabase
-      .from('alumnos')
-      .select('*')
-
-    if (error || !todosLosAlumnos) {
+    let al = null
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identificador: valorLimpio, password: passwordLimpia }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.alumno) {
+        setLoading(false)
+        return alert(json.error || 'Datos de acceso incorrectos.')
+      }
+      al = json.alumno
+    } catch (err) {
       setLoading(false)
-      return alert('Error de conexión con la base de datos: ' + (error?.message || 'Desconocido'))
-    }
-
-    const al = todosLosAlumnos.find(item => {
-      const mat = item.matricula ? String(item.matricula).trim().toLowerCase() : ''
-      const tel = item.telefono ? String(item.telefono).trim().toLowerCase() : ''
-      const mail = item.correo && item.correo !== 'EMPTY' ? String(item.correo).trim().toLowerCase() : ''
-      const busqueda = valorLimpio.toLowerCase()
-
-      return (mat && mat === busqueda) || (tel && tel === busqueda) || (mail && mail === busqueda)
-    })
-
-    if (!al) {
-      setLoading(false)
-      return alert('No se encontró un alumno con esa matrícula, teléfono o correo.')
-    }
-
-    const passwordRegistrada = al.password || al.Password || 'EAC2026*'
-
-    if (passwordLimpia !== passwordRegistrada) {
-      setLoading(false)
-      return alert('Contraseña incorrecta.')
+      return alert('Error de conexión. Intenta de nuevo.')
     }
 
     localStorage.setItem('alumno_session_eac', JSON.stringify(al))
@@ -252,19 +241,22 @@ export default function AlumnoPortalPage() {
 
   const actualizarPassword = async (e) => {
     e.preventDefault()
-    if (!nuevaPass.trim()) return
+    if (!nuevaPass.trim() || !passActual.trim()) return
 
-    const { error } = await supabase
-      .from('alumnos')
-      .update({ password: nuevaPass.trim() })
-      .eq('id', alumno.id)
+    const res = await fetch('/api/cambiar-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alumnoId: alumno.id, actual: passActual, nueva: nuevaPass }),
+    })
+    const json = await res.json().catch(() => ({}))
 
-    if (error) {
-      alert('Error al actualizar contraseña: ' + error.message)
+    if (!res.ok) {
+      alert(json.error || 'Error al actualizar contraseña.')
     } else {
       alert('¡Contraseña actualizada con éxito!')
       setModalPass(false)
       setNuevaPass('')
+      setPassActual('')
     }
   }
 
@@ -1149,6 +1141,17 @@ export default function AlumnoPortalPage() {
             </div>
 
             <form onSubmit={actualizarPassword} className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">Contraseña actual</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passActual}
+                  onChange={(e) => setPassActual(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full p-4 border border-slate-200 rounded-2xl text-sm outline-none focus:border-rose-600 font-mono font-bold"
+                />
+              </div>
               <div>
                 <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-2">Nueva Contraseña</label>
                 <input 
