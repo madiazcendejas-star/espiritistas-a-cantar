@@ -5,6 +5,8 @@ import Icon from '@/components/Icon'
 import LoginForm from './LoginForm'
 import { getSessionProfile, PANEL_POR_ROL, rutaSegura } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = { title: 'Iniciar sesión' }
 
 export default async function Entrar({ searchParams }) {

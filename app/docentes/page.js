@@ -3,6 +3,8 @@ import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Enseña en EAC',
   description: 'Publica tus cursos y talleres holísticos en EAC Academia y gana por cada inscripción.',

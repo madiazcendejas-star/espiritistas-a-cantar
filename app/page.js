@@ -5,7 +5,8 @@ import CourseCard from '@/components/CourseCard'
 import Icon from '@/components/Icon'
 import { getCatalog } from '@/lib/catalog'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
+
 
 export default async function Home() {
   let destacados = []

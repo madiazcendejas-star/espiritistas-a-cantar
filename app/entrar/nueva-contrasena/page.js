@@ -3,6 +3,8 @@ import Brand from '@/components/Brand'
 import NuevaContrasenaForm from './NuevaContrasenaForm'
 import { getSessionProfile } from '@/lib/auth'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = { title: 'Crea una contraseña nueva' }
 
 export default async function NuevaContrasena() {

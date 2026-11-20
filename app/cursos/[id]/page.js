@@ -6,7 +6,8 @@ import Icon from '@/components/Icon'
 import { getCourse } from '@/lib/catalog'
 import { money, fechaDia, MODALIDAD } from '@/lib/format'
 
-export const revalidate = 300
+export const dynamic = 'force-dynamic'
+
 
 export async function generateMetadata({ params }) {
   const { id } = await params

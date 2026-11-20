@@ -3,6 +3,8 @@ import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata = { title: 'Solicitud de docente' }
 
 // El registro y la revisión de docentes llegan en la etapa del marketplace.
