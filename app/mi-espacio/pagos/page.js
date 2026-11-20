@@ -2,6 +2,7 @@ import Icon from '@/components/Icon'
 import { getSessionProfile } from '@/lib/auth'
 import { getMisGrupos, getPagos } from '@/lib/student'
 import { money, fechaDia } from '@/lib/format'
+import { pagarCuota } from './actions'
 
 export const metadata = { title: 'Mis pagos' }
 
@@ -12,7 +13,8 @@ const ESTADO = {
   cancelado: ['neutral', 'Cancelado'],
 }
 
-export default async function Pagos() {
+export default async function Pagos({ searchParams }) {
+  const { error } = await searchParams
   const { supabase } = await getSessionProfile()
   const [pagos, grupos] = await Promise.all([getPagos(supabase), getMisGrupos(supabase)])
   const curso = (p) => grupos.find((g) => g.group_id === p.group_id)?.curso.title || 'Curso'
@@ -37,21 +39,28 @@ export default async function Pagos() {
         <article className="stat"><div className="stat-icon"><Icon name="check" /></div><div><span>Pagadas</span><strong>{pagos.filter((p) => p.status === 'pagado').length}</strong><small style={{ color: 'var(--muted)' }}>Historial completo abajo</small></div></article>
       </div>
 
-      <div className="notice info" style={{ marginBottom: 8 }}>
-        <Icon name="info" />
-        <span>Muy pronto podrás pagar tus cuotas aquí mismo con tarjeta, SPEI u OXXO. Mientras tanto, sigue pagando como lo haces hoy y tu cuota se registrará en esta lista.</span>
-      </div>
+      {error && <div className="notice danger" role="alert" style={{ marginBottom: 8 }}><Icon name="info" /><span>{error}</span></div>}
+      {vencidos.length > 0 && (
+        <div className="notice warn" style={{ marginBottom: 8 }}>
+          <Icon name="info" />
+          <span>Tienes {vencidos.length === 1 ? 'una cuota vencida' : `${vencidos.length} cuotas vencidas`}. Al pagarla, tu acceso se reactiva en automático.</span>
+        </div>
+      )}
 
       <div className="section-head"><div><span className="eyebrow">Por pagar</span><h2>Cuotas pendientes</h2></div></div>
       {pendientes.length ? (
-        <section className="table-panel">
-          <div className="table-row table-header" style={{ gridTemplateColumns: '1.6fr 1fr 1fr .9fr' }}><span>Curso</span><span>Vencimiento</span><span className="right">Monto</span><span>Estado</span></div>
+        <section className="table-panel cuotas-panel">
+          <div className="table-row table-header" style={{ gridTemplateColumns: '1.6fr 1fr 1fr .9fr auto' }}><span>Curso</span><span>Vencimiento</span><span className="right">Monto</span><span>Estado</span><span /></div>
           {pendientes.map((p) => (
-            <div key={p.id} className="table-row" style={{ gridTemplateColumns: '1.6fr 1fr 1fr .9fr' }}>
+            <div key={p.id} className="table-row cuota-row" style={{ gridTemplateColumns: '1.6fr 1fr 1fr .9fr auto' }}>
               <span><b>{curso(p)}</b></span>
               <span style={{ color: p.vencido ? 'var(--rose)' : undefined, fontWeight: p.vencido ? 700 : 500 }}>{p.due_date ? fechaDia(p.due_date) : 'Sin fecha'}</span>
               <span className="right"><b>{money(p.amount)}</b></span>
               <span><i className={`status ${p.vencido ? 'danger' : 'review'}`}>{p.vencido ? 'Vencida' : 'Pendiente'}</i></span>
+              <form action={pagarCuota} className="cuota-pagar">
+                <input type="hidden" name="payment_id" value={p.id} />
+                <button type="submit" className="primary"><Icon name="card" size={16} /> Pagar</button>
+              </form>
             </div>
           ))}
         </section>

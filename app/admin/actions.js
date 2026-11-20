@@ -3,20 +3,12 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO } from '@/lib/admin'
-import { hoyMx } from '@/lib/format'
+import { hoyMx, sumarMeses } from '@/lib/format'
 
 const volver = (ruta, msg, tipo = 'ok') => redirect(`${ruta}${ruta.includes('?') ? '&' : '?'}${tipo}=${encodeURIComponent(msg)}`)
 const esCorreo = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
 const tel10 = (v) => String(v || '').replace(/\D/g, '').slice(-10) || null
 
-// Suma meses a una fecha YYYY-MM-DD sin problemas de zona horaria.
-function sumarMeses(iso, n) {
-  const [y, m, d] = iso.split('-').map(Number)
-  const f = new Date(Date.UTC(y, m - 1 + n, 1))
-  const ultimo = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate()
-  f.setUTCDate(Math.min(d, ultimo))
-  return f.toISOString().slice(0, 10)
-}
 
 // ---------------------------------------------------------------------
 // Estudiantes

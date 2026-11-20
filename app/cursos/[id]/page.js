@@ -5,6 +5,8 @@ import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
 import { getCourse } from '@/lib/catalog'
 import { money, fechaDia, MODALIDAD } from '@/lib/format'
+import { getSessionProfile } from '@/lib/auth'
+import { inscribirme } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,11 +33,16 @@ function describePago(g) {
   return `${money(total)} MXN en un solo pago`
 }
 
-export default async function CursoDetalle({ params }) {
+export default async function CursoDetalle({ params, searchParams }) {
   const { id } = await params
+  const { error } = await searchParams
   if (!/^\d+$/.test(id)) notFound()
   const curso = await getCourse(id).catch(() => null)
   if (!curso) notFound()
+  let sesion = null
+  try {
+    sesion = (await getSessionProfile()).profile
+  } catch {}
 
   return (
     <>
@@ -69,11 +76,13 @@ export default async function CursoDetalle({ params }) {
             </div>
           </div>
 
-          <aside className="card sticky-card">
+          <aside className="card sticky-card" id="inscripcion">
             <span className="eyebrow">Inscripción</span>
             <h2 style={{ fontWeight: 700, fontSize: 20, margin: '6px 0 14px' }}>Elige fecha y modalidad</h2>
             {curso.groups.length ? (
-              <form>
+              <form action={inscribirme}>
+                <input type="hidden" name="curso_id" value={curso.id} />
+                {error && <div className="form-error" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
                 {curso.groups.map((g, i) => (
                   <label key={g.id} className="option">
                     <input type="radio" name="grupo" value={g.id} defaultChecked={i === 0} />
@@ -84,19 +93,26 @@ export default async function CursoDetalle({ params }) {
                     </span>
                   </label>
                 ))}
-                <button type="button" className="primary full" style={{ marginTop: 16 }} disabled title="Disponible al conectar Stripe (Fase 3)">
+                <button type="submit" className="primary full" style={{ marginTop: 16 }}>
                   <Icon name="card" size={18} /> Inscribirme
                 </button>
                 <p className="muted" style={{ fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-                  Tarjeta, SPEI u OXXO. La inscripción en línea se habilita muy pronto.
+                  Pago seguro con Stripe: tarjeta u OXXO. Tu acceso se activa en cuanto se confirma el pago.
                 </p>
+                {!sesion && (
+                  <p className="muted" style={{ fontSize: 12, marginTop: 6, textAlign: 'center' }}>
+                    ¿Ya eres estudiante? <Link href={`/entrar?siguiente=/cursos/${curso.id}`} style={{ color: 'var(--purple)', fontWeight: 700 }}>Inicia sesión primero</Link> para que el curso se agregue a tu misma cuenta.
+                  </p>
+                )}
               </form>
             ) : (
               <div className="notice info"><Icon name="info" /><span>Por ahora no hay fechas abiertas para este curso. Muy pronto publicaremos nuevas.</span></div>
             )}
-            <div style={{ borderTop: '1px solid var(--line)', marginTop: 18, paddingTop: 14, fontSize: 13 }} className="muted">
-              ¿Ya estás inscrito? <Link href="/entrar" style={{ color: 'var(--purple)', fontWeight: 700 }}>Inicia sesión</Link>
-            </div>
+            {sesion ? (
+              <div style={{ borderTop: '1px solid var(--line)', marginTop: 18, paddingTop: 14, fontSize: 13 }} className="muted">
+                Inscribiéndote como <b style={{ color: 'var(--ink)' }}>{sesion.first_name || sesion.matricula}</b>. <Link href="/mi-espacio" style={{ color: 'var(--purple)', fontWeight: 700 }}>Ir a mi espacio</Link>
+              </div>
+            ) : null}
           </aside>
         </div>
       </main>
