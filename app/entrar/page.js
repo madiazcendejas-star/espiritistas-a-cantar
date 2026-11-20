@@ -42,8 +42,8 @@ export default async function Entrar({ searchParams }) {
             <div className="form-error">Tu cuenta no tiene un perfil asignado. Escríbenos para ayudarte.</div>
           )}
           <LoginForm siguiente={siguiente} />
-          <p className="muted" style={{ fontSize: 13, marginTop: 18 }}>
-            ¿Olvidaste tu contraseña? Escríbenos y te ayudamos a recuperarla.
+          <p className="muted" style={{ fontSize: 14, marginTop: 18, textAlign: 'center' }}>
+            <Link href="/entrar/recuperar" style={{ color: 'var(--purple)', fontWeight: 700 }}>¿Olvidaste tu contraseña?</Link>
           </p>
         </div>
       </div>
