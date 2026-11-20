@@ -7,6 +7,13 @@ se regresa a la app anterior con *Instant Rollback* de Vercel en un clic.
 Los datos actuales (`public`) no se modifican: la versión nueva lee y escribe en el esquema `app`
 del mismo proyecto de Supabase.
 
+## Estado
+
+- 20 nov 2026: **preparación A completa.** Migraciones y sincronización en producción (todo `ok`,
+  36 casos en `migration_issues`), esquema `app` expuesto, OXXO y webhook en Stripe real,
+  variables de Production en Vercel listas, PR #3 creado como borrador.
+- Pendiente antes del día B: mandar su matrícula a los 8 estudiantes con teléfono compartido.
+
 ## A. Preparación (días antes, los estudiantes no notan nada)
 
 ### A1. Supabase de producción
