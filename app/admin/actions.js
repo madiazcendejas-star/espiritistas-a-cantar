@@ -427,10 +427,17 @@ export async function quitarDocente(formData) {
   volver(`/admin/grupos/${groupId}`, 'Docente quitado del grupo.')
 }
 
-export async function resolverSolicitud(formData) {
+// Botones separados (formAction) para no depender de qué botón envió el formulario.
+export async function aprobarSolicitud(formData) {
+  return resolverSolicitud(formData, true)
+}
+export async function rechazarSolicitud(formData) {
+  return resolverSolicitud(formData, false)
+}
+
+async function resolverSolicitud(formData, aprobar) {
   const { profile: actor, db } = await requireAdmin()
   const id = Number(formData.get('id'))
-  const aprobar = formData.get('decision') === 'aprobar'
   const notas = nullable(txt(formData, 'review_notes'))
   const { data: s } = await db.from('teacher_applications').select('*').eq('id', id).maybeSingle()
   if (!s || s.status !== 'pendiente') volver('/admin/docentes', 'Esa solicitud ya fue revisada.', 'error')
@@ -467,10 +474,16 @@ export async function resolverSolicitud(formData) {
   volver('/admin/docentes', aprobar ? 'Docente aprobado. Le avisamos por correo.' : 'Solicitud rechazada.')
 }
 
-export async function revisarCurso(formData) {
+export async function aprobarCurso(formData) {
+  return revisarCurso(formData, true)
+}
+export async function pedirCambiosCurso(formData) {
+  return revisarCurso(formData, false)
+}
+
+async function revisarCurso(formData, aprobar) {
   const { profile: actor, db } = await requireAdmin()
   const id = Number(formData.get('id'))
-  const aprobar = formData.get('decision') === 'aprobar'
   const notas = nullable(txt(formData, 'review_notes'))
   const volverA = txt(formData, 'volver') === 'docentes' ? '/admin/docentes' : `/admin/cursos/${id}`
   const { data: c } = await db.from('courses').select('id, title, owner_id, review_status').eq('id', id).maybeSingle()

@@ -5,7 +5,7 @@ import Flash from '@/components/Flash'
 import GroupForm from '@/components/GroupForm'
 import { requireAdmin } from '@/lib/admin'
 import { money, fechaDia, MODALIDAD } from '@/lib/format'
-import { guardarCurso, revisarCurso, guardarReparto } from '../../actions'
+import { guardarCurso, aprobarCurso, pedirCambiosCurso, guardarReparto } from '../../actions'
 import { nombreCompleto } from '@/lib/admin'
 
 export const metadata = { title: 'Curso' }
@@ -44,12 +44,12 @@ export default async function Curso({ params, searchParams }) {
           <span className="eyebrow">Revisión</span>
           <h2 style={{ fontWeight: 700, fontSize: 20, margin: '6px 0 6px' }}>Propuesta de {dueno ? nombreCompleto(dueno) : 'docente'}</h2>
           <p className="muted" style={{ marginTop: 0 }}>Revisa la ficha y los grupos de abajo. Al aprobar, el curso aparece en el catálogo con sus grupos activos.</p>
-          <form action={revisarCurso}>
+          <form action={aprobarCurso}>
             <input type="hidden" name="id" value={c.id} />
             <div className="field"><label>Comentarios para quien lo propuso (obligatorio si pides cambios)</label><textarea name="review_notes" rows={3} /></div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button className="primary" type="submit" name="decision" value="aprobar"><Icon name="check" size={18} /> Aprobar y publicar</button>
-              <button className="secondary" type="submit" name="decision" value="cambios">Pedir cambios</button>
+              <button className="primary" type="submit"><Icon name="check" size={18} /> Aprobar y publicar</button>
+              <button className="secondary" type="submit" formAction={pedirCambiosCurso}>Pedir cambios</button>
             </div>
           </form>
         </section>

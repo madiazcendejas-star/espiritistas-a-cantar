@@ -3,7 +3,7 @@ import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { fechaDia, money2 } from '@/lib/format'
-import { resolverSolicitud } from '../actions'
+import { aprobarSolicitud, rechazarSolicitud } from '../actions'
 
 export const metadata = { title: 'Docentes' }
 
@@ -47,12 +47,12 @@ export default async function DocentesAdmin({ searchParams }) {
               <p><b>Experiencia</b><br /><span style={{ whiteSpace: 'pre-line' }}>{s.bio}</span></p>
               <p><b>Curso que propone</b><br /><span style={{ whiteSpace: 'pre-line' }}>{s.proposal}</span></p>
               {s.sample_url && <p><a href={s.sample_url} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--purple)', fontWeight: 700 }}>Ver su trabajo ↗</a></p>}
-              <form action={resolverSolicitud}>
+              <form action={aprobarSolicitud}>
                 <input type="hidden" name="id" value={s.id} />
                 <div className="field"><label>Mensaje para la persona (opcional)</label><textarea name="review_notes" rows={2} /></div>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button className="primary" type="submit" name="decision" value="aprobar"><Icon name="check" size={18} /> Aprobar como docente</button>
-                  <button className="ghost" type="submit" name="decision" value="rechazar" style={{ color: 'var(--rose)' }}>Rechazar</button>
+                  <button className="primary" type="submit"><Icon name="check" size={18} /> Aprobar como docente</button>
+                  <button className="ghost" type="submit" formAction={rechazarSolicitud} style={{ color: 'var(--rose)' }}>Rechazar</button>
                 </div>
               </form>
             </div>
