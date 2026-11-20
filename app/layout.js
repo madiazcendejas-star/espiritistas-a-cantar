@@ -1,12 +1,8 @@
-import { Quicksand } from 'next/font/google'
 import './globals.css'
 
-const quicksand = Quicksand({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-quicksand',
-  display: 'swap',
-})
+// Quicksand se carga desde Google Fonts en el navegador (no durante la compilación),
+// para que una falla momentánea de Google no rompa el deploy.
+const FUENTE = 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap'
 
 export const metadata = {
   title: { default: 'EAC Academia', template: '%s · EAC Academia' },
@@ -23,7 +19,13 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es-MX" className={quicksand.variable}>
+    <html lang="es-MX">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+        <link rel="stylesheet" href={FUENTE} />
+      </head>
       <body>{children}</body>
     </html>
   )
