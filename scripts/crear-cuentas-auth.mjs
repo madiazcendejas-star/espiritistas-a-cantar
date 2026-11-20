@@ -60,6 +60,23 @@ async function crearUsuario(p, hash) {
   return body.id
 }
 
+// Si el proceso se interrumpió, puede existir la cuenta de Auth sin estar ligada al perfil.
+// Se busca por correo para ligarla en lugar de fallar.
+let cuentasExistentes = null
+async function buscarCuentaPorCorreo(correo) {
+  if (!cuentasExistentes) {
+    cuentasExistentes = new Map()
+    for (let page = 1; ; page++) {
+      const res = await fetch(`${URL_SB}/auth/v1/admin/users?page=${page}&per_page=1000`, { headers })
+      if (!res.ok) throw new Error(`Auth listado ${res.status}`)
+      const { users = [] } = await res.json()
+      users.forEach((u) => u.email && cuentasExistentes.set(u.email.toLowerCase(), u.id))
+      if (users.length < 1000) break
+    }
+  }
+  return cuentasExistentes.get(correo.toLowerCase()) || null
+}
+
 const perfiles = await rest('profiles?select=id,matricula,role,email&auth_user_id=is.null&order=id')
 const credenciales = await rest('legacy_credentials?select=profile_id,password_bcrypt')
 const hashDe = new Map(credenciales.map((c) => [c.profile_id, c.password_bcrypt]))
@@ -78,7 +95,13 @@ let creadas = 0
 const errores = []
 for (const p of perfiles) {
   try {
-    const authId = await crearUsuario(p, hashDe.get(p.id))
+    let authId
+    try {
+      authId = await crearUsuario(p, hashDe.get(p.id))
+    } catch (e) {
+      authId = /already|exists|registered/i.test(e.message) ? await buscarCuentaPorCorreo(correoCuenta(p)) : null
+      if (!authId) throw e
+    }
     await rest(`profiles?id=eq.${p.id}`, { method: 'PATCH', body: JSON.stringify({ auth_user_id: authId }), headers: { Prefer: 'return=minimal' } })
     if (hashDe.has(p.id)) {
       await rest(`legacy_credentials?profile_id=eq.${p.id}`, {
