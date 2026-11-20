@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
   try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     // Opcional: Puedes recibir el curso_id y grupo_id desde el frontend si lo deseas, 
     // o definirlos aquí directamente para este producto.
     const body = await req.json().catch(() => ({}));

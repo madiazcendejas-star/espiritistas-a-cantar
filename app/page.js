@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
   const [usuario, setUsuario] = useState('')
@@ -17,23 +16,22 @@ export default function LoginPage() {
     const userTrim = usuario.trim()
     const passTrim = password.trim()
 
-    // 1. Validar Administrador
-    if (userTrim === 'admin' && passTrim === 'EAC2026_Secure*') {
-      localStorage.setItem('eac_sesion', JSON.stringify({ rol: 'admin' }))
+    // 1. Administración: el acceso se valida en el servidor (middleware de /admin)
+    if (userTrim.toLowerCase() === 'admin') {
       window.location.href = '/admin'
       return
     }
 
-    // 2. Validar Estudiante en Supabase
-    const { data, error } = await supabase
-      .from('alumnos')
-      .select('*')
-      .or(`telefono.eq.${userTrim},correo.eq.${userTrim}`)
-      .eq('password', passTrim)
-      .single()
+    // 2. Validar Estudiante en el servidor (ya no se descarga la tabla al navegador)
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identificador: userTrim, password: passTrim }),
+    })
+    const { alumno: data, error } = await res.json().catch(() => ({}))
 
-    if (error || !data) {
-      setErrorMsg('Credenciales incorrectas. Verifique sus datos.')
+    if (!res.ok || !data) {
+      setErrorMsg(error || 'Credenciales incorrectas. Verifique sus datos.')
       setLoading(false)
       return
     }

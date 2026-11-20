@@ -16,6 +16,7 @@ export default function PortalAlumnoPage() {
   // Modal para cambiar contraseña
   const [modalPassword, setModalPassword] = useState(false)
   const [nuevaPassword, setNuevaPassword] = useState('')
+  const [passwordActual, setPasswordActual] = useState('')
   const [guardandoPass, setGuardandoPass] = useState(false)
 
   // Curso seleccionado para ver sus contenidos
@@ -35,30 +36,22 @@ export default function PortalAlumnoPage() {
     setLoading(true)
     setErrorLogin('')
 
-    const { data: alumnos, error } = await supabase.from('alumnos').select('*')
-
-    if (error) {
-      setErrorLogin('Error de conexión con la base de datos.')
-      setLoading(false)
-      return
-    }
-
-    const encontrado = alumnos.find(a => 
-      String(a.matricula).trim().toLowerCase() === matriculaIngresada.trim().toLowerCase() ||
-      String(a.correo).trim().toLowerCase() === matriculaIngresada.trim().toLowerCase()
-    )
-
-    if (encontrado) {
-      const passwordRegistrada = encontrado.password || 'EAC2026*'
-      if (passwordIngresada.trim() === passwordRegistrada) {
-        setAlumno(encontrado)
-        localStorage.setItem('eac_alumno_sesion', JSON.stringify(encontrado))
-        cargarDatosLMS(encontrado.id)
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identificador: matriculaIngresada.trim(), password: passwordIngresada.trim() }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (res.ok && json.alumno) {
+        setAlumno(json.alumno)
+        localStorage.setItem('eac_alumno_sesion', JSON.stringify(json.alumno))
+        cargarDatosLMS(json.alumno.id)
       } else {
-        setErrorLogin('Contraseña incorrecta.')
+        setErrorLogin(json.error || 'Datos de acceso incorrectos.')
       }
-    } else {
-      setErrorLogin('Estudiante no encontrado.')
+    } catch (err) {
+      setErrorLogin('Error de conexión con el servidor.')
     }
     setLoading(false)
   }
@@ -110,23 +103,23 @@ export default function PortalAlumnoPage() {
 
   const cambiarPasswordAlumno = async (e) => {
     e.preventDefault()
-    if (!nuevaPassword.trim()) return
+    if (!nuevaPassword.trim() || !passwordActual.trim()) return
     setGuardandoPass(true)
 
-    const { error } = await supabase
-      .from('alumnos')
-      .update({ password: nuevaPassword.trim() })
-      .eq('id', alumno.id)
+    const res = await fetch('/api/cambiar-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ alumnoId: alumno.id, actual: passwordActual, nueva: nuevaPassword }),
+    })
+    const json = await res.json().catch(() => ({}))
 
-    if (error) {
-      alert('Error al actualizar contraseña: ' + error.message)
+    if (!res.ok) {
+      alert(json.error || 'Error al actualizar contraseña.')
     } else {
       alert('¡Contraseña actualizada exitosamente!')
-      const alumnoActualizado = { ...alumno, password: nuevaPassword.trim() }
-      setAlumno(alumnoActualizado)
-      localStorage.setItem('eac_alumno_sesion', JSON.stringify(alumnoActualizado))
       setModalPassword(false)
       setNuevaPassword('')
+      setPasswordActual('')
     }
     setGuardandoPass(false)
   }
@@ -333,6 +326,17 @@ export default function PortalAlumnoPage() {
               <p className="text-xs text-slate-400 mt-0.5">Ingresa tu nueva clave de acceso personal al LMS.</p>
             </div>
             <form onSubmit={cambiarPasswordAlumno} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Contraseña actual</label>
+                <input 
+                  type="password" 
+                  required
+                  value={passwordActual}
+                  onChange={(e) => setPasswordActual(e.target.value)}
+                  autoComplete="current-password"
+                  className="w-full p-3.5 border border-slate-200 rounded-xl text-xs outline-none font-mono font-bold"
+                />
+              </div>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Nueva Contraseña</label>
                 <input 

@@ -3,16 +3,19 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
-const resend = new Resend(process.env.RESEND_API_KEY);
+export const dynamic = 'force-dynamic';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
+// Los clientes se crean dentro de la petición (no al cargar el módulo) para que el build
+// no falle en entornos sin estas variables, como las vistas previas de Vercel.
 export async function POST(req) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+
   const buf = await req.text();
   const sig = req.headers.get('stripe-signature');
 
