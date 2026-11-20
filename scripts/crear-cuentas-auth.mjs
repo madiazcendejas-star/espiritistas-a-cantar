@@ -6,7 +6,7 @@
 // Requisitos:
 //   - Haber corrido las migraciones y `select * from app.sync_from_legacy();`
 //   - En Supabase → Settings → API → Exposed schemas: agregar "app".
-//   - Variables: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (nunca en el repo).
+//   - Variables: SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY (service_role o secret key sb_secret_...; nunca en el repo).
 //
 // Uso:
 //   node scripts/crear-cuentas-auth.mjs            # simulación: solo cuenta, no crea nada
@@ -26,7 +26,12 @@ if (!URL_SB || !KEY) {
   process.exit(1)
 }
 
-const headers = { apikey: KEY, Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }
+// Claves heredadas (JWT "eyJ...") van también en Authorization; las nuevas (sb_secret_...) solo en apikey.
+const headers = {
+  apikey: KEY,
+  ...(KEY.startsWith('eyJ') ? { Authorization: `Bearer ${KEY}` } : {}),
+  'Content-Type': 'application/json',
+}
 const app = { ...headers, 'Accept-Profile': 'app', 'Content-Profile': 'app' }
 
 async function rest(path, opts = {}) {
