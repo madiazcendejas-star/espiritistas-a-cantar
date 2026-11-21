@@ -5,6 +5,7 @@ import CourseCard from '@/components/CourseCard'
 import Icon from '@/components/Icon'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getCatalog } from '@/lib/catalog'
+import { firmaConstancia } from '@/lib/constancias'
 import { fechaDia } from '@/lib/format'
 
 export const dynamic = 'force-dynamic'
@@ -15,9 +16,12 @@ export const metadata = { title: 'Verificar constancia', robots: { index: false 
 export default async function VerificarConstancia({ params }) {
   const { folio } = await params
   let c = null
+  let comunidad = ''
   if (/^EAC-[A-Z0-9]{4,12}$/.test(folio)) {
     try {
-      const { data } = await createAdminClient().from('certificates').select('folio, full_name, matricula, course_id, course_title, group_name, issued_on, revoked_at').eq('folio', folio).maybeSingle()
+      const db = createAdminClient()
+      comunidad = (await firmaConstancia(db)).comunidadUrl
+      const { data } = await db.from('certificates').select('folio, full_name, matricula, course_id, course_title, group_name, issued_on, revoked_at').eq('folio', folio).maybeSingle()
       c = data
     } catch {}
   }
@@ -48,6 +52,12 @@ export default async function VerificarConstancia({ params }) {
                 {c.group_name && <div><dt>Grupo</dt><dd>{c.group_name}</dd></div>}
               </dl>
               <p className="verifica-nota"><Icon name="shield" size={15} /> Emitida y registrada por EAC Academia.</p>
+              <div className="verifica-cta">
+                <a href={comunidad || '/cursos'} className="verifica-boton" {...(comunidad ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                  <Icon name="users" size={18} /> Únete a la comunidad de EAC
+                </a>
+                <span>Clases en vivo, talleres y personas que comparten tu camino.</span>
+              </div>
             </>
           ) : (
             <>

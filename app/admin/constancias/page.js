@@ -130,13 +130,19 @@ export default async function ConstanciasAdmin({ searchParams }) {
         <div style={{ marginTop: 14 }}><RutaForm cursos={cursos || []} /></div>
       </details>
 
-      <div className="section-head"><div><span className="eyebrow">Diseño</span><h2>Firma de las constancias</h2></div></div>
+      <div className="section-head"><div><span className="eyebrow">Diseño</span><h2>Firma y comunidad</h2></div></div>
       <form action={guardarFirma} className="card" style={{ padding: 22 }}>
         <div className="grid2">
           <div className="field"><label>Nombre que firma</label><input name="firma_nombre" defaultValue={firma.firmaNombre} placeholder="Ej. Mtra. Ana López" /></div>
           <div className="field"><label>Cargo</label><input name="firma_cargo" defaultValue={firma.firmaCargo} placeholder="Ej. Directora académica" /></div>
         </div>
-        <button className="secondary" type="submit">Guardar firma</button>
+        <div className="field">
+          <label>Enlace del botón «Únete a la comunidad de EAC»</label>
+          <input name="comunidad_url" type="url" defaultValue={firma.comunidadUrl} placeholder="https://whatsapp.com/channel/… o https://instagram.com/…" />
+          <small className="muted" style={{ fontSize: 12 }}>Aparece al escanear el QR de una constancia. Si lo dejas vacío, el botón lleva al catálogo de cursos.</small>
+        </div>
+        <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>La constancia lleva una segunda firma con el nombre de quien imparte el grupo (o del dueño del curso), si lo hay.</p>
+        <button className="secondary" type="submit">Guardar</button>
       </form>
     </main>
   )

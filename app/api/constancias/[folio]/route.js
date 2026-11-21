@@ -9,6 +9,17 @@ import { urlDelSitio } from '@/lib/sitio'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+// Segunda firma: quien imparte el grupo (asignado) o es dueño del curso.
+async function docenteDe(db, c) {
+  const nombre = (p) => [p?.first_name, p?.last_name].filter(Boolean).join(' ')
+  if (c.group_id) {
+    const { data } = await db.from('group_teachers').select('profiles(first_name, last_name)').eq('group_id', c.group_id).limit(1)
+    if (data?.[0]?.profiles) return nombre(data[0].profiles)
+  }
+  const { data: curso } = await db.from('courses').select('profiles!courses_owner_id_fkey(first_name, last_name)').eq('id', c.course_id).maybeSingle()
+  return curso?.profiles ? nombre(curso.profiles) : null
+}
+
 // Descarga del PDF: la persona dueña, administración o su docente.
 export async function GET(_req, { params }) {
   const { folio } = await params
@@ -30,8 +41,8 @@ export async function GET(_req, { params }) {
   const sitio = await urlDelSitio()
   const bytes = await crearConstanciaPdf(c, {
     ...(await firmaConstancia(db)),
+    docente: await docenteDe(db, c),
     urlVerificacion: `${sitio}/constancia/${c.folio}`,
-    urlCatalogo: `${sitio.replace(/^https?:\/\//, '')}/cursos`,
   })
   return new NextResponse(Buffer.from(bytes), {
     headers: {

@@ -636,9 +636,10 @@ export async function guardarFirma(formData) {
   await db.from('settings').upsert([
     { key: 'constancia_firma_nombre', value: txt(formData, 'firma_nombre') || 'Dirección Académica', updated_at: ahora },
     { key: 'constancia_firma_cargo', value: txt(formData, 'firma_cargo') || 'EAC Academia', updated_at: ahora },
+    { key: 'comunidad_url', value: /^https?:\/\//.test(txt(formData, 'comunidad_url')) ? txt(formData, 'comunidad_url') : '', updated_at: ahora },
   ], { onConflict: 'key' })
   await audit(db, actor, 'firma_constancia', 'settings', 'constancia_firma')
-  volver('/admin/constancias', 'Firma guardada. Aplica a todas las constancias que se descarguen desde ahora.')
+  volver('/admin/constancias', 'Guardado. Aplica a todas las constancias que se descarguen desde ahora.')
 }
 
 export async function guardarRuta(formData) {

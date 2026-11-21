@@ -807,3 +807,8 @@ a.table-row:hover{background:var(--surface-2)}
   .verifica-card{padding:30px 22px 24px;border-radius:22px}
   .verifica-datos{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+.verifica-cta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px solid rgba(203,184,240,.25)}
+.verifica-cta span{color:#cbb8f0;font-size:13px;flex:1;min-width:200px}
+.verifica-boton{display:inline-flex;align-items:center;gap:8px;min-height:50px;padding:0 22px;border-radius:14px;background:#e2b85c;color:#24152f;font-weight:700;font-size:15px;box-shadow:0 10px 24px rgba(226,184,92,.25)}
+.verifica-boton:hover{background:#ecc977}
+@media (max-width:760px){.verifica-boton{width:100%;justify-content:center}}
