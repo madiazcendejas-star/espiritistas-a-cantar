@@ -35,7 +35,8 @@ export async function crearContrasenaCompra(_prev, formData) {
 
     const supabase = await createClient()
     await supabase.auth.signInWithPassword({ email: u.user.email, password: nueva })
-    if (session.metadata?.grupo_id) destino = `/mi-espacio/grupo/${session.metadata.grupo_id}`
+    if (session.metadata?.tipo === 'producto') destino = '/mi-espacio/biblioteca'
+    else if (session.metadata?.grupo_id) destino = `/mi-espacio/grupo/${session.metadata.grupo_id}`
   } catch (e) {
     console.error('crearContrasenaCompra', e)
     return { error: 'Algo salió mal. Intenta de nuevo en un momento.' }

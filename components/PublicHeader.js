@@ -3,7 +3,7 @@ import Brand from './Brand'
 import Icon from './Icon'
 import { getSessionProfile, PANEL_POR_ROL } from '@/lib/auth'
 
-// Menú superior único para todos: Estudiante · Docente · Iniciar sesión.
+// Menú superior único para todos: Estudiante · Docente · Tienda · Iniciar sesión.
 // Administración no aparece aquí (se entra por /admin).
 export default async function PublicHeader({ active }) {
   let panel = null
@@ -20,6 +20,7 @@ export default async function PublicHeader({ active }) {
         <nav className="pub-nav" aria-label="Menú principal">
           <Link href="/cursos" className={`nav-link ${active === 'estudiante' ? 'active' : ''}`}>Estudiante</Link>
           <Link href="/docentes" className={`nav-link ${active === 'docente' ? 'active' : ''}`}>Docente</Link>
+          <Link href="/tienda" className={`nav-link ${active === 'tienda' ? 'active' : ''}`}>Tienda</Link>
           {panel ? (
             <Link href={panel} className="primary sm"><Icon name="home" size={16} /> Mi espacio</Link>
           ) : (

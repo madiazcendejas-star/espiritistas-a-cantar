@@ -43,6 +43,7 @@ export default async function Gracias({ searchParams }) {
 
   const md = session.metadata || {}
   const tipo = md.tipo || (md.grupo_id ? 'inscripcion' : null)
+  const esProducto = tipo === 'producto'
 
   // OXXO / SPEI: la ficha está generada pero falta que la persona pague.
   if (session.payment_status !== 'paid') {
@@ -73,7 +74,7 @@ export default async function Gracias({ searchParams }) {
 
   const db = createAdminClient()
   const perfil = await perfilDeCheckout(db, session).catch(() => null)
-  const grupoUrl = md.grupo_id ? `/mi-espacio/grupo/${md.grupo_id}` : '/mi-espacio'
+  const grupoUrl = esProducto ? '/mi-espacio/biblioteca' : md.grupo_id ? `/mi-espacio/grupo/${md.grupo_id}` : '/mi-espacio'
 
   if (!perfil) {
     return (
@@ -95,7 +96,7 @@ export default async function Gracias({ searchParams }) {
   if (pendiente) {
     return (
       <Marco eyebrow="Pago recibido" titulo={`¡Te damos la bienvenida${perfil.first_name && perfil.first_name !== 'Estudiante' ? `, ${perfil.first_name}` : ''}!`}>
-        <p className="sub">Ya tienes acceso. Elige una contraseña para entrar a tus clases desde cualquier dispositivo. Tu matrícula es <b>{perfil.matricula}</b>.</p>
+        <p className="sub">Ya tienes acceso. Elige una contraseña para entrar {esProducto ? 'a tu biblioteca' : 'a tus clases'} desde cualquier dispositivo. Tu matrícula es <b>{perfil.matricula}</b>.</p>
         <CrearContrasenaForm sessionId={sessionId} email={correoCuenta} />
       </Marco>
     )
@@ -108,9 +109,9 @@ export default async function Gracias({ searchParams }) {
 
   return (
     <Marco eyebrow="Pago recibido" titulo="¡Listo! Ya tienes acceso">
-      <p className="sub">El curso ya aparece en tu espacio{correoCuenta && !conSesion ? `. Entra con ${correoCuenta} y tu contraseña` : ''}.</p>
+      <p className="sub">{esProducto ? 'Tu material ya está en tu biblioteca' : 'El curso ya aparece en tu espacio'}{correoCuenta && !conSesion ? `. Entra con ${correoCuenta} y tu contraseña` : ''}.</p>
       <Link href={conSesion ? grupoUrl : `/entrar?siguiente=${encodeURIComponent(grupoUrl)}`} className="primary full">
-        {conSesion ? 'Ir a mi curso' : 'Iniciar sesión'}
+        {conSesion ? (esProducto ? 'Ir a mi biblioteca' : 'Ir a mi curso') : 'Iniciar sesión'}
       </Link>
     </Marco>
   )
