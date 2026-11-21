@@ -39,7 +39,7 @@ export default async function VerificarConstancia({ params }) {
           <div className="verifica-sello">
             {valida ? <Icon name="check" size={30} /> : <Icon name="info" size={30} />}
           </div>
-          <span className="verifica-etiqueta">{valida ? 'Certificado auténtico' : c?.revoked_at ? 'Constancia cancelada' : 'Folio no encontrado'}</span>
+          <span className="verifica-etiqueta">{valida ? 'Certificado válido y vigente' : c?.revoked_at ? 'Constancia cancelada' : 'Folio no encontrado'}</span>
           {valida ? (
             <>
               <h1>{c.full_name}</h1>
@@ -51,12 +51,12 @@ export default async function VerificarConstancia({ params }) {
                 <div><dt>Fecha</dt><dd>{fechaDia(c.issued_on)}</dd></div>
                 {c.group_name && <div><dt>Grupo</dt><dd>{c.group_name}</dd></div>}
               </dl>
-              <p className="verifica-nota"><Icon name="shield" size={15} /> Emitida y registrada por EAC Academia.</p>
+              <p className="verifica-nota"><Icon name="shield" size={15} /> Emitida y registrada por EAC Academia. Esta constancia es auténtica y no ha sido cancelada.</p>
               <div className="verifica-cta">
                 <a href={comunidad || '/cursos'} className="verifica-boton" {...(comunidad ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-                  <Icon name="users" size={18} /> Únete a la comunidad de EAC
+                  <Icon name="users" size={18} /> Únete a EAC
                 </a>
-                <span>Clases en vivo, talleres y personas que comparten tu camino.</span>
+                <span>Cursos y talleres de espiritualidad, sanación y artes holísticas, en vivo y a tu ritmo.</span>
               </div>
             </>
           ) : (

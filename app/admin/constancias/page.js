@@ -137,7 +137,7 @@ export default async function ConstanciasAdmin({ searchParams }) {
           <div className="field"><label>Cargo</label><input name="firma_cargo" defaultValue={firma.firmaCargo} placeholder="Ej. Directora académica" /></div>
         </div>
         <div className="field">
-          <label>Enlace del botón «Únete a la comunidad de EAC»</label>
+          <label>Enlace del botón «Únete a EAC»</label>
           <input name="comunidad_url" type="url" defaultValue={firma.comunidadUrl} placeholder="https://whatsapp.com/channel/… o https://instagram.com/…" />
           <small className="muted" style={{ fontSize: 12 }}>Aparece al escanear el QR de una constancia. Si lo dejas vacío, el botón lleva al catálogo de cursos.</small>
         </div>
