@@ -11,6 +11,7 @@ const NAV = [
   { href: '/admin/cursos', label: 'Cursos y grupos', icon: 'book' },
   { href: '/admin/docentes', label: 'Docentes', icon: 'spark' },
   { href: '/admin/liquidaciones', label: 'Liquidaciones', icon: 'chart' },
+  { href: '/admin/constancias', label: 'Constancias', icon: 'award' },
 ]
 
 export default function AdminShell({ profile, children }) {

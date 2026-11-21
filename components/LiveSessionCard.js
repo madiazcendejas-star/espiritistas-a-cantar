@@ -8,7 +8,7 @@ const fmt = (d, o) => new Date(d).toLocaleString('es-MX', { timeZone: TZ, ...o }
 
 // El botón "Unirse" se habilita automáticamente 15 minutos antes (PRD 5.2).
 // Se recalcula cada 20 segundos sin recargar la página.
-export default function LiveSessionCard({ session, courseTitle, groupName, ahoraServidor }) {
+export default function LiveSessionCard({ session, courseTitle, groupName, ahoraServidor, verHref }) {
   // Arranca con la hora del servidor para que el HTML inicial coincida, luego usa la del dispositivo.
   const [ahora, setAhora] = useState(ahoraServidor)
   useEffect(() => {
@@ -53,7 +53,11 @@ export default function LiveSessionCard({ session, courseTitle, groupName, ahora
       </div>
       {pasada ? (
         session.recording_url ? (
-          <a className="secondary" href={session.recording_url} target="_blank" rel="noopener noreferrer"><Icon name="play" size={18} /> Ver grabación</a>
+          verHref ? (
+            <a className="secondary" href={verHref}><Icon name="play" size={18} /> Ver grabación</a>
+          ) : (
+            <a className="secondary" href={session.recording_url} target="_blank" rel="noopener noreferrer"><Icon name="play" size={18} /> Ver grabación</a>
+          )
         ) : (
           <span className="secondary disabled">Sin grabación</span>
         )

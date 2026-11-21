@@ -6,6 +6,7 @@ import { requireTeacher, puedeEditarCurso, puedeGestionarGrupo, esAdmin } from '
 import { audit, nextId, txt, num, nullable } from '@/lib/admin'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
+import { emitirConstancia } from '@/lib/constancias'
 
 const volver = (ruta, msg, tipo = 'ok') => redirect(`${ruta}${ruta.includes('?') ? '&' : '?'}${tipo}=${encodeURIComponent(msg)}`)
 const esUrl = (v) => /^https?:\/\/\S+$/.test(v)
@@ -224,4 +225,15 @@ export async function eliminarSesionDocente(formData) {
   await audit(db, profile, 'eliminar_sesion', 'live_session', id)
   revalidatePath(ruta)
   volver(ruta, 'Sesión eliminada.')
+}
+
+export async function emitirConstanciaDocente(formData) {
+  const { profile, db, groupId, ruta } = await exigirGrupo(formData)
+  const profileId = Number(formData.get('profile_id'))
+  const { data: insc } = await db.from('enrollments').select('id').eq('profile_id', profileId).eq('group_id', groupId).eq('status', 'activa').maybeSingle()
+  if (!insc) volver(ruta, 'Esa persona no está inscrita en este grupo.', 'error')
+  const { constancia, nueva } = await emitirConstancia(db, { profileId, groupId, metodo: 'manual', emisorId: profile.id })
+  await audit(db, profile, 'emitir_constancia', 'certificate', constancia.folio, { profileId, groupId })
+  revalidatePath(ruta)
+  volver(ruta, nueva ? `Constancia emitida (folio ${constancia.folio}). Ya la puede descargar en «Mis logros».` : 'Ya tenía su constancia.')
 }

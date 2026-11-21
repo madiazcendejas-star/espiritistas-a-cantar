@@ -10,6 +10,7 @@ const NAV = [
   { href: '/mi-espacio/cursos', label: 'Mis cursos', icon: 'book' },
   { href: '/mi-espacio/vivo', label: 'En vivo', icon: 'video' },
   { href: '/mi-espacio/pagos', label: 'Mis pagos', icon: 'wallet' },
+  { href: '/mi-espacio/logros', label: 'Logros', icon: 'award' },
   { href: '/mi-espacio/perfil', label: 'Mi perfil', icon: 'user' },
 ]
 
