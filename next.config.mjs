@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  // Se cargan tal cual en el servidor (PDF de constancias con QR).
+  serverExternalPackages: ['pdf-lib', 'qrcode-terminal'],
   // Ligas de la app anterior (favoritos, WhatsApp, anuncios) siguen funcionando.
   async redirects() {
     const r = (source, destination) => ({ source, destination, permanent: false })

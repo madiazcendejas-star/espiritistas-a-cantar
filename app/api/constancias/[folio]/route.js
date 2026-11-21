@@ -27,8 +27,12 @@ export async function GET(_req, { params }) {
   const permitido = c.profile_id === ctx.profile.id || ctx.profile.role === 'admin' || (c.group_id && ctx.profile.role === 'teacher' && (await puedeGestionarGrupo(db, ctx.profile, c.group_id)))
   if (!permitido) return new NextResponse('No encontrada', { status: 404 })
 
-  const base = (await urlDelSitio()).replace(/^https?:\/\//, '')
-  const bytes = await crearConstanciaPdf(c, { ...(await firmaConstancia(db)), urlVerificacion: `${base}/constancia/${c.folio}` })
+  const sitio = await urlDelSitio()
+  const bytes = await crearConstanciaPdf(c, {
+    ...(await firmaConstancia(db)),
+    urlVerificacion: `${sitio}/constancia/${c.folio}`,
+    urlCatalogo: `${sitio.replace(/^https?:\/\//, '')}/cursos`,
+  })
   return new NextResponse(Buffer.from(bytes), {
     headers: {
       'Content-Type': 'application/pdf',
