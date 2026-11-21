@@ -6,6 +6,7 @@ import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO
 import { hoyMx, sumarMeses } from '@/lib/format'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
+import { emitirConstancia } from '@/lib/constancias'
 
 const volver = (ruta, msg, tipo = 'ok') => redirect(`${ruta}${ruta.includes('?') ? '&' : '?'}${tipo}=${encodeURIComponent(msg)}`)
 const esCorreo = (v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
@@ -590,4 +591,83 @@ export async function cambiarRol(formData) {
   await audit(db, actor, 'cambiar_rol', 'profile', id, { role })
   revalidatePath(ruta)
   volver(ruta, role === 'teacher' ? 'Ahora tiene acceso al portal docente.' : 'Ya no tiene acceso al portal docente.')
+}
+
+// ---------------------------------------------------------------------
+// Constancias e insignias
+// ---------------------------------------------------------------------
+export async function emitirConstanciaAdmin(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const profileId = Number(formData.get('profile_id'))
+  const groupId = Number(formData.get('group_id'))
+  const ruta = txt(formData, 'volver') || `/admin/estudiantes/${profileId}`
+  const { constancia, nueva } = await emitirConstancia(db, { profileId, groupId, metodo: 'manual', emisorId: actor.id })
+  await audit(db, actor, 'emitir_constancia', 'certificate', constancia.folio, { profileId, groupId })
+  revalidatePath(ruta)
+  volver(ruta, nueva ? `Constancia emitida con folio ${constancia.folio}.` : `Ya tenía constancia (folio ${constancia.folio}).`)
+}
+
+export async function revocarConstancia(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const folio = txt(formData, 'folio')
+  const motivo = nullable(txt(formData, 'motivo'))
+  await db.from('certificates').update({ revoked_at: new Date().toISOString(), revoked_reason: motivo }).eq('folio', folio).is('revoked_at', null)
+  await audit(db, actor, 'revocar_constancia', 'certificate', folio, { motivo })
+  revalidatePath('/admin/constancias')
+  volver('/admin/constancias', `Constancia ${folio} cancelada. Ya no aparece como válida.`)
+}
+
+export async function actualizarNombreConstancia(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const folio = txt(formData, 'folio')
+  const { data: c } = await db.from('certificates').select('profile_id').eq('folio', folio).maybeSingle()
+  if (!c) volver('/admin/constancias', 'No encontramos esa constancia.', 'error')
+  const { data: p } = await db.from('profiles').select('first_name, last_name, matricula').eq('id', c.profile_id).single()
+  const nombre = [p.first_name, p.last_name].filter(Boolean).join(' ')
+  await db.from('certificates').update({ full_name: nombre, matricula: p.matricula }).eq('folio', folio)
+  await audit(db, actor, 'nombre_constancia', 'certificate', folio, { nombre })
+  revalidatePath('/admin/constancias')
+  volver(`/admin/constancias?q=${encodeURIComponent(folio)}`, `La constancia ahora dice «${nombre}».`)
+}
+
+export async function guardarFirma(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const ahora = new Date().toISOString()
+  await db.from('settings').upsert([
+    { key: 'constancia_firma_nombre', value: txt(formData, 'firma_nombre') || 'Dirección Académica', updated_at: ahora },
+    { key: 'constancia_firma_cargo', value: txt(formData, 'firma_cargo') || 'EAC Academia', updated_at: ahora },
+  ], { onConflict: 'key' })
+  await audit(db, actor, 'firma_constancia', 'settings', 'constancia_firma')
+  volver('/admin/constancias', 'Firma guardada. Aplica a todas las constancias que se descarguen desde ahora.')
+}
+
+export async function guardarRuta(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const idTxt = txt(formData, 'id')
+  const color = /^#[0-9a-fA-F]{6}$/.test(txt(formData, 'color')) ? txt(formData, 'color') : '#6e3fc3'
+  const datos = { title: txt(formData, 'title'), description: nullable(txt(formData, 'description')), color, is_active: formData.get('is_active') === 'on' }
+  if (!datos.title) volver('/admin/constancias', 'Escribe el nombre de la ruta.', 'error')
+  const cursos = formData.getAll('course_id').map(Number).filter(Boolean)
+  if (cursos.length < 2) volver('/admin/constancias', 'Una ruta necesita al menos 2 cursos.', 'error')
+  let id = Number(idTxt)
+  if (id) {
+    await db.from('learning_paths').update(datos).eq('id', id)
+    await db.from('learning_path_courses').delete().eq('path_id', id)
+  } else {
+    const { data } = await db.from('learning_paths').insert(datos).select('id').single()
+    id = data.id
+  }
+  await db.from('learning_path_courses').insert(cursos.map((course_id) => ({ path_id: id, course_id })))
+  await audit(db, actor, idTxt ? 'editar_ruta' : 'crear_ruta', 'learning_path', id, { cursos })
+  revalidatePath('/admin/constancias')
+  volver('/admin/constancias', idTxt ? 'Ruta actualizada.' : 'Ruta creada. Ya aparece en «Mis logros» de cada estudiante.')
+}
+
+export async function eliminarRuta(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const id = Number(formData.get('id'))
+  await db.from('learning_paths').delete().eq('id', id)
+  await audit(db, actor, 'eliminar_ruta', 'learning_path', id)
+  revalidatePath('/admin/constancias')
+  volver('/admin/constancias', 'Ruta eliminada.')
 }

@@ -6,7 +6,7 @@ import GroupContent from '@/components/GroupContent'
 import { requireTeacher, puedeGestionarGrupo } from '@/lib/docente'
 import { nombreCompleto } from '@/lib/admin'
 import { fechaDia, hoyMx } from '@/lib/format'
-import { agregarRecursoDocente, eliminarRecursoDocente, agregarSesionDocente, actualizarSesionDocente, eliminarSesionDocente } from '../../actions'
+import { agregarRecursoDocente, eliminarRecursoDocente, agregarSesionDocente, actualizarSesionDocente, eliminarSesionDocente, emitirConstanciaDocente } from '../../actions'
 
 export const metadata = { title: 'Grupo' }
 
@@ -21,12 +21,14 @@ export default async function GrupoDocente({ params, searchParams }) {
   const { data: g } = await db.from('course_groups').select('*, courses(id, title)').eq('id', id).maybeSingle()
   if (!g) notFound()
 
-  const [{ data: recursos }, { data: sesiones }, { data: inscr }, { data: vencidas }] = await Promise.all([
+  const [{ data: recursos }, { data: sesiones }, { data: inscr }, { data: vencidas }, { data: certs }] = await Promise.all([
     db.from('group_resources').select('*').eq('group_id', id).order('created_at').order('id'),
     db.from('live_sessions').select('*').eq('group_id', id).order('starts_at'),
     db.from('enrollments').select('profile_id, enrolled_at, profiles(id, matricula, first_name, last_name)').eq('group_id', id).eq('status', 'activa'),
     db.from('payments').select('profile_id').eq('group_id', id).eq('status', 'pendiente').lt('due_date', hoyMx()),
+    db.from('certificates').select('profile_id, folio').eq('group_id', id).is('revoked_at', null),
   ])
+  const folioDe = new Map((certs || []).map((c) => [c.profile_id, c.folio]))
   const pausados = new Set((vencidas || []).map((v) => v.profile_id))
   const personas = (inscr || []).map((e) => ({ ...e.profiles, enrolled_at: e.enrolled_at, acceso: pausados.has(e.profile_id) ? 'pausado' : 'activo' }))
     .sort((a, b) => nombreCompleto(a).localeCompare(nombreCompleto(b)))
@@ -52,15 +54,25 @@ export default async function GrupoDocente({ params, searchParams }) {
 
       <div className="section-head"><div><span className="eyebrow">Estudiantes</span><h2>Inscritos en este grupo</h2></div></div>
       <section className="table-panel">
-        <div className="table-row table-header" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr' }}><span>Matrícula</span><span>Nombre</span><span>Inscripción</span><span>Acceso</span></div>
+        <div className="table-row table-header" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr 1fr' }}><span>Matrícula</span><span>Nombre</span><span>Inscripción</span><span>Acceso</span><span>Constancia</span></div>
         {personas.map((p) => {
           const [tono, texto] = ACCESO[p.acceso] || ['neutral', p.acceso]
           return (
-            <div key={p.id} className="table-row" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr', minHeight: 54 }}>
+            <div key={p.id} className="table-row" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr 1fr', minHeight: 54 }}>
               <span><b style={{ color: 'var(--purple-dark)' }}>{p.matricula}</b></span>
               <span>{nombreCompleto(p)}</span>
               <span>{fechaDia(p.enrolled_at)}</span>
               <span><i className={`status ${tono}`}>{texto}</i></span>
+              <span>
+                {folioDe.get(p.id) ? (
+                  <a href={`/api/constancias/${folioDe.get(p.id)}`} className="ghost sm"><Icon name="award" size={15} /> {folioDe.get(p.id)}</a>
+                ) : (
+                  <form action={emitirConstanciaDocente}>
+                    <input type="hidden" name="group_id" value={id} /><input type="hidden" name="profile_id" value={p.id} />
+                    <button className="ghost sm" type="submit">Emitir</button>
+                  </form>
+                )}
+              </span>
             </div>
           )
         })}

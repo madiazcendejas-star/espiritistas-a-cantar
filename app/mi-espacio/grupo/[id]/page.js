@@ -6,13 +6,17 @@ import { getSessionProfile } from '@/lib/auth'
 import { getPagos } from '@/lib/student'
 import { getGrupoConMaterial } from '@/lib/groupContent'
 import { money, fechaDia, MODALIDAD } from '@/lib/format'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { avanceDelGrupo, constanciaVigente } from '@/lib/constancias'
+import { marcarVista } from './actions'
 
 export const metadata = { title: 'Curso' }
 
-export default async function Grupo({ params }) {
+export default async function Grupo({ params, searchParams }) {
   const { id } = await params
+  const sp = await searchParams
   if (!/^\d+$/.test(id)) notFound()
-  const { supabase } = await getSessionProfile()
+  const { supabase, profile } = await getSessionProfile()
   const data = await getGrupoConMaterial(supabase, id)
   if (!data) notFound()
   const { grupo, curso, pausado, items, sesiones } = data
@@ -22,6 +26,9 @@ export default async function Grupo({ params }) {
   const proximas = sesiones.filter((s) => new Date(s.starts_at).getTime() > ahora - 90 * 60000)
   const pasadas = sesiones.filter((s) => new Date(s.starts_at).getTime() <= ahora - 90 * 60000).reverse()
   const ver = (it) => `/mi-espacio/grupo/${id}/ver?m=${encodeURIComponent(it.key)}`
+  const db = createAdminClient()
+  const [avance, constancia] = pausado ? [null, null] : await Promise.all([avanceDelGrupo(db, profile.id, Number(id)), constanciaVigente(db, profile.id, Number(id))])
+  const pct = avance?.total ? Math.round((avance.vistos / avance.total) * 100) : 0
 
   return (
     <main className="page">
@@ -55,6 +62,23 @@ export default async function Grupo({ params }) {
         </div>
       ) : (
         <>
+          {constancia ? (
+            <section className={`card constancia-card ${sp?.constancia === 'nueva' ? 'nueva' : ''}`}>
+              <div className="stat-icon"><Icon name="award" /></div>
+              <div>
+                <b>{sp?.constancia === 'nueva' ? '¡Felicidades! Completaste el curso' : 'Tienes tu constancia de este curso'}</b>
+                <span>Folio {constancia.folio} · emitida el {fechaDia(constancia.issued_on)}</span>
+              </div>
+              <a href={`/api/constancias/${constancia.folio}`} className="primary"><Icon name="file" size={18} /> Descargar constancia</a>
+            </section>
+          ) : avance?.total > 0 ? (
+            <section className="card progreso-card">
+              <div className="progreso-head"><b>Tu avance</b><span>{avance.vistos} de {avance.total} clases vistas</span></div>
+              <div className="bar"><i style={{ width: `${pct}%` }} /></div>
+              <small>Marca cada clase grabada como vista. Al completarlas todas, tu constancia se genera sola.</small>
+            </section>
+          ) : null}
+
           {proximas.length > 0 && (
             <>
               <div className="section-head"><div><span className="eyebrow">Clases en vivo</span><h2>Próximas sesiones</h2></div></div>
@@ -67,15 +91,27 @@ export default async function Grupo({ params }) {
           <div className="section-head"><div><span className="eyebrow">Material del curso</span><h2>Clases grabadas y documentos</h2></div></div>
           {items.length ? (
             <div className="resources" style={{ marginTop: 0 }}>
-              {items.map((it) => (
-                <Link key={it.key} href={ver(it)} className="resource">
-                  <span className="r-icon" style={it.kind === 'pdf' ? undefined : { background: 'var(--purple-soft)', color: 'var(--purple)' }}>
-                    <Icon name={it.kind === 'pdf' ? 'file' : 'play'} />
-                  </span>
-                  <div><b>{it.title}</b><small>{it.etiqueta}</small></div>
-                  <span className="secondary sm">{it.kind === 'pdf' ? 'Leer' : 'Ver'} <Icon name="chevron" size={14} /></span>
-                </Link>
-              ))}
+              {items.map((it) => {
+                const hecho = avance?.hechos?.has(it.key)
+                return (
+                  <div key={it.key} className="resource">
+                    <span className="r-icon" style={hecho ? { background: 'var(--purple)', color: '#fff' } : it.kind === 'pdf' ? undefined : { background: 'var(--purple-soft)', color: 'var(--purple)' }}>
+                      <Icon name={hecho ? 'check' : it.kind === 'pdf' ? 'file' : 'play'} />
+                    </span>
+                    <div><b>{it.title}</b><small>{it.etiqueta}{hecho ? ' · Vista' : ''}</small></div>
+                    <Link href={ver(it)} className="secondary sm">{it.kind === 'pdf' ? 'Leer' : 'Ver'} <Icon name="chevron" size={14} /></Link>
+                    {it.kind === 'video' && (
+                      <form action={marcarVista}>
+                        <input type="hidden" name="group_id" value={id} /><input type="hidden" name="key" value={it.key} />
+                        <input type="hidden" name="vista" value={hecho ? '0' : '1'} /><input type="hidden" name="volver" value="grupo" />
+                        <button type="submit" className="icon-button" aria-label={hecho ? 'Desmarcar como vista' : 'Marcar como vista'} title={hecho ? 'Desmarcar como vista' : 'Marcar como vista'} style={hecho ? { color: 'var(--purple)' } : undefined}>
+                          <Icon name="check" size={18} />
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <div className="card empty-card" style={{ padding: 24 }}>Tu docente aún no ha publicado materiales para este grupo.</div>
@@ -92,7 +128,7 @@ export default async function Grupo({ params }) {
             <>
               <div className="section-head"><div><span className="eyebrow">Historial</span><h2>Sesiones anteriores</h2></div></div>
               {pasadas.map((s) => (
-                <LiveSessionCard key={s.id} session={s} courseTitle={`Sesión ${s.number}`} groupName="" ahoraServidor={ahora} />
+                <LiveSessionCard key={s.id} session={s} courseTitle={`Sesión ${s.number}`} groupName="" ahoraServidor={ahora} verHref={s.recording_url ? `/mi-espacio/grupo/${id}/ver?m=s-${s.id}` : undefined} />
               ))}
             </>
           )}

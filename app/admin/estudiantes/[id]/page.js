@@ -6,7 +6,7 @@ import PaymentRow from '@/components/PaymentRow'
 import GroupSelect, { getGruposParaSelect } from '@/components/GroupSelect'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { hoyMx, fechaLarga } from '@/lib/format'
-import { actualizarEstudiante, restablecerContrasena, inscribir, cambiarEstatusInscripcion, agregarCuota, cambiarRol } from '../../actions'
+import { actualizarEstudiante, restablecerContrasena, inscribir, cambiarEstatusInscripcion, agregarCuota, cambiarRol, emitirConstanciaAdmin } from '../../actions'
 
 export const metadata = { title: 'Estudiante' }
 
@@ -18,12 +18,14 @@ export default async function Estudiante({ params, searchParams }) {
   const { data: p } = await db.from('profiles').select('*').eq('id', id).maybeSingle()
   if (!p) notFound()
 
-  const [{ data: inscripciones }, { data: pagos }, grupos, { data: accesos }] = await Promise.all([
+  const [{ data: inscripciones }, { data: pagos }, grupos, { data: accesos }, { data: constancias }] = await Promise.all([
     db.from('enrollments').select('id, group_id, course_id, status, drop_reason, source, enrolled_at').eq('profile_id', id).order('enrolled_at', { ascending: false }),
     db.from('payments').select('*').eq('profile_id', id).order('due_date', { ascending: true, nullsFirst: false }),
     getGruposParaSelect(db),
     db.from('access_log').select('accessed_at').eq('profile_id', id).order('accessed_at', { ascending: false }).limit(1),
+    db.from('certificates').select('folio, group_id').eq('profile_id', id).is('revoked_at', null),
   ])
+  const constanciaDe = (gid) => (constancias || []).find((c) => c.group_id === gid)
   const grupo = (gid) => grupos.find((g) => g.id === gid)
   const hoy = hoyMx()
   const vencidaEn = (gid) => (pagos || []).some((x) => x.group_id === gid && x.status === 'pendiente' && x.due_date && x.due_date < hoy)
@@ -56,7 +58,7 @@ export default async function Estudiante({ params, searchParams }) {
           const g = grupo(e.group_id)
           const pausado = e.status === 'activa' && vencidaEn(e.group_id)
           return (
-            <div key={e.id} className="table-row" style={{ gridTemplateColumns: '2fr 1fr auto' }}>
+            <div key={e.id} className="table-row" style={{ gridTemplateColumns: '2fr 1fr auto auto' }}>
               <span><b>{g?.course_title || 'Curso'}</b><small className="muted" style={{ display: 'block', fontSize: 12 }}>{g?.name}{e.drop_reason ? ` · Baja: ${e.drop_reason}` : ''}</small></span>
               <span>
                 {e.status === 'baja' ? <i className="status neutral">Baja</i> : pausado ? <i className="status danger">Pausado por cuota</i> : <i className="status success">Activo</i>}
@@ -67,6 +69,14 @@ export default async function Estudiante({ params, searchParams }) {
                 <input type="hidden" name="status" value={e.status === 'activa' ? 'baja' : 'activa'} />
                 <button className="ghost sm" type="submit" style={e.status === 'activa' ? { color: 'var(--rose)' } : undefined}>{e.status === 'activa' ? 'Dar de baja' : 'Reactivar'}</button>
               </form>
+              {constanciaDe(e.group_id) ? (
+                <a href={`/api/constancias/${constanciaDe(e.group_id).folio}`} className="ghost sm" title={`Folio ${constanciaDe(e.group_id).folio}`}><Icon name="award" size={15} /> Constancia</a>
+              ) : e.status === 'activa' ? (
+                <form action={emitirConstanciaAdmin}>
+                  <input type="hidden" name="profile_id" value={id} /><input type="hidden" name="group_id" value={e.group_id} />
+                  <button className="ghost sm" type="submit">Emitir constancia</button>
+                </form>
+              ) : <span />}
             </div>
           )
         })}

@@ -11,6 +11,7 @@ Las tablas nuevas viven en el esquema `app`, dentro del mismo proyecto de Supaba
 | `migrations/20261120000400_enrolled_visibility.sql` | Estudiantes ven sus cursos aunque estén ocultos del catálogo |
 | `migrations/20261120000500_admin_support.sql` | Pagos manuales (quién y cuándo), bitácora y matrículas consecutivas |
 | `migrations/20261121000600_docentes.sql` | Portal de docentes: dueños de cursos, revisión, docentes por grupo, solicitudes, reparto automático de cada pago (trigger) y cortes quincenales |
+| `migrations/20261121000700_constancias.sql` | Avance por clase, constancias con folio y rutas de aprendizaje (sellos) |
 | `migrations/20261120000300_sync_from_legacy.sql` | `app.sync_from_legacy()` copia `public` → `app` (idempotente) y `app.validate_migration()` compara conteos |
 | `../scripts/crear-cuentas-auth.mjs` | Crea una cuenta de Supabase Auth por estudiante con su misma contraseña |
 | `tests/` | Pruebas locales con datos ficticios (`02_pruebas.sql` y `03_docentes.sql`) |
@@ -46,4 +47,5 @@ for f in supabase/migrations/*.sql; do psql -d eac_test -f "$f"; done
 psql -d eac_test -c "select * from app.sync_from_legacy()"
 psql -d eac_test -f supabase/tests/02_pruebas.sql   # debe terminar en "TODAS LAS PRUEBAS PASARON"
 psql -d eac_test -f supabase/tests/03_docentes.sql  # "PRUEBAS DE DOCENTES PASARON"
+psql -d eac_test -f supabase/tests/04_constancias.sql  # "PRUEBAS DE CONSTANCIAS PASARON"
 ```

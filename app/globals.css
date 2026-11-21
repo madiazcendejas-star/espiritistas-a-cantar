@@ -745,3 +745,41 @@ a.table-row:hover{background:var(--surface-2)}
 .correo-form input{flex:1;min-width:0;min-height:46px;border:1px solid var(--line-strong);border-radius:12px;padding:0 14px;background:var(--surface);font-size:15px}
 .correo-form .primary{min-height:46px}
 @media (max-width:760px){.correo-form{flex-direction:column}.correo-form .primary{width:100%}}
+
+/* Avance y constancia del curso */
+.progreso-card{padding:18px 20px;margin:4px 0 8px}
+.progreso-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:14px}
+.progreso-head span{color:var(--muted);font-weight:600;font-size:13px}
+.progreso-card small{display:block;margin-top:10px;color:var(--muted);font-size:12px}
+.constancia-card{display:flex;align-items:center;gap:14px;padding:18px 20px;margin:4px 0 8px;border-color:#ecdcb6;background:linear-gradient(180deg,var(--gold-soft),var(--surface) 80%)}
+.constancia-card .stat-icon{background:#fff;color:var(--gold)}
+.constancia-card>div:nth-child(2){flex:1;min-width:0}
+.constancia-card b{display:block;color:var(--ink-2);font-size:15px}
+.constancia-card span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.constancia-card.nueva{animation:brillo 1.4s ease 2}
+@keyframes brillo{50%{box-shadow:0 0 0 6px rgba(178,132,48,.18)}}
+.viewer-head{flex-wrap:wrap}
+@media (max-width:760px){
+  .constancia-card{flex-wrap:wrap}
+  .constancia-card .primary{width:100%}
+  .viewer-head form,.viewer-head form button{width:100%}
+}
+/* Menú inferior en celular: tantas columnas como opciones */
+@media (max-width:760px){
+  .sidebar nav{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:1fr}
+}
+
+/* Sellos */
+.sellos{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.sello-card{display:flex;gap:16px;padding:18px;align-items:flex-start}
+.sello-card>div{flex:1;min-width:0}
+.sello-card b{display:block;font-size:16px;color:var(--ink-2)}
+.sello-card.ganado{border-color:var(--purple-line)}
+.sello-cursos{list-style:none;padding:0;margin:10px 0 0;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.sello-cursos li{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.sello-cursos li.hecho{color:var(--purple-dark);font-weight:600}
+.sello-cursos a{color:var(--purple);text-decoration:underline}
+@media (max-width:760px){.sellos{grid-template-columns:1fr}}
+.ruta-cursos{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px}
+.ruta-cursos label{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:500}
+@media (max-width:760px){.ruta-cursos{grid-template-columns:1fr}}
