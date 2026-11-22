@@ -3,6 +3,9 @@ import { getSessionProfile } from '@/lib/auth'
 import { getMisGrupos, getPagos } from '@/lib/student'
 import { money, fechaDia } from '@/lib/format'
 import { pagarCuota } from './actions'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { ajustes } from '@/lib/ajustes'
+import { waMe } from '@/lib/ligaPago'
 
 export const metadata = { title: 'Mis pagos' }
 
@@ -15,6 +18,12 @@ const ESTADO = {
 
 export default async function Pagos({ searchParams }) {
   const { error } = await searchParams
+  let ayuda = null
+  try {
+    const { profile } = await getSessionProfile()
+    const { whatsapp_ayuda } = await ajustes(createAdminClient(), ['whatsapp_ayuda'])
+    ayuda = waMe(whatsapp_ayuda, `Hola, soy ${profile?.first_name || ''} (matrícula ${profile?.matricula || ''}). Tengo una duda sobre mis pagos.`)
+  } catch {}
   const { supabase } = await getSessionProfile()
   const [pagos, grupos] = await Promise.all([getPagos(supabase), getMisGrupos(supabase)])
   const curso = (p) => grupos.find((g) => g.group_id === p.group_id)?.curso.title || 'Curso'
@@ -66,6 +75,12 @@ export default async function Pagos({ searchParams }) {
         </section>
       ) : (
         <div className="card empty-card" style={{ padding: 24 }}><Icon name="check" size={26} /><b>Estás al corriente</b>No tienes cuotas pendientes.</div>
+      )}
+      {ayuda && (
+        <div className="ayuda-pagos">
+          <span>¿Prefieres pagar por transferencia o tienes alguna duda?</span>
+          <a href={ayuda} target="_blank" rel="noopener noreferrer" className="secondary sm"><Icon name="message" size={16} /> Escríbenos por WhatsApp</a>
+        </div>
       )}
 
       {historial.length > 0 && (

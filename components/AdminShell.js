@@ -13,6 +13,7 @@ const NAV = [
   { href: '/admin/liquidaciones', label: 'Liquidaciones', icon: 'chart' },
   { href: '/admin/constancias', label: 'Constancias', icon: 'award' },
   { href: '/admin/tienda', label: 'Tienda', icon: 'file' },
+  { href: '/admin/ajustes', label: 'Ajustes', icon: 'menu' },
 ]
 
 export default function AdminShell({ profile, children }) {

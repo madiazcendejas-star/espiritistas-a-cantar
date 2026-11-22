@@ -18,6 +18,8 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `/tienda`, `/tienda/[id]` | Todos | Tienda de ebooks y materiales en PDF (pago con Stripe) |
 | `/mi-espacio/biblioteca` | Estudiantes | Materiales comprados: leer dentro de EAC o descargar (enlaces firmados que caducan) |
 | `/admin/tienda` | Administración | Alta de materiales con subida directa a Supabase Storage, ventas y acceso manual |
+| `/pagar/[token]` | Todos | Liga de pago de una cuota sin iniciar sesión (firmada con HMAC) |
+| `/admin/ajustes` | Administración | WhatsApp de ayuda |
 | `/mi-espacio/logros` | Estudiantes | Constancias (PDF) y sellos de rutas de aprendizaje |
 | `/constancia/[folio]` | Todos | Verificación pública del folio de una constancia |
 | `/api/constancias/[folio]` | Dueño, admin o docente | Descarga del PDF de la constancia |
@@ -41,6 +43,7 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `NEXT_PUBLIC_SITE_URL` | Servidor | `https://espiritistasacantar.com` (solo se usa en producción) |
 | `STRIPE_PRICE_ID_BARAJA` | Solo servidor | Opcional: precio fijo de Stripe para el grupo de Baraja. Sin ella se cobra el precio del grupo |
 | `BARAJA_GRUPO_ID` | Solo servidor | Opcional, por defecto `5` |
+| `PAGO_LINK_SECRET` | Solo servidor | Opcional: secreto para firmar las ligas de pago (si no, se usa el del webhook de Stripe) |
 | `CORREO_AVISOS_ADMIN` | Solo servidor | Opcional: correo(s) separados por coma que reciben avisos de solicitudes y cursos por revisar |
 
 ### Pagos en línea
