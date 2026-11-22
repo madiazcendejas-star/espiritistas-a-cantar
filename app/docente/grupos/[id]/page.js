@@ -6,7 +6,7 @@ import GroupContent from '@/components/GroupContent'
 import { requireTeacher, puedeGestionarGrupo } from '@/lib/docente'
 import { nombreCompleto } from '@/lib/admin'
 import { fechaDia, hoyMx } from '@/lib/format'
-import { agregarRecursoDocente, eliminarRecursoDocente, agregarSesionDocente, actualizarSesionDocente, eliminarSesionDocente, emitirConstanciaDocente } from '../../actions'
+import { agregarRecursoDocente, eliminarRecursoDocente, agregarSesionDocente, actualizarSesionDocente, eliminarSesionDocente, emitirConstanciaDocente, marcarAsistenciaDocente } from '../../actions'
 
 export const metadata = { title: 'Grupo' }
 
@@ -29,6 +29,10 @@ export default async function GrupoDocente({ params, searchParams }) {
     db.from('certificates').select('profile_id, folio').eq('group_id', id).is('revoked_at', null),
   ])
   const folioDe = new Map((certs || []).map((c) => [c.profile_id, c.folio]))
+  const sids = (sesiones || []).map((x) => x.id)
+  const { data: asistencias } = sids.length ? await db.from('attendance').select('session_id, profile_id').in('session_id', sids) : { data: [] }
+  const pasadas = (sesiones || []).filter((x) => new Date(x.starts_at).getTime() < Date.now()).map((x) => x.id)
+  const pctAsistencia = (pid) => (pasadas.length ? Math.round(((asistencias || []).filter((a) => a.profile_id === pid && pasadas.includes(a.session_id)).length / pasadas.length) * 100) : null)
   const pausados = new Set((vencidas || []).map((v) => v.profile_id))
   const personas = (inscr || []).map((e) => ({ ...e.profiles, enrolled_at: e.enrolled_at, acceso: pausados.has(e.profile_id) ? 'pausado' : 'activo' }))
     .sort((a, b) => nombreCompleto(a).localeCompare(nombreCompleto(b)))
@@ -49,20 +53,23 @@ export default async function GrupoDocente({ params, searchParams }) {
         groupId={id}
         recursos={recursos}
         sesiones={sesiones}
-        acciones={{ agregarRecurso: agregarRecursoDocente, eliminarRecurso: eliminarRecursoDocente, agregarSesion: agregarSesionDocente, actualizarSesion: actualizarSesionDocente, eliminarSesion: eliminarSesionDocente }}
+        alumnos={personas.map((x) => ({ id: x.id, nombre: nombreCompleto(x) }))}
+        asistencias={asistencias || []}
+        acciones={{ agregarRecurso: agregarRecursoDocente, eliminarRecurso: eliminarRecursoDocente, agregarSesion: agregarSesionDocente, actualizarSesion: actualizarSesionDocente, eliminarSesion: eliminarSesionDocente, marcarAsistencia: marcarAsistenciaDocente }}
       />
 
       <div className="section-head"><div><span className="eyebrow">Estudiantes</span><h2>Inscritos en este grupo</h2></div></div>
       <section className="table-panel">
-        <div className="table-row table-header" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr 1fr' }}><span>Matrícula</span><span>Nombre</span><span>Inscripción</span><span>Acceso</span><span>Constancia</span></div>
+        <div className="table-row table-header" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr .8fr 1fr' }}><span>Matrícula</span><span>Nombre</span><span>Inscripción</span><span>Acceso</span><span className="right">Asistencia</span><span>Constancia</span></div>
         {personas.map((p) => {
           const [tono, texto] = ACCESO[p.acceso] || ['neutral', p.acceso]
           return (
-            <div key={p.id} className="table-row" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr 1fr', minHeight: 54 }}>
+            <div key={p.id} className="table-row" style={{ gridTemplateColumns: '.8fr 2fr 1fr .8fr .8fr 1fr', minHeight: 54 }}>
               <span><b style={{ color: 'var(--purple-dark)' }}>{p.matricula}</b></span>
               <span>{nombreCompleto(p)}</span>
               <span>{fechaDia(p.enrolled_at)}</span>
               <span><i className={`status ${tono}`}>{texto}</i></span>
+              <span className="right">{pctAsistencia(p.id) === null ? '—' : `${pctAsistencia(p.id)} %`}</span>
               <span>
                 {folioDe.get(p.id) ? (
                   <a href={`/api/constancias/${folioDe.get(p.id)}`} className="ghost sm"><Icon name="award" size={15} /> {folioDe.get(p.id)}</a>

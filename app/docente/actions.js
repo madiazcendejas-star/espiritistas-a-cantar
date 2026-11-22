@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireTeacher, puedeEditarCurso, puedeGestionarGrupo, esAdmin } from '@/lib/docente'
-import { audit, nextId, txt, num, nullable } from '@/lib/admin'
+import { audit, nextId, txt, num, nullable, guardarAsistencia } from '@/lib/admin'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
 import { emitirConstancia } from '@/lib/constancias'
@@ -236,4 +236,11 @@ export async function emitirConstanciaDocente(formData) {
   await audit(db, profile, 'emitir_constancia', 'certificate', constancia.folio, { profileId, groupId })
   revalidatePath(ruta)
   volver(ruta, nueva ? `Constancia emitida (folio ${constancia.folio}). Ya la puede descargar en «Mis logros».` : 'Ya tenía su constancia.')
+}
+
+export async function marcarAsistenciaDocente(formData) {
+  const { profile, db, ruta } = await exigirGrupo(formData)
+  await guardarAsistencia(db, profile, formData)
+  revalidatePath(ruta)
+  volver(ruta, 'Asistencia actualizada.')
 }

@@ -29,6 +29,8 @@ export default async function Grupo({ params, searchParams }) {
   const db = createAdminClient()
   const [avance, constancia] = pausado ? [null, null] : await Promise.all([avanceDelGrupo(db, profile.id, Number(id)), constanciaVigente(db, profile.id, Number(id))])
   const pct = avance?.total ? Math.round((avance.vistos / avance.total) * 100) : 0
+  const { data: asistencias } = await db.from('attendance').select('session_id').eq('profile_id', profile.id).in('session_id', (sesiones || []).map((x) => x.id).concat(0))
+  const asistio = new Set((asistencias || []).map((a) => a.session_id))
 
   return (
     <main className="page">
@@ -128,7 +130,7 @@ export default async function Grupo({ params, searchParams }) {
             <>
               <div className="section-head"><div><span className="eyebrow">Historial</span><h2>Sesiones anteriores</h2></div></div>
               {pasadas.map((s) => (
-                <LiveSessionCard key={s.id} session={s} courseTitle={`Sesión ${s.number}`} groupName="" ahoraServidor={ahora} verHref={s.recording_url ? `/mi-espacio/grupo/${id}/ver?m=s-${s.id}` : undefined} />
+                <LiveSessionCard key={s.id} session={s} courseTitle={`Sesión ${s.number}`} groupName="" ahoraServidor={ahora} asistio={asistio.has(s.id)} verHref={s.recording_url ? `/mi-espacio/grupo/${id}/ver?m=s-${s.id}` : undefined} />
               ))}
             </>
           )}
