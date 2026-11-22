@@ -4,7 +4,7 @@ import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import TeacherGroupForm from '@/components/TeacherGroupForm'
 import { requireTeacher, esAdmin, ESTADO_CURSO, porcentajeGeneral } from '@/lib/docente'
-import { money, fechaDia, MODALIDAD } from '@/lib/format'
+import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { guardarCursoDocente, enviarARevision, eliminarGrupoDocente } from '../../actions'
 
 export const metadata = { title: 'Curso' }
@@ -68,7 +68,7 @@ export default async function CursoDocente({ params, searchParams }) {
         {grupos.map((g) => (
           <div key={g.id} className="admin-group">
             <span><b>{g.name}</b><small className="muted" style={{ display: 'block', fontSize: 12 }}>{MODALIDAD[g.modality] || g.modality}{g.schedule_text ? ` · ${g.schedule_text}` : ''}{g.starts_on ? ` · inicia ${fechaDia(g.starts_on)}` : ''}</small></span>
-            <span>{money(g.price_total)}{g.installments > 1 ? ` en ${g.installments} pagos` : ''}</span>
+            <span>{money(g.price_total)}{g.recurrence ? ` / ${RECURRENCIA[g.recurrence]}` : g.installments > 1 ? ` en ${g.installments} pagos` : ''}</span>
             <span>{n(g.id)} inscritos · {g.status === 'activo' ? <i className="status success">Activo</i> : <i className="status neutral">{c.review_status === 'aprobado' ? 'Por activar' : 'Inactivo'}</i>}</span>
             <span style={{ display: 'flex', gap: 6 }}>
               <Link href={`/docente/grupos/${g.id}`} className="secondary sm">Materiales y clases <Icon name="chevron" size={14} /></Link>

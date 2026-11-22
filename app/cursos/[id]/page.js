@@ -4,7 +4,7 @@ import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
 import { getCourse } from '@/lib/catalog'
-import { money, fechaDia, MODALIDAD } from '@/lib/format'
+import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { getSessionProfile } from '@/lib/auth'
 import { inscribirme } from './actions'
 
@@ -27,6 +27,7 @@ function describeGrupo(g) {
 function describePago(g) {
   const total = Number(g.price_total) || 0
   if (!total) return 'Consulta el precio'
+  if (g.recurrence) return `${money(total)} MXN por ${RECURRENCIA[g.recurrence]} · colegiatura`
   if (g.installments > 1) {
     return `${money(total)} MXN en ${g.installments} pagos de ${money(total / g.installments)}`
   }

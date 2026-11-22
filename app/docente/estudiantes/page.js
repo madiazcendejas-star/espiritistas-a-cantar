@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireTeacher, gruposDelDocente } from '@/lib/docente'
 import { nombreCompleto } from '@/lib/admin'
 import { fechaDia, hoyMx } from '@/lib/format'
+import { limitePausa } from '@/lib/ajustes'
 
 export const metadata = { title: 'Estudiantes' }
 
@@ -11,11 +12,12 @@ export default async function EstudiantesDocente({ searchParams }) {
   const grupos = await gruposDelDocente(db, profile.id)
   const ids = grupos.map((g) => g.id)
   const filtro = ids.includes(Number(grupo)) ? [Number(grupo)] : ids
+  const limite = await limitePausa(db, hoyMx())
 
   const [{ data: inscr }, { data: vencidas }] = filtro.length
     ? await Promise.all([
         db.from('enrollments').select('profile_id, group_id, enrolled_at, profiles(id, matricula, first_name, last_name)').in('group_id', filtro).eq('status', 'activa').order('enrolled_at', { ascending: false }),
-        db.from('payments').select('profile_id, group_id').in('group_id', filtro).eq('status', 'pendiente').lt('due_date', hoyMx()),
+        db.from('payments').select('profile_id, group_id').in('group_id', filtro).eq('status', 'pendiente').lt('due_date', limite),
       ])
     : [{ data: [] }, { data: [] }]
   const pausado = new Set((vencidas || []).map((v) => `${v.profile_id}:${v.group_id}`))

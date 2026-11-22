@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
+import { limitePausa } from '@/lib/ajustes'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { hoyMx } from '@/lib/format'
 
@@ -34,7 +35,7 @@ export default async function Estudiantes({ searchParams }) {
   const [{ data: inscripciones }, { data: vencidas }] = ids.length
     ? await Promise.all([
         db.from('enrollments').select('profile_id, status').in('profile_id', ids),
-        db.from('payments').select('profile_id').in('profile_id', ids).eq('status', 'pendiente').lt('due_date', hoyMx()),
+        db.from('payments').select('profile_id').in('profile_id', ids).eq('status', 'pendiente').lt('due_date', await limitePausa(db, hoyMx())),
       ])
     : [{ data: [] }, { data: [] }]
   const activos = (id) => (inscripciones || []).filter((e) => e.profile_id === id && e.status === 'activa').length

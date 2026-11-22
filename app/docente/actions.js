@@ -131,7 +131,9 @@ export async function guardarGrupoDocente(formData) {
     capacity: num(formData, 'capacity') || null,
     whatsapp_url: nullable(txt(formData, 'whatsapp_url')),
     frequency: 'mensual',
+    recurrence: ['semanal', 'quincenal', 'mensual'].includes(txt(formData, 'recurrence')) ? txt(formData, 'recurrence') : null,
   }
+  if (datos.recurrence) datos.installments = 1
   if (!datos.name) volver(ruta, 'Escribe el nombre del grupo.', 'error')
   if (idTxt) {
     await db.from('course_groups').update(datos).eq('id', Number(idTxt)).eq('course_id', courseId)

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { money, MODALIDAD } from '@/lib/format'
+import { money, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { artFor } from '@/lib/catalog'
 
 export default function CourseCard({ course }) {
@@ -30,7 +30,7 @@ export default function CourseCard({ course }) {
             <span className="price">
               {course.groups.length > 1 && <small style={{ marginLeft: 0, marginRight: 4 }}>desde</small>}
               {money(course.precioDesde)}
-              <small>MXN</small>
+              <small>MXN{course.periodoDesde ? ` / ${RECURRENCIA[course.periodoDesde]}` : ''}</small>
             </span>
           ) : (
             <span className="price" style={{ fontSize: 16 }}>Consulta precio</span>

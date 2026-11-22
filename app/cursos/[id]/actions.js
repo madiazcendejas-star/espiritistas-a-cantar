@@ -14,7 +14,7 @@ export async function inscribirme(formData) {
   const db = createAdminClient()
   const { data: grupo } = await db
     .from('course_groups')
-    .select('id, course_id, name, price_total, installments, status, courses(id, title, is_visible)')
+    .select('id, course_id, name, price_total, installments, recurrence, status, courses(id, title, is_visible)')
     .eq('id', grupoId)
     .maybeSingle()
   if (!grupo || grupo.course_id !== cursoId || grupo.status !== 'activo' || !grupo.courses?.is_visible) volver('Ese grupo ya no está disponible.')

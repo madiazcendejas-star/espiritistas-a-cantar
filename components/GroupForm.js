@@ -28,11 +28,21 @@ export default function GroupForm({ courseId, g }) {
         <div className="field"><label>Horario</label><input name="schedule_text" defaultValue={g?.schedule_text || ''} placeholder="Ej. Martes 7:00 PM" /></div>
       </div>
       <div className="grid3">
-        <div className="field"><label>Precio total (MXN)</label><input name="price_total" inputMode="decimal" defaultValue={g?.price_total ?? ''} /></div>
-        <div className="field"><label>Número de pagos</label><input name="installments" inputMode="numeric" defaultValue={g?.installments ?? 1} /></div>
-        <div className="field"><label>Cupo</label><input name="capacity" inputMode="numeric" defaultValue={g?.capacity ?? ''} /></div>
+        <div className="field">
+          <label>Forma de cobro</label>
+          <select name="recurrence" defaultValue={g?.recurrence || ''}>
+            <option value="">Precio total (en uno o varios pagos)</option>
+            <option value="mensual">Colegiatura mensual</option>
+            <option value="quincenal">Colegiatura quincenal</option>
+            <option value="semanal">Colegiatura semanal</option>
+          </select>
+        </div>
+        <div className="field"><label>Precio (total, o por periodo si es colegiatura)</label><input name="price_total" inputMode="decimal" defaultValue={g?.price_total ?? ''} /></div>
+        <div className="field"><label>Número de pagos (no aplica a colegiaturas)</label><input name="installments" inputMode="numeric" defaultValue={g?.installments ?? 1} /></div>
       </div>
-      <div className="grid2">
+      <p className="muted" style={{ fontSize: 12, marginTop: -4 }}>Colegiatura: cada periodo se genera sola la siguiente cuota (5 días antes) hasta la fecha de fin del grupo, o sin fin si la dejas vacía. Se detiene si das de baja a la persona.</p>
+      <div className="grid3">
+        <div className="field"><label>Cupo</label><input name="capacity" inputMode="numeric" defaultValue={g?.capacity ?? ''} /></div>
         <div className="field"><label>Cuota de inscripción (MXN, opcional)</label><input name="enrollment_fee" inputMode="decimal" defaultValue={g?.enrollment_fee ?? 0} /></div>
         <div className="field"><label>Enlace del grupo de WhatsApp (opcional)</label><input name="whatsapp_url" defaultValue={g?.whatsapp_url || ''} /></div>
       </div>

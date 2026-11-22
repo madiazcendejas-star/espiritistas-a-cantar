@@ -19,7 +19,8 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `/mi-espacio/biblioteca` | Estudiantes | Materiales comprados: leer dentro de EAC o descargar (enlaces firmados que caducan) |
 | `/admin/tienda` | Administración | Alta de materiales con subida directa a Supabase Storage, ventas y acceso manual |
 | `/pagar/[token]` | Todos | Liga de pago de una cuota sin iniciar sesión (firmada con HMAC) |
-| `/admin/ajustes` | Administración | WhatsApp de ayuda |
+| `/admin/ajustes` | Administración | WhatsApp de ayuda y días de tolerancia |
+| `/api/cron/colegiaturas` | Vercel Cron | Diario 7:00 AM: genera las cuotas de colegiatura que vencen en 5 días y avisa por correo |
 | `/mi-espacio/logros` | Estudiantes | Constancias (PDF) y sellos de rutas de aprendizaje |
 | `/constancia/[folio]` | Todos | Verificación pública del folio de una constancia |
 | `/api/constancias/[folio]` | Dueño, admin o docente | Descarga del PDF de la constancia |
@@ -44,6 +45,7 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `STRIPE_PRICE_ID_BARAJA` | Solo servidor | Opcional: precio fijo de Stripe para el grupo de Baraja. Sin ella se cobra el precio del grupo |
 | `BARAJA_GRUPO_ID` | Solo servidor | Opcional, por defecto `5` |
 | `PAGO_LINK_SECRET` | Solo servidor | Opcional: secreto para firmar las ligas de pago (si no, se usa el del webhook de Stripe) |
+| `CRON_SECRET` | Solo servidor | Secreto del cron diario de colegiaturas (Vercel lo manda en el encabezado Authorization) |
 | `CORREO_AVISOS_ADMIN` | Solo servidor | Opcional: correo(s) separados por coma que reciben avisos de solicitudes y cursos por revisar |
 
 ### Pagos en línea

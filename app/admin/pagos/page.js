@@ -6,6 +6,7 @@ import { getGruposParaSelect } from '@/components/GroupSelect'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { hoyMx, money } from '@/lib/format'
 import { tokenPago, waMe } from '@/lib/ligaPago'
+import { generarColegiaturasAhora } from '../actions'
 import { urlDelSitio } from '@/lib/sitio'
 
 export const metadata = { title: 'Pagos' }
@@ -49,6 +50,9 @@ export default async function Pagos({ searchParams }) {
           <h1>Pagos</h1>
           <p>Registra pagos por transferencia o efectivo. Al confirmar una cuota vencida, el acceso se reactiva solo.</p>
         </div>
+        <form action={generarColegiaturasAhora}>
+          <button className="secondary" type="submit" title="Se hace solo cada mañana; úsalo si acabas de crear una colegiatura">Generar colegiaturas ahora</button>
+        </form>
       </div>
       <Flash ok={sp?.ok} error={sp?.error} />
       <div className="tabs">

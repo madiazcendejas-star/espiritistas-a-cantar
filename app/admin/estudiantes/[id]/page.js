@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import PaymentRow from '@/components/PaymentRow'
+import { limitePausa } from '@/lib/ajustes'
 import { tokenPago, waMe } from '@/lib/ligaPago'
 import { urlDelSitio } from '@/lib/sitio'
 import GroupSelect, { getGruposParaSelect } from '@/components/GroupSelect'
@@ -31,7 +32,8 @@ export default async function Estudiante({ params, searchParams }) {
   const base = await urlDelSitio()
   const grupo = (gid) => grupos.find((g) => g.id === gid)
   const hoy = hoyMx()
-  const vencidaEn = (gid) => (pagos || []).some((x) => x.group_id === gid && x.status === 'pendiente' && x.due_date && x.due_date < hoy)
+  const limite = await limitePausa(db, hoy)
+  const vencidaEn = (gid) => (pagos || []).some((x) => x.group_id === gid && x.status === 'pendiente' && x.due_date && x.due_date < limite)
   const regreso = `/admin/estudiantes/${id}`
   const abiertos = (pagos || []).filter((x) => x.status === 'pendiente' || x.status === 'en_revision')
   const cerrados = (pagos || []).filter((x) => !(x.status === 'pendiente' || x.status === 'en_revision')).reverse()
