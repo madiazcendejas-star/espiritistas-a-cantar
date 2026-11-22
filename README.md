@@ -15,6 +15,9 @@ Next.js (App Router) + Supabase. Diseño basado en el prototipo de Figma Make: Q
 | `/entrar/nueva-contrasena` | Con sesión | Obligatorio si la contraseña heredada es corta |
 | `/mi-espacio/*` | Estudiantes | Panel (celular primero): cursos, en vivo, pagos, perfil |
 | `/docente/*` | Docentes | Portal docente (computadora primero): cursos propios con revisión, grupos asignados, materiales y clases, estudiantes, ganancias y perfil |
+| `/tienda`, `/tienda/[id]` | Todos | Tienda de ebooks y materiales en PDF (pago con Stripe) |
+| `/mi-espacio/biblioteca` | Estudiantes | Materiales comprados: leer dentro de EAC o descargar (enlaces firmados que caducan) |
+| `/admin/tienda` | Administración | Alta de materiales con subida directa a Supabase Storage, ventas y acceso manual |
 | `/mi-espacio/logros` | Estudiantes | Constancias (PDF) y sellos de rutas de aprendizaje |
 | `/constancia/[folio]` | Todos | Verificación pública del folio de una constancia |
 | `/api/constancias/[folio]` | Dueño, admin o docente | Descarga del PDF de la constancia |

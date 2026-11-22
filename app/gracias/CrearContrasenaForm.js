@@ -22,7 +22,7 @@ export default function CrearContrasenaForm({ sessionId, email }) {
         <input id="confirmar" name="confirmar" type="password" className="big" autoComplete="new-password" minLength={8} required />
       </div>
       <button className="primary full" type="submit" disabled={pending} style={{ minHeight: 50 }}>
-        {pending ? 'Guardando…' : 'Guardar y entrar a mi curso'}
+        {pending ? 'Guardando…' : 'Guardar y entrar'}
       </button>
     </form>
   )
