@@ -849,3 +849,16 @@ a.table-row:hover{background:var(--surface-2)}
 .subir-zona input{display:none}
 .mini-portada{width:40px;height:52px;border-radius:6px;overflow:hidden;background:var(--purple-soft);display:grid;place-items:center;color:var(--purple)}
 .mini-portada img{width:100%;height:100%;object-fit:cover}
+.liga-pago{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;padding:14px;border-radius:12px;background:var(--purple-soft);border:1px solid var(--purple-line)}
+.liga-pago b{display:block;font-size:14px;color:var(--purple-dark)}
+.liga-pago small{display:block;color:var(--muted);font-size:12px;max-width:420px}
+
+/* Botón flotante de ayuda (WhatsApp) */
+.ayuda-flotante{position:fixed;right:22px;bottom:22px;z-index:40;display:flex;align-items:center;gap:8px;min-height:50px;padding:0 18px 0 14px;border-radius:999px;background:#1f9d55;color:#fff;font-weight:700;font-size:14px;box-shadow:0 12px 28px rgba(31,157,85,.35)}
+.ayuda-flotante:hover{background:#178a49}
+@media (max-width:760px){
+  .ayuda-flotante{bottom:86px;right:14px;width:52px;height:52px;padding:0;justify-content:center}
+  .ayuda-flotante span{display:none}
+}
+.ayuda-pagos{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:14px;color:var(--ink-2)}
+@media (max-width:760px){.ayuda-pagos .secondary{width:100%;justify-content:center}}

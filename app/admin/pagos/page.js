@@ -5,6 +5,8 @@ import PaymentRow from '@/components/PaymentRow'
 import { getGruposParaSelect } from '@/components/GroupSelect'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
 import { hoyMx, money } from '@/lib/format'
+import { tokenPago, waMe } from '@/lib/ligaPago'
+import { urlDelSitio } from '@/lib/sitio'
 
 export const metadata = { title: 'Pagos' }
 
@@ -30,11 +32,14 @@ export default async function Pagos({ searchParams }) {
   const [{ data: pagos }, grupos] = await Promise.all([q, getGruposParaSelect(db)])
 
   const ids = [...new Set((pagos || []).map((p) => p.profile_id))]
-  const { data: perfiles } = ids.length ? await db.from('profiles').select('id, matricula, first_name, last_name').in('id', ids) : { data: [] }
+  const { data: perfiles } = ids.length ? await db.from('profiles').select('id, matricula, first_name, last_name, phone10').in('id', ids) : { data: [] }
   const persona = (id) => (perfiles || []).find((x) => x.id === id)
   const curso = (gid) => grupos.find((g) => g.id === gid)?.course_title
   const total = (pagos || []).reduce((a, p) => a + Number(p.amount || 0), 0)
   const regreso = `/admin/pagos?filtro=${filtro}`
+  const base = await urlDelSitio()
+  const liga = (p) => `${base}/pagar/${tokenPago(p.id)}`
+  const mensaje = (p, per) => waMe(per?.phone10, `Hola${per?.first_name ? ` ${per.first_name}` : ''}, te comparto la liga para pagar tu cuota de ${curso(p.group_id) || 'EAC Academia'} por ${money(p.amount)} MXN. Puedes pagar con tarjeta u OXXO: ${liga(p)}`)
 
   return (
     <main className="page">
@@ -60,7 +65,7 @@ export default async function Pagos({ searchParams }) {
               <div style={{ fontSize: 12, fontWeight: 700, margin: '0 4px 4px', display: 'flex', gap: 8 }}>
                 <Link href={`/admin/estudiantes/${p.profile_id}`} style={{ color: 'var(--purple-dark)' }}>{per ? `${nombreCompleto(per)} · ${per.matricula}` : `Perfil ${p.profile_id}`}</Link>
               </div>
-              <PaymentRow p={p} contexto={curso(p.group_id) || 'Pago'} regreso={regreso} />
+              <PaymentRow p={p} contexto={curso(p.group_id) || 'Pago'} regreso={regreso} liga={liga(p)} whatsapp={mensaje(p, per)} />
             </div>
           )
         })}

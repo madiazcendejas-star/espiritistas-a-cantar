@@ -3,9 +3,11 @@ import { notFound } from 'next/navigation'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import PaymentRow from '@/components/PaymentRow'
+import { tokenPago, waMe } from '@/lib/ligaPago'
+import { urlDelSitio } from '@/lib/sitio'
 import GroupSelect, { getGruposParaSelect } from '@/components/GroupSelect'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
-import { hoyMx, fechaLarga } from '@/lib/format'
+import { hoyMx, fechaLarga, money } from '@/lib/format'
 import { actualizarEstudiante, restablecerContrasena, inscribir, cambiarEstatusInscripcion, agregarCuota, cambiarRol, emitirConstanciaAdmin } from '../../actions'
 
 export const metadata = { title: 'Estudiante' }
@@ -26,6 +28,7 @@ export default async function Estudiante({ params, searchParams }) {
     db.from('certificates').select('folio, group_id').eq('profile_id', id).is('revoked_at', null),
   ])
   const constanciaDe = (gid) => (constancias || []).find((c) => c.group_id === gid)
+  const base = await urlDelSitio()
   const grupo = (gid) => grupos.find((g) => g.id === gid)
   const hoy = hoyMx()
   const vencidaEn = (gid) => (pagos || []).some((x) => x.group_id === gid && x.status === 'pendiente' && x.due_date && x.due_date < hoy)
@@ -96,7 +99,7 @@ export default async function Estudiante({ params, searchParams }) {
 
       <div className="section-head"><div><span className="eyebrow">Pagos</span><h2>Cuotas pendientes</h2></div></div>
       <div className="stack">
-        {abiertos.map((x) => <PaymentRow key={x.id} p={x} contexto={grupo(x.group_id)?.course_title || 'Pago'} regreso={regreso} />)}
+        {abiertos.map((x) => <PaymentRow key={x.id} p={x} contexto={grupo(x.group_id)?.course_title || 'Pago'} regreso={regreso} liga={`${base}/pagar/${tokenPago(x.id)}`} whatsapp={waMe(p.phone10, `Hola ${p.first_name || ''}, te comparto la liga para pagar tu cuota de ${grupo(x.group_id)?.course_title || 'EAC Academia'} por ${money(x.amount)} MXN. Puedes pagar con tarjeta u OXXO: ${base}/pagar/${tokenPago(x.id)}`)} />)}
         {!abiertos.length && <div className="card empty-card" style={{ padding: 20 }}>Al corriente: sin cuotas pendientes.</div>}
       </div>
       <details className="card" style={{ padding: 18, marginTop: 12 }}>

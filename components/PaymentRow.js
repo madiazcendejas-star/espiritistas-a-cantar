@@ -1,4 +1,5 @@
 import Icon from './Icon'
+import CopiarLiga from './CopiarLiga'
 import { registrarPago, cancelarCuota } from '@/app/admin/actions'
 import { money, fechaDia, hoyMx } from '@/lib/format'
 
@@ -11,7 +12,7 @@ const ESTADO = {
 const METODO = { tarjeta: 'Tarjeta', spei: 'SPEI', oxxo: 'OXXO', efectivo: 'Efectivo', transferencia: 'Transferencia', otro: 'Otro' }
 
 // Fila de cuota con el formulario para registrar el pago a mano.
-export default function PaymentRow({ p, contexto, regreso }) {
+export default function PaymentRow({ p, contexto, regreso, liga, whatsapp }) {
   const vencida = p.status === 'pendiente' && p.due_date && p.due_date < hoyMx()
   const [tono, texto] = vencida ? ['danger', 'Vencida'] : ESTADO[p.status] || ['neutral', p.status]
   const abierta = p.status === 'pendiente' || p.status === 'en_revision'
@@ -26,6 +27,12 @@ export default function PaymentRow({ p, contexto, regreso }) {
       </summary>
       {abierta && (
         <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--line)' }}>
+          {liga && p.status === 'pendiente' && Number(p.amount) >= 10 && (
+            <div className="liga-pago">
+              <div><b>Liga de pago</b><small>La estudiante la abre y paga con tarjeta u OXXO, sin iniciar sesión. Se registra sola.</small></div>
+              <CopiarLiga url={liga} whatsapp={whatsapp} />
+            </div>
+          )}
           <form action={registrarPago} style={{ marginTop: 14 }}>
             <input type="hidden" name="id" value={p.id} />
             <input type="hidden" name="regreso" value={regreso} />

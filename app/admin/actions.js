@@ -672,3 +672,13 @@ export async function eliminarRuta(formData) {
   revalidatePath('/admin/constancias')
   volver('/admin/constancias', 'Ruta eliminada.')
 }
+
+export async function guardarAjustes(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const digitos = txt(formData, 'whatsapp_ayuda').replace(/\D/g, '')
+  if (digitos && digitos.length !== 10 && digitos.length !== 12) volver('/admin/ajustes', 'Escribe el WhatsApp a 10 dígitos.', 'error')
+  await db.from('settings').upsert({ key: 'whatsapp_ayuda', value: digitos, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  await audit(db, actor, 'ajustes', 'settings', 'whatsapp_ayuda')
+  revalidatePath('/mi-espacio', 'layout')
+  volver('/admin/ajustes', digitos ? 'Guardado. El botón de ayuda ya aparece.' : 'Guardado. El botón de ayuda quedó oculto.')
+}

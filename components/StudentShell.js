@@ -16,7 +16,7 @@ const NAV = [
 ]
 
 // Estructura del prototipo: menú lateral en computadora, barra inferior en celular.
-export default function StudentShell({ profile, children }) {
+export default function StudentShell({ profile, ayuda, children }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -51,6 +51,11 @@ export default function StudentShell({ profile, children }) {
         </header>
         {children}
       </div>
+      {ayuda && (
+        <a href={ayuda} target="_blank" rel="noopener noreferrer" className="ayuda-flotante" aria-label="¿Necesitas ayuda? Escríbenos por WhatsApp">
+          <Icon name="message" size={22} /><span>¿Necesitas ayuda?</span>
+        </a>
+      )}
     </div>
   )
 }
