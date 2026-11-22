@@ -4,8 +4,9 @@ import { toEmbed } from '@/lib/embed'
 
 // Materiales y clases en vivo de un grupo. Lo usan administración y docentes,
 // cada quien con sus propias acciones (que verifican permisos en el servidor).
-export default function GroupContent({ groupId, recursos, sesiones, acciones }) {
+export default function GroupContent({ groupId, recursos, sesiones, acciones, alumnos = [], asistencias = [] }) {
   const ahora = Date.now()
+  const asistentes = (sid) => new Set(asistencias.filter((a) => a.session_id === sid).map((a) => a.profile_id))
   return (
     <>
       <div className="section-head" style={{ marginTop: 8 }}><div><span className="eyebrow">Material</span><h2>Clases grabadas y PDFs</h2></div></div>
@@ -41,13 +42,14 @@ export default function GroupContent({ groupId, recursos, sesiones, acciones }) 
       <div className="stack">
         {(sesiones || []).map((s) => {
           const pasada = new Date(s.starts_at).getTime() < ahora
+          const presentes = asistentes(s.id)
           return (
             <details key={s.id} className="card" style={{ padding: 0 }}>
               <summary className="pay-sum" style={{ cursor: 'pointer' }}>
                 <span><b>Sesión {s.number}: {s.title}</b></span>
                 <span style={{ fontSize: 13 }}>{fechaLarga(s.starts_at)}, {hora(s.starts_at)}</span>
                 <span>{s.meet_url ? <i className="status success">Con Meet</i> : <i className="status review">Sin Meet</i>}</span>
-                <span>{pasada ? (s.recording_url ? <i className="status info">Grabación</i> : <i className="status neutral">Pasada</i>) : <i className="status success">Próxima</i>}</span>
+                <span>{pasada ? (alumnos.length ? <i className="status info">{presentes.size}/{alumnos.length} asistieron</i> : s.recording_url ? <i className="status info">Grabación</i> : <i className="status neutral">Pasada</i>) : <i className="status success">Próxima</i>}</span>
                 <span className="secondary sm">Editar</span>
               </summary>
               <div style={{ padding: '0 18px 18px', borderTop: '1px solid var(--line)' }}>
@@ -59,6 +61,26 @@ export default function GroupContent({ groupId, recursos, sesiones, acciones }) 
                   </div>
                   <button className="primary sm" type="submit">Guardar</button>
                 </form>
+                {acciones.marcarAsistencia && alumnos.length > 0 && (
+                  <div className="asistencia">
+                    <b>Asistencia · {presentes.size} de {alumnos.length}</b>
+                    <small>Se marca sola cuando entran con «Unirse a la clase». Toca un nombre para corregirla.</small>
+                    <div className="asistencia-lista">
+                      {alumnos.map((al) => {
+                        const vino = presentes.has(al.id)
+                        return (
+                          <form key={al.id} action={acciones.marcarAsistencia}>
+                            <input type="hidden" name="group_id" value={groupId} /><input type="hidden" name="session_id" value={s.id} />
+                            <input type="hidden" name="profile_id" value={al.id} /><input type="hidden" name="presente" value={vino ? '0' : '1'} />
+                            <button type="submit" className={`asist ${vino ? 'si' : ''}`} title={vino ? 'Quitar asistencia' : 'Marcar asistencia'}>
+                              <Icon name={vino ? 'check' : 'plus'} size={13} /> {al.nombre}
+                            </button>
+                          </form>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
                 <form action={acciones.eliminarSesion} style={{ marginTop: 8 }}>
                   <input type="hidden" name="id" value={s.id} /><input type="hidden" name="group_id" value={groupId} />
                   <button className="ghost sm" type="submit" style={{ color: 'var(--rose)' }}>Eliminar sesión</button>

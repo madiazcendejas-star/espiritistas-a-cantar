@@ -8,7 +8,7 @@ const fmt = (d, o) => new Date(d).toLocaleString('es-MX', { timeZone: TZ, ...o }
 
 // El botón "Unirse" se habilita automáticamente 15 minutos antes (PRD 5.2).
 // Se recalcula cada 20 segundos sin recargar la página.
-export default function LiveSessionCard({ session, courseTitle, groupName, ahoraServidor, verHref }) {
+export default function LiveSessionCard({ session, courseTitle, groupName, ahoraServidor, verHref, asistio }) {
   // Arranca con la hora del servidor para que el HTML inicial coincida, luego usa la del dispositivo.
   const [ahora, setAhora] = useState(ahoraServidor)
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function LiveSessionCard({ session, courseTitle, groupName, ahora
           <span className={`live-badge ${abierta ? 'pulse' : ''}`}><i /> EN VIVO{abierta && falta ? ` · ${falta.toUpperCase()}` : ''}</span>
         )}
         <h3>{session.title}</h3>
-        <p>{courseTitle}{groupName ? ` · ${groupName}` : ''}</p>
+        <p>{courseTitle}{groupName ? ` · ${groupName}` : ''}{pasada && asistio ? <> · <b style={{ color: 'var(--purple)' }}>✓ Asististe</b></> : null}</p>
       </div>
       <div className="live-time">
         <Icon name="calendar" />
@@ -62,7 +62,7 @@ export default function LiveSessionCard({ session, courseTitle, groupName, ahora
           <span className="secondary disabled">Sin grabación</span>
         )
       ) : abierta && session.meet_url ? (
-        <a className="primary" href={session.meet_url} target="_blank" rel="noopener noreferrer"><Icon name="video" size={18} /> Unirse a la clase en vivo</a>
+        <a className="primary" href={`/mi-espacio/clase/${session.id}`} target="_blank" rel="noopener noreferrer"><Icon name="video" size={18} /> Unirse a la clase en vivo</a>
       ) : abierta ? (
         <span className="secondary disabled">Enlace pendiente</span>
       ) : (

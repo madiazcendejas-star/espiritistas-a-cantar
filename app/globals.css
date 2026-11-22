@@ -862,3 +862,9 @@ a.table-row:hover{background:var(--surface-2)}
 }
 .ayuda-pagos{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);font-size:14px;color:var(--ink-2)}
 @media (max-width:760px){.ayuda-pagos .secondary{width:100%;justify-content:center}}
+.asistencia{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
+.asistencia b{display:block;font-size:14px;color:var(--ink-2)}
+.asistencia small{display:block;color:var(--muted);font-size:12px;margin:2px 0 10px}
+.asistencia-lista{display:flex;flex-wrap:wrap;gap:6px}
+.asist{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer}
+.asist.si{background:var(--purple-soft);border-color:var(--purple-line);color:var(--purple-dark)}

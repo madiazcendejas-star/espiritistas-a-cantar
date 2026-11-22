@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO } from '@/lib/admin'
+import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO, guardarAsistencia } from '@/lib/admin'
 import { hoyMx, sumarMeses } from '@/lib/format'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
@@ -681,4 +681,12 @@ export async function guardarAjustes(formData) {
   await audit(db, actor, 'ajustes', 'settings', 'whatsapp_ayuda')
   revalidatePath('/mi-espacio', 'layout')
   volver('/admin/ajustes', digitos ? 'Guardado. El botón de ayuda ya aparece.' : 'Guardado. El botón de ayuda quedó oculto.')
+}
+
+export async function marcarAsistencia(formData) {
+  const { profile: actor, db } = await requireAdmin()
+  const groupId = Number(formData.get('group_id'))
+  await guardarAsistencia(db, actor, formData)
+  revalidatePath(`/admin/grupos/${groupId}`)
+  volver(`/admin/grupos/${groupId}`, 'Asistencia actualizada.')
 }

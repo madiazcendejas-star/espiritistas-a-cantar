@@ -5,7 +5,7 @@ import Flash from '@/components/Flash'
 import GroupForm from '@/components/GroupForm'
 import GroupContent from '@/components/GroupContent'
 import { requireAdmin, nombreCompleto } from '@/lib/admin'
-import { agregarRecurso, eliminarRecurso, agregarSesion, actualizarSesion, eliminarSesion, asignarDocente, quitarDocente } from '../../actions'
+import { agregarRecurso, eliminarRecurso, agregarSesion, actualizarSesion, eliminarSesion, asignarDocente, quitarDocente, marcarAsistencia } from '../../actions'
 
 export const metadata = { title: 'Grupo' }
 
@@ -27,6 +27,9 @@ export default async function Grupo({ params, searchParams }) {
   const asignados = (asignadosRaw || []).map((a) => a.profiles).filter(Boolean)
   const ids = (inscr || []).filter((e) => e.status === 'activa').map((e) => e.profile_id)
   const { data: personas } = ids.length ? await db.from('profiles').select('id, matricula, first_name, last_name').in('id', ids).order('first_name') : { data: [] }
+  const sids = (sesiones || []).map((x) => x.id)
+  const { data: asistencias } = sids.length ? await db.from('attendance').select('session_id, profile_id').in('session_id', sids) : { data: [] }
+  const alumnos = (personas || []).map((x) => ({ id: x.id, nombre: nombreCompleto(x) }))
 
   return (
     <main className="page">
@@ -40,7 +43,7 @@ export default async function Grupo({ params, searchParams }) {
       </div>
       <Flash ok={sp?.ok} error={sp?.error} />
 
-      <GroupContent groupId={id} recursos={recursos} sesiones={sesiones} acciones={{ agregarRecurso, eliminarRecurso, agregarSesion, actualizarSesion, eliminarSesion }} />
+      <GroupContent groupId={id} recursos={recursos} sesiones={sesiones} alumnos={alumnos} asistencias={asistencias || []} acciones={{ agregarRecurso, eliminarRecurso, agregarSesion, actualizarSesion, eliminarSesion, marcarAsistencia }} />
 
       <DocentesAsignados groupId={g.id} asignados={asignados} docentes={docentes} />
 
