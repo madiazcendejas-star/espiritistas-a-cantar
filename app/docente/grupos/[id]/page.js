@@ -6,6 +6,7 @@ import GroupContent from '@/components/GroupContent'
 import { requireTeacher, puedeGestionarGrupo } from '@/lib/docente'
 import { nombreCompleto } from '@/lib/admin'
 import { fechaDia, hoyMx } from '@/lib/format'
+import { limitePausa } from '@/lib/ajustes'
 import { agregarRecursoDocente, eliminarRecursoDocente, agregarSesionDocente, actualizarSesionDocente, eliminarSesionDocente, emitirConstanciaDocente, marcarAsistenciaDocente } from '../../actions'
 
 export const metadata = { title: 'Grupo' }
@@ -25,7 +26,7 @@ export default async function GrupoDocente({ params, searchParams }) {
     db.from('group_resources').select('*').eq('group_id', id).order('created_at').order('id'),
     db.from('live_sessions').select('*').eq('group_id', id).order('starts_at'),
     db.from('enrollments').select('profile_id, enrolled_at, profiles(id, matricula, first_name, last_name)').eq('group_id', id).eq('status', 'activa'),
-    db.from('payments').select('profile_id').eq('group_id', id).eq('status', 'pendiente').lt('due_date', hoyMx()),
+    db.from('payments').select('profile_id').eq('group_id', id).eq('status', 'pendiente').lt('due_date', await limitePausa(db, hoyMx())),
     db.from('certificates').select('profile_id, folio').eq('group_id', id).is('revoked_at', null),
   ])
   const folioDe = new Map((certs || []).map((c) => [c.profile_id, c.folio]))

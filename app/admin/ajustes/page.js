@@ -8,7 +8,7 @@ export const metadata = { title: 'Ajustes' }
 export default async function Ajustes({ searchParams }) {
   const sp = await searchParams
   const { db } = await requireAdmin()
-  const a = await ajustes(db, ['whatsapp_ayuda'])
+  const a = await ajustes(db, ['whatsapp_ayuda', 'dias_tolerancia'])
   return (
     <main className="page" style={{ maxWidth: 860 }}>
       <div className="greeting">
@@ -24,6 +24,11 @@ export default async function Ajustes({ searchParams }) {
           <label>WhatsApp de ayuda (10 dígitos)</label>
           <input name="whatsapp_ayuda" inputMode="tel" defaultValue={a.whatsapp_ayuda || ''} placeholder="Ej. 5512345678" />
           <small className="muted" style={{ fontSize: 12 }}>Aparece como botón verde «¿Necesitas ayuda?» en el espacio de estudiantes y en las ligas de pago. El mensaje ya incluye su nombre y matrícula. Déjalo vacío para ocultarlo.</small>
+        </div>
+        <div className="field">
+          <label>Días de tolerancia antes de pausar el acceso</label>
+          <input name="dias_tolerancia" inputMode="numeric" defaultValue={a.dias_tolerancia ?? 3} style={{ maxWidth: 120 }} />
+          <small className="muted" style={{ fontSize: 12 }}>Si una cuota vence y no se paga, el acceso al curso se pausa después de estos días. 0 = el día siguiente al vencimiento.</small>
         </div>
         <button className="primary" type="submit">Guardar</button>
       </form>

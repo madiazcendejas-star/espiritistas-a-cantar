@@ -4,7 +4,7 @@ import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import GroupForm from '@/components/GroupForm'
 import { requireAdmin } from '@/lib/admin'
-import { money, fechaDia, MODALIDAD } from '@/lib/format'
+import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { guardarCurso, aprobarCurso, pedirCambiosCurso, guardarReparto } from '../../actions'
 import { nombreCompleto } from '@/lib/admin'
 
@@ -63,7 +63,7 @@ export default async function Curso({ params, searchParams }) {
         {(grupos || []).map((g) => (
           <Link key={g.id} href={`/admin/grupos/${g.id}`} className="admin-group">
             <span><b>{g.name}</b><small className="muted" style={{ display: 'block', fontSize: 12 }}>{MODALIDAD[g.modality] || g.modality}{g.schedule_text ? ` · ${g.schedule_text}` : ''}{g.starts_on ? ` · inicia ${fechaDia(g.starts_on)}` : ''}</small></span>
-            <span>{money(g.price_total)}{g.installments > 1 ? ` en ${g.installments} pagos` : ''}</span>
+            <span>{money(g.price_total)}{g.recurrence ? ` / ${RECURRENCIA[g.recurrence]}` : g.installments > 1 ? ` en ${g.installments} pagos` : ''}</span>
             <span>{n(g.id)} inscritos · {g.status === 'activo' ? <i className="status success">Activo</i> : <i className="status neutral">Inactivo</i>}</span>
             <span className="secondary sm">Materiales y sesiones <Icon name="chevron" size={14} /></span>
           </Link>

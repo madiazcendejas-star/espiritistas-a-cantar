@@ -123,7 +123,7 @@ export async function restablecerContrasena(formData) {
 // Inscripciones (accesos)
 // ---------------------------------------------------------------------
 async function inscribirInterno(db, actor, profileId, groupId, generarCuotas) {
-  const { data: g } = await db.from('course_groups').select('id, course_id, price_total, installments, frequency').eq('id', groupId).single()
+  const { data: g } = await db.from('course_groups').select('id, course_id, price_total, installments, frequency, recurrence').eq('id', groupId).single()
   const { data: existente } = await db.from('enrollments').select('id').eq('profile_id', profileId).eq('group_id', groupId).maybeSingle()
   if (existente) {
     await db.from('enrollments').update({ status: 'activa', drop_reason: null }).eq('id', existente.id)
@@ -153,6 +153,7 @@ async function inscribirInterno(db, actor, profileId, groupId, generarCuotas) {
         amount: monto,
         due_date: sumarMeses(hoy, i),
         status: 'pendiente',
+        ...(g.recurrence ? { notes: `Colegiatura ${g.recurrence}` } : {}),
       })
     }
     await db.from('payments').insert(filas)
@@ -299,11 +300,13 @@ export async function guardarGrupo(formData) {
     enrollment_fee: num(formData, 'enrollment_fee'),
     installments: Math.max(1, Math.round(num(formData, 'installments') || 1)),
     frequency: nullable(txt(formData, 'frequency')),
+    recurrence: ['semanal', 'quincenal', 'mensual'].includes(txt(formData, 'recurrence')) ? txt(formData, 'recurrence') : null,
     capacity: num(formData, 'capacity') || null,
     schedule_text: nullable(txt(formData, 'schedule_text')),
     whatsapp_url: nullable(txt(formData, 'whatsapp_url')),
     status: formData.get('status') === 'inactivo' ? 'inactivo' : 'activo',
   }
+  if (datos.recurrence) datos.installments = 1
   if (!datos.name) volver(idTxt ? `/admin/grupos/${idTxt}` : `/admin/cursos/${courseId}`, 'Escribe el nombre del grupo.', 'error')
   let id = Number(idTxt)
   if (id) {
@@ -677,10 +680,15 @@ export async function guardarAjustes(formData) {
   const { profile: actor, db } = await requireAdmin()
   const digitos = txt(formData, 'whatsapp_ayuda').replace(/\D/g, '')
   if (digitos && digitos.length !== 10 && digitos.length !== 12) volver('/admin/ajustes', 'Escribe el WhatsApp a 10 dígitos.', 'error')
-  await db.from('settings').upsert({ key: 'whatsapp_ayuda', value: digitos, updated_at: new Date().toISOString() }, { onConflict: 'key' })
-  await audit(db, actor, 'ajustes', 'settings', 'whatsapp_ayuda')
+  const dias = Math.max(0, Math.min(30, Math.round(num(formData, 'dias_tolerancia'))))
+  const ahora = new Date().toISOString()
+  await db.from('settings').upsert([
+    { key: 'whatsapp_ayuda', value: digitos, updated_at: ahora },
+    { key: 'dias_tolerancia', value: dias, updated_at: ahora },
+  ], { onConflict: 'key' })
+  await audit(db, actor, 'ajustes', 'settings', 'generales', { dias })
   revalidatePath('/mi-espacio', 'layout')
-  volver('/admin/ajustes', digitos ? 'Guardado. El botón de ayuda ya aparece.' : 'Guardado. El botón de ayuda quedó oculto.')
+  volver('/admin/ajustes', `Guardado. Tolerancia: ${dias} día${dias === 1 ? '' : 's'}.${digitos ? '' : ' El botón de ayuda quedó oculto.'}`)
 }
 
 export async function marcarAsistencia(formData) {
@@ -689,4 +697,13 @@ export async function marcarAsistencia(formData) {
   await guardarAsistencia(db, actor, formData)
   revalidatePath(`/admin/grupos/${groupId}`)
   volver(`/admin/grupos/${groupId}`, 'Asistencia actualizada.')
+}
+
+export async function generarColegiaturasAhora() {
+  const { profile: actor, db } = await requireAdmin()
+  const { correrColegiaturas } = await import('@/lib/colegiaturas')
+  const r = await correrColegiaturas(db)
+  await audit(db, actor, 'generar_colegiaturas', 'payments', 'manual', r)
+  revalidatePath('/admin/pagos')
+  volver('/admin/pagos?filtro=proximas', r.generadas ? `Se generaron ${r.generadas} cuota${r.generadas === 1 ? '' : 's'} de colegiatura y se avisó a ${r.avisos} persona${r.avisos === 1 ? '' : 's'}.` : 'No había colegiaturas por generar: todo está al día.')
 }

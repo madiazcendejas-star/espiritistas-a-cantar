@@ -22,10 +22,19 @@ export default function TeacherGroupForm({ courseId, g }) {
         <div className="field"><label>Cupo (opcional)</label><input name="capacity" inputMode="numeric" defaultValue={g?.capacity ?? ''} /></div>
       </div>
       <div className="grid3">
-        <div className="field"><label>Precio total (MXN)</label><input name="price_total" inputMode="decimal" required defaultValue={g?.price_total ?? ''} /></div>
-        <div className="field"><label>Número de pagos</label><input name="installments" inputMode="numeric" defaultValue={g?.installments ?? 1} /></div>
-        <div className="field"><label>Grupo de WhatsApp (opcional)</label><input name="whatsapp_url" defaultValue={g?.whatsapp_url || ''} placeholder="https://chat.whatsapp.com/…" /></div>
+        <div className="field">
+          <label>Forma de cobro</label>
+          <select name="recurrence" defaultValue={g?.recurrence || ''}>
+            <option value="">Precio total (uno o varios pagos)</option>
+            <option value="mensual">Colegiatura mensual</option>
+            <option value="quincenal">Colegiatura quincenal</option>
+            <option value="semanal">Colegiatura semanal</option>
+          </select>
+        </div>
+        <div className="field"><label>Precio (total, o por periodo)</label><input name="price_total" inputMode="decimal" required defaultValue={g?.price_total ?? ''} /></div>
+        <div className="field"><label>Número de pagos (no aplica a colegiaturas)</label><input name="installments" inputMode="numeric" defaultValue={g?.installments ?? 1} /></div>
       </div>
+      <div className="field"><label>Grupo de WhatsApp (opcional)</label><input name="whatsapp_url" defaultValue={g?.whatsapp_url || ''} placeholder="https://chat.whatsapp.com/…" /></div>
       <button className="primary" type="submit">{g ? 'Guardar grupo' : 'Agregar grupo'}</button>
     </form>
   )
