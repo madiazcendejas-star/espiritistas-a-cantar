@@ -2,39 +2,45 @@ import Link from 'next/link'
 import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import CourseCard from '@/components/CourseCard'
-import Icon from '@/components/Icon'
-import { getCatalog } from '@/lib/catalog'
-import { getTienda } from '@/lib/tienda'
 import ProductCard from '@/components/ProductCard'
+import Icon from '@/components/Icon'
+import { getCatalog, getPopulares, CATEGORIAS } from '@/lib/catalog'
+import { getTienda } from '@/lib/tienda'
 
 export const dynamic = 'force-dynamic'
+export const metadata = {
+  title: 'EAC Academia · Tu academia de desarrollo espiritual en línea',
+  description: 'Academia de artes espirituales en línea: espiritismo, tarot, oráculos, numerología, mancias, desarrollo espiritual y personal. Clases en vivo y grabadas.',
+}
 
+const intento = async (fn, porDefecto) => {
+  try {
+    return await fn()
+  } catch {
+    return porDefecto
+  }
+}
 
 export default async function Home() {
-  let destacados = []
-  let materiales = []
-  try {
-    destacados = (await getCatalog()).slice(0, 3)
-  } catch {
-    destacados = []
-  }
-  try {
-    materiales = (await getTienda()).slice(0, 4)
-  } catch {
-    materiales = []
-  }
+  const [catalogo, populares, materiales] = await Promise.all([
+    intento(() => getCatalog(), []),
+    intento(() => getPopulares(3), []),
+    intento(async () => (await getTienda()).slice(0, 4), []),
+  ])
+  const cuantos = (slug) => catalogo.filter((c) => (c.categories || []).includes(slug)).length
 
   return (
     <>
       <PublicHeader />
       <main className="pub-main">
-        <section className="hero">
+        {/* Portada */}
+        <section className="hero hero-v2">
           <div>
-            <span className="eyebrow">Escuela de artes holísticas</span>
-            <h1>Aprende, practica y transforma tu camino.</h1>
+            <span className="eyebrow">EAC Academia</span>
+            <h1>EAC, tu academia de desarrollo espiritual <span className="acento">en línea</span>.</h1>
             <p className="lead">
-              Cursos y talleres de tarot, sanación energética, cristales, meditación y más. Clases en vivo, lecciones
-              grabadas y materiales para descargar, desde tu celular o tu computadora.
+              Somos una academia de artes espirituales en línea que te impulsará a descubrir tu potencial interior y llevar tu
+              desarrollo personal y espiritual al siguiente nivel.
             </p>
             <div className="ctas">
               <Link href="/cursos" className="primary"><Icon name="book" size={18} /> Ver cursos</Link>
@@ -44,23 +50,76 @@ export default async function Home() {
           <div className="hero-art" aria-hidden="true">
             <div className="moon" />
             <span className="star">✦</span>
-            <small>RUTAS DE APRENDIZAJE</small>
-            <b>Conocimiento con estructura,<br />práctica con sentido.</b>
+            <div className="hero-orbita">
+              {CATEGORIAS.slice(0, 6).map((c) => <span key={c.slug}>{c.simbolo} {c.nombre}</span>)}
+            </div>
+            <small>CLASES EN VIVO · GRABACIONES · MATERIALES</small>
+            <b>Aprende a tu ritmo, acompañado por una comunidad.</b>
           </div>
         </section>
 
-        <section className="trust">
-          <div className="card"><span className="stat-icon"><Icon name="video" /></span><div><b>Clases en vivo</b><span>Te unes con un clic 15 minutos antes de cada sesión.</span></div></div>
-          <div className="card"><span className="stat-icon"><Icon name="file" /></span><div><b>Materiales siempre disponibles</b><span>Grabaciones, guías y manuales en tu espacio personal.</span></div></div>
-          <div className="card"><span className="stat-icon"><Icon name="card" /></span><div><b>Pagos locales</b><span>Tarjeta u OXXO, en un pago, a plazos o por colegiatura.</span></div></div>
+        {/* Categorías */}
+        <section className="home-bloque">
+          <div className="section-head" style={{ marginTop: 0 }}>
+            <div><span className="eyebrow">Explora por tema</span><h2>¿Qué te gustaría aprender?</h2></div>
+          </div>
+          <div className="categorias">
+            {CATEGORIAS.map((c) => {
+              const n = cuantos(c.slug)
+              return (
+                <Link key={c.slug} href={`/cursos?categoria=${c.slug}`} className="categoria">
+                  <span className="cat-simbolo">{c.simbolo}</span>
+                  <b>{c.nombre}</b>
+                  <small>{n ? `${n} curso${n === 1 ? '' : 's'}` : 'Próximamente'}</small>
+                </Link>
+              )
+            })}
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 22 }}>
+            <Link href="/cursos" className="primary"><Icon name="book" size={18} /> Ver cursos</Link>
+          </div>
         </section>
 
-        <div className="section-head">
-          <div><span className="eyebrow">Catálogo</span><h2>Cursos destacados</h2></div>
+        {/* Para cada etapa */}
+        <section className="para-ti">
+          <div className="para-ti-texto">
+            <span className="eyebrow">Un lugar para ti</span>
+            <h2>Para quienes apenas despiertan y para quienes buscan profundizar</h2>
+            <p>
+              En EAC Academia creemos que cada proceso es único. Si es tu primer acercamiento, encontrarás una guía clara,
+              aterrizada y libre de juicios; si ya recorres este camino, hallarás herramientas estructuradas para expandir tu
+              práctica. Aquí hay un lugar para ti.
+            </p>
+            <Link href="/cursos" className="primary">Explorar todos los cursos <Icon name="chevron" size={16} /></Link>
+          </div>
+          <div className="para-ti-tarjetas">
+            <div className="etapa">
+              <span className="etapa-n">01</span>
+              <b>Si es tu primer acercamiento</b>
+              <span>Cursos de nivel principiante, paso a paso y con acompañamiento.</span>
+            </div>
+            <div className="etapa">
+              <span className="etapa-n">02</span>
+              <b>Si ya recorres este camino</b>
+              <span>Formaciones intermedias y avanzadas para expandir tu práctica.</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Más populares */}
+        <div className="section-head populares-head">
+          <div>
+            <span className="eyebrow">Lo más elegido por nuestra comunidad</span>
+            <h2>Cursos más populares</h2>
+            <p className="muted" style={{ maxWidth: 640, margin: '6px 0 0' }}>
+              Las formaciones preferidas por nuestros alumnos para iniciar su camino espiritual o profundizar en su práctica
+              holística, con acceso inmediato y material descargable.
+            </p>
+          </div>
           <Link href="/cursos" className="text-link">Ver todos <Icon name="chevron" size={16} /></Link>
         </div>
-        {destacados.length ? (
-          <div className="catalog-grid">{destacados.map((c) => <CourseCard key={c.id} course={c} />)}</div>
+        {populares.length ? (
+          <div className="catalog-grid">{populares.map((c) => <CourseCard key={c.id} course={c} />)}</div>
         ) : (
           <div className="card empty-card"><Icon name="book" size={28} /><b>Muy pronto publicaremos el catálogo</b>Mientras tanto, si ya eres estudiante, entra a tu espacio.</div>
         )}

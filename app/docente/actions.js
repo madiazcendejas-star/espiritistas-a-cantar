@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { requireTeacher, puedeEditarCurso, puedeGestionarGrupo, esAdmin } from '@/lib/docente'
-import { audit, nextId, txt, num, nullable, guardarAsistencia } from '@/lib/admin'
+import { audit, nextId, txt, num, nullable, guardarAsistencia, camposCatalogo } from '@/lib/admin'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
 import { emitirConstancia } from '@/lib/constancias'
@@ -45,6 +45,7 @@ function datosCurso(formData) {
     duration_text: nullable(txt(formData, 'duration_text')),
     cover_url: cover && esUrl(cover) ? cover : null,
     modality: nullable(txt(formData, 'modality')),
+    ...camposCatalogo(formData),
   }
 }
 

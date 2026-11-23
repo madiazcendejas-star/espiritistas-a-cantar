@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import PublicHeader from '@/components/PublicHeader'
 import PublicFooter from '@/components/PublicFooter'
 import Icon from '@/components/Icon'
+import { NIVEL, modalidadTexto } from '@/lib/catalog'
 import { getCourse } from '@/lib/catalog'
 import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { getSessionProfile } from '@/lib/auth'
@@ -63,8 +64,11 @@ export default async function CursoDetalle({ params, searchParams }) {
             <div style={{ marginTop: 24 }}>
               <div className="chips">
                 {curso.is_upcoming && <span className="chip gold">Próximamente</span>}
-                {curso.modalidades.map((m) => <span key={m} className="chip">{MODALIDAD[m] || m}</span>)}
-                {curso.duration_text && <span className="chip">{curso.duration_text}</span>}
+                {curso.level && <span className="chip purple">Nivel: {NIVEL[curso.level]}</span>}
+                {modalidadTexto(curso.modalidades) && <span className="chip">{modalidadTexto(curso.modalidades)}</span>}
+                {curso.modules_count ? <span className="chip">{curso.modules_count} módulos</span> : curso.duration_text && <span className="chip">{curso.duration_text}</span>}
+                {curso.manual_pdf_url && <span className="chip">Manual PDF incluido</span>}
+                <span className="chip">Acceso de por vida</span>
               </div>
               <h1 style={{ fontWeight: 700, fontSize: 'clamp(28px,3vw,40px)', color: 'var(--ink-2)', margin: '12px 0' }}>{curso.title}</h1>
               {curso.description && <p className="prose">{curso.description}</p>}

@@ -7,6 +7,7 @@ import { requireAdmin } from '@/lib/admin'
 import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { guardarCurso, aprobarCurso, pedirCambiosCurso, guardarReparto } from '../../actions'
 import { nombreCompleto } from '@/lib/admin'
+import CamposCatalogo from '@/components/CamposCatalogo'
 
 export const metadata = { title: 'Curso' }
 
@@ -101,6 +102,7 @@ export default async function Curso({ params, searchParams }) {
         </div>
         <div className="field"><label>Descripción</label><textarea name="description" rows={4} defaultValue={c.description || ''} /></div>
         <div className="field"><label>Lo que aprenderás / temario</label><textarea name="what_you_learn" rows={4} defaultValue={c.what_you_learn || ''} /></div>
+        <CamposCatalogo c={c} />
         <div className="grid3">
           <div className="field"><label>Duración</label><input name="duration_text" defaultValue={c.duration_text || ''} placeholder="Ej. 8 semanas" /></div>
           <div className="field"><label>Imagen de portada (URL)</label><input name="cover_url" defaultValue={c.cover_url || ''} /></div>

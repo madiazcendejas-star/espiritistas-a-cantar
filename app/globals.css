@@ -878,3 +878,51 @@ body>.app-shell{flex:1 0 auto}
 .course-card .cover{height:168px}
 .course-card h3{min-height:2.5em}
 @media (min-width:761px){.ayuda-flotante{display:none}}
+
+/* Tarjeta de curso (catálogo e inicio) */
+.course-card .cover{height:176px}
+.course-card .cover-badge{position:absolute;top:12px;left:12px;background:#fff;color:var(--gold);font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;box-shadow:0 4px 10px rgba(0,0,0,.08)}
+.course-card .chips{min-height:24px;display:flex;flex-wrap:wrap;gap:6px}
+.course-card h3{min-height:0;font-size:18px}
+.course-card p.desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.9em;margin:0}
+.course-card .detalles{list-style:none;padding:0;margin:6px 0 0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted);font-weight:600}
+.course-card .detalles li{display:flex;align-items:center;gap:4px}
+.course-card .detalles svg{color:var(--purple)}
+.course-card .foot{border-top:1px solid var(--line);margin-top:auto;padding-top:14px}
+.course-card .price{display:flex;flex-wrap:wrap;align-items:baseline;gap:0 4px;font-size:20px;font-weight:700;color:var(--ink-2)}
+.course-card .price small{font-size:11px;color:var(--muted);font-weight:600}
+.course-card .price .desde{width:100%;font-size:11px}
+.course-card .price .nota{width:100%;font-size:11px}
+.course-card .text-link{white-space:nowrap}
+.chip.purple{background:var(--purple-soft);color:var(--purple-dark);border-color:var(--purple-line)}
+
+/* Inicio v2 */
+.hero-v2 h1 .acento{color:var(--purple)}
+.hero-orbita{position:absolute;top:96px;left:34px;right:34px;display:flex;flex-wrap:wrap;gap:8px}
+.hero-orbita span{font-size:12px;font-weight:600;color:#efe7ff;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);padding:6px 12px;border-radius:999px}
+.home-bloque{margin-top:8px}
+.categorias{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.categoria{display:flex;flex-direction:column;gap:6px;padding:20px;border-radius:20px;background:var(--surface);border:1px solid var(--line);transition:transform .15s,box-shadow .15s,border-color .15s}
+.categoria:hover{transform:translateY(-2px);border-color:var(--purple-line);box-shadow:0 14px 30px rgba(110,63,195,.12)}
+.cat-simbolo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;color:var(--purple);background:var(--purple-soft);margin-bottom:6px}
+.categoria b{font-size:15px;color:var(--ink-2);line-height:1.25}
+.categoria small{font-size:12px;color:var(--muted);font-weight:600}
+.para-ti{display:grid;grid-template-columns:1.2fr 1fr;gap:28px;align-items:center;margin:56px 0 0;padding:36px;border-radius:26px;background:linear-gradient(135deg,#f3eefb,#fff 70%);border:1px solid var(--purple-line)}
+.para-ti h2{font-weight:700;font-size:clamp(24px,3vw,32px);line-height:1.15;color:var(--ink-2);margin:8px 0 12px}
+.para-ti p{color:var(--muted);font-size:15px;margin:0 0 20px;max-width:560px}
+.para-ti-tarjetas{display:flex;flex-direction:column;gap:12px}
+.etapa{display:flex;flex-direction:column;gap:4px;padding:18px 20px;border-radius:18px;background:#fff;border:1px solid var(--line);box-shadow:0 8px 20px rgba(45,25,59,.05)}
+.etapa-n{font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.1em}
+.etapa b{font-size:16px;color:var(--ink-2)}
+.etapa span:last-child{color:var(--muted);font-size:13px}
+.populares-head{align-items:flex-end}
+@media (max-width:980px){.categorias{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:760px){
+  .categorias{gap:10px}
+  .categoria{padding:16px;border-radius:18px}
+  .para-ti{grid-template-columns:1fr;padding:24px;margin-top:40px}
+  .hero-orbita{top:80px;left:22px;right:22px}
+}
+.filtro-categorias{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin:-6px 0 18px;scrollbar-width:thin}
+.filtro-categorias a{flex-shrink:0;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
+.filtro-categorias a.activa,.filtro-categorias a:hover{background:var(--purple-soft);border-color:var(--purple-line);color:var(--purple-dark)}

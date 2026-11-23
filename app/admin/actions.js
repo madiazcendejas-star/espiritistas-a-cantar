@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO, guardarAsistencia } from '@/lib/admin'
+import { requireAdmin, audit, nextId, txt, num, nullable, DOMINIO_CORREO_TECNICO, guardarAsistencia, camposCatalogo } from '@/lib/admin'
 import { hoyMx, sumarMeses } from '@/lib/format'
 import { enviarAviso } from '@/lib/correo'
 import { urlDelSitio } from '@/lib/sitio'
@@ -270,6 +270,7 @@ export async function guardarCurso(formData) {
     is_visible: formData.get('is_visible') === 'on',
     is_upcoming: formData.get('is_upcoming') === 'on',
     is_featured: formData.get('is_featured') === 'on',
+    ...camposCatalogo(formData),
   }
   if (!datos.title) volver(idTxt ? `/admin/cursos/${idTxt}` : '/admin/cursos', 'Escribe el nombre del curso.', 'error')
   let id = Number(idTxt)

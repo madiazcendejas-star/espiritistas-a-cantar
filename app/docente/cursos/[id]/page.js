@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import TeacherGroupForm from '@/components/TeacherGroupForm'
+import CamposCatalogo from '@/components/CamposCatalogo'
 import { requireTeacher, esAdmin, ESTADO_CURSO, porcentajeGeneral } from '@/lib/docente'
 import { money, fechaDia, MODALIDAD, RECURRENCIA } from '@/lib/format'
 import { guardarCursoDocente, enviarARevision, eliminarGrupoDocente } from '../../actions'
@@ -116,6 +117,7 @@ export default async function CursoDocente({ params, searchParams }) {
               </div>
               <div className="field"><label>Descripción</label><textarea name="description" rows={4} defaultValue={c.description || ''} /></div>
               <div className="field"><label>Temario / lo que aprenderán</label><textarea name="what_you_learn" rows={5} defaultValue={c.what_you_learn || ''} /></div>
+              <CamposCatalogo c={c} />
               <div className="grid2">
                 <div className="field"><label>Duración</label><input name="duration_text" defaultValue={c.duration_text || ''} /></div>
                 <div className="field"><label>Imagen de portada (enlace)</label><input name="cover_url" type="url" defaultValue={c.cover_url || ''} /></div>

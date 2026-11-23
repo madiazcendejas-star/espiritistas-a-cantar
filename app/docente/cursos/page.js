@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
+import CamposCatalogo from '@/components/CamposCatalogo'
 import { requireTeacher, cursosDelDocente, ESTADO_CURSO } from '@/lib/docente'
 import { crearCursoDocente } from '../actions'
 
@@ -51,6 +52,7 @@ export default async function MisCursosDocente({ searchParams }) {
         </div>
         <div className="field"><label>Descripción</label><textarea name="description" rows={4} placeholder="¿De qué trata? ¿Para quién es?" /></div>
         <div className="field"><label>Temario / lo que aprenderán</label><textarea name="what_you_learn" rows={4} placeholder="Un tema por línea" /></div>
+        <CamposCatalogo />
         <div className="grid2">
           <div className="field"><label>Duración</label><input name="duration_text" placeholder="Ej. 6 semanas" /></div>
           <div className="field"><label>Imagen de portada (enlace, opcional)</label><input name="cover_url" type="url" placeholder="https://…" /></div>
