@@ -12,7 +12,7 @@ export const metadata = {
 
 const BENEFICIOS = [
   ['users', 'Una comunidad que ya aprende con nosotros', 'Llega a estudiantes interesados en desarrollo espiritual y terapias alternativas.'],
-  ['card', 'Cobros resueltos', 'Tarjeta, SPEI y OXXO en pesos mexicanos. Tú no persigues pagos ni comprobantes.'],
+  ['card', 'Cobros resueltos', 'Tarjeta y OXXO en pesos mexicanos. Tú no persigues pagos ni comprobantes.'],
   ['video', 'Aulas listas', 'Clases en vivo con enlace de Meet, lecciones grabadas protegidas y materiales en PDF.'],
   ['chart', 'Ventas transparentes', 'Ve en tiempo real tus inscripciones, ventas y saldo por liquidar.'],
 ]

@@ -28,7 +28,7 @@ export default function StudentShell({ profile, ayuda, children }) {
             <Icon name="spark" size={24} />
             <b>¿Necesitas ayuda?</b>
             <span>Estamos para acompañarte en cada paso.</span>
-            <Link href="/mi-espacio/perfil#ayuda">Centro de ayuda</Link>
+            {ayuda ? <a href={ayuda} target="_blank" rel="noopener noreferrer">Escríbenos por WhatsApp</a> : <Link href="/mi-espacio/perfil#ayuda">Centro de ayuda</Link>}
           </div>
         </div>
       </aside>

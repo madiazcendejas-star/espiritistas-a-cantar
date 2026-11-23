@@ -868,3 +868,13 @@ a.table-row:hover{background:var(--surface-2)}
 .asistencia-lista{display:flex;flex-wrap:wrap;gap:6px}
 .asist{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);color:var(--muted);font-size:13px;font-weight:600;cursor:pointer}
 .asist.si{background:var(--purple-soft);border-color:var(--purple-line);color:var(--purple-dark)}
+
+/* Ajustes de diseño: pie de página al fondo, tarjetas alineadas, ayuda sin duplicar */
+body{min-height:100vh;display:flex;flex-direction:column}
+body>.app-shell{flex:1 0 auto}
+.pub-main{width:100%;margin:0 auto;flex:1 0 auto}
+.pub-footer{flex-shrink:0}
+.course-card .chips{min-height:24px}
+.course-card .cover{height:168px}
+.course-card h3{min-height:2.5em}
+@media (min-width:761px){.ayuda-flotante{display:none}}

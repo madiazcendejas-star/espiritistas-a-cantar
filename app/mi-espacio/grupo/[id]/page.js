@@ -21,7 +21,7 @@ export default async function Grupo({ params, searchParams }) {
   if (!data) notFound()
   const { grupo, curso, pausado, items, sesiones } = data
 
-  const vencidas = pausado ? (await getPagos(supabase)).filter((p) => p.vencido && String(p.group_id) === String(id)) : []
+  const vencidas = pausado ? (await getPagos(supabase, profile.id)).filter((p) => p.vencido && String(p.group_id) === String(id)) : []
   const ahora = Date.now()
   const proximas = sesiones.filter((s) => new Date(s.starts_at).getTime() > ahora - 90 * 60000)
   const pasadas = sesiones.filter((s) => new Date(s.starts_at).getTime() <= ahora - 90 * 60000).reverse()

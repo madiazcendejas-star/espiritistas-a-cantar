@@ -19,13 +19,15 @@ const ESTADO = {
 export default async function Pagos({ searchParams }) {
   const { error } = await searchParams
   let ayuda = null
+  let tolerancia = 3
   try {
     const { profile } = await getSessionProfile()
-    const { whatsapp_ayuda } = await ajustes(createAdminClient(), ['whatsapp_ayuda'])
+    const { whatsapp_ayuda, dias_tolerancia } = await ajustes(createAdminClient(), ['whatsapp_ayuda', 'dias_tolerancia'])
+    if (Number.isFinite(Number(dias_tolerancia))) tolerancia = Number(dias_tolerancia)
     ayuda = waMe(whatsapp_ayuda, `Hola, soy ${profile?.first_name || ''} (matrícula ${profile?.matricula || ''}). Tengo una duda sobre mis pagos.`)
   } catch {}
-  const { supabase } = await getSessionProfile()
-  const [pagos, grupos] = await Promise.all([getPagos(supabase), getMisGrupos(supabase)])
+  const { supabase, profile: yo } = await getSessionProfile()
+  const [pagos, grupos] = await Promise.all([getPagos(supabase, yo?.id), getMisGrupos(supabase)])
   const curso = (p) => grupos.find((g) => g.group_id === p.group_id)?.curso.title || 'Curso'
   const pendientes = pagos.filter((p) => p.status === 'pendiente')
   const vencidos = pendientes.filter((p) => p.vencido)
@@ -52,7 +54,7 @@ export default async function Pagos({ searchParams }) {
       {vencidos.length > 0 && (
         <div className="notice warn" style={{ marginBottom: 8 }}>
           <Icon name="info" />
-          <span>Tienes {vencidos.length === 1 ? 'una cuota vencida' : `${vencidos.length} cuotas vencidas`}. Al pagarla, tu acceso se reactiva en automático.</span>
+          <span>Tienes {vencidos.length === 1 ? 'una cuota vencida' : `${vencidos.length} cuotas vencidas`}. {tolerancia > 0 ? `Tu acceso se pausa ${tolerancia} día${tolerancia === 1 ? '' : 's'} después del vencimiento; ` : ''}al pagar, se reactiva en automático.</span>
         </div>
       )}
 

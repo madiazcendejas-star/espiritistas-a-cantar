@@ -18,7 +18,8 @@ function saludo() {
 export default async function MiEspacio() {
   const { supabase, profile, user } = await getSessionProfile()
   const sinCorreo = esCorreoTecnico(profile.email)
-  const [grupos, sesiones, pagos] = await Promise.all([getMisGrupos(supabase), getProximasSesiones(supabase, 3), getPagos(supabase)])
+  const [grupos, pagos] = await Promise.all([getMisGrupos(supabase), getPagos(supabase, profile.id)])
+  const sesiones = await getProximasSesiones(supabase, 3, grupos.filter((g) => g.access_state === 'activo').map((g) => g.group_id))
   const principal = grupos.find((g) => g.access_state === 'activo') || grupos[0]
   const pausados = grupos.filter((g) => g.access_state === 'pausado')
   const vencidos = pagos.filter((p) => p.vencido)

@@ -7,7 +7,9 @@ export const metadata = { title: 'Sesiones en vivo' }
 
 export default async function Vivo() {
   const { supabase } = await getSessionProfile()
-  const [grupos, proximas, pasadas] = await Promise.all([getMisGrupos(supabase), getProximasSesiones(supabase, 30), getSesionesPasadas(supabase, 20)])
+  const grupos = await getMisGrupos(supabase)
+  const ids = grupos.filter((g) => g.access_state === 'activo').map((g) => g.group_id)
+  const [proximas, pasadas] = await Promise.all([getProximasSesiones(supabase, 30, ids), getSesionesPasadas(supabase, 20, ids)])
   const de = (gid) => grupos.find((g) => g.group_id === gid)
   const ahora = Date.now()
   const pausados = grupos.filter((g) => g.access_state === 'pausado')
